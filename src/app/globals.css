@@ -1,0 +1,42 @@
+@import "tailwindcss";
+@import "../../styles/tokens.css";
+
+@theme {
+  --color-bg: var(--bg);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-fg: var(--fg);
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-blue: var(--blue);
+  --color-violet: var(--violet);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+
+  --font-sans: var(--sans, "Space Grotesk", sans-serif);
+  --font-body: var(--body, "Inter", sans-serif);
+  --font-mono: var(--mono, "JetBrains Mono", monospace);
+
+  --radius-card: var(--radius, 14px);
+  --radius-card-lg: var(--radius-lg, 20px);
+  --radius-card-sm: var(--radius-sm, 8px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--body, Inter, sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
