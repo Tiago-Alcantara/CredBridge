@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -22,20 +20,47 @@
 
 # misc
 .DS_Store
-*.pem
+Thumbs.db
 
-# debug
+# env files — never commit real secrets
+.env
+.env.*
+!.env.*.example
+!.env.example
+
+# certificates & private keys
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.cer
+
+# debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
+pnpm-debug.log*
+*.log
 
 # vercel
 .vercel
 
-# typescript
+# typescript build artifacts
 *.tsbuildinfo
 next-env.d.ts
+
+# editor & OS noise
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# AI assistant internal files
+.claude/
+docs/superpowers/
+CLAUDE.md
+AGENTS.md
