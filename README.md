@@ -18,34 +18,107 @@ Monorepo gerenciado por **npm workspaces** com três pacotes:
 
 ```
 CredBridge/
+├── .env.example                          # variáveis de ambiente compartilhadas (template)
+├── .gitignore
+├── package.json                          # raiz do monorepo (npm workspaces + scripts)
+├── package-lock.json                     # lockfile único do monorepo
+├── README.md
+├── AGENTS.md                             # instruções para agentes (LLMs) que tocarem o repo
+├── CLAUDE.md                             # instruções específicas para o Claude Code
+├── docs/                                 # planos de implementação e docs de processo
+│   └── superpowers/plans/                # planos versionados (formato superpowers)
+├── documentacao/                         # documentação de produto (PT-BR)
+│   ├── estrutura.md
+│   ├── nota-fiscal-blockchain-flow.png
+│   └── Preference - Coding Style.md
+│
 ├── apps/
-│   ├── web/                      # Next.js 16 frontend
-│   └── api/                      # NestJS 10 backend
-│       ├── prisma/               # schema Prisma + migrations
-│       ├── prisma.config.ts      # config Prisma 7 (datasource, paths)
+│   │
+│   ├── web/                              # @credbridge/web — Next.js 16 frontend
+│   │   ├── package.json                  # name: @credbridge/web
+│   │   ├── next.config.ts
+│   │   ├── tsconfig.json
+│   │   ├── postcss.config.mjs            # config PostCSS para Tailwind v4
+│   │   ├── eslint.config.mjs
+│   │   ├── .env.local.example            # template de envs do frontend (NEXT_PUBLIC_*)
+│   │   ├── public/                       # assets estáticos servidos como /
+│   │   ├── styles/
+│   │   │   └── tokens.css                # design tokens (fonte da verdade visual)
+│   │   └── src/
+│   │       ├── app/                      # App Router do Next 16
+│   │       │   ├── layout.tsx            # root layout
+│   │       │   ├── globals.css
+│   │       │   ├── favicon.ico
+│   │       │   ├── (marketing)/          # rota agrupada — landing pública
+│   │       │   │   └── page.tsx
+│   │       │   ├── (auth)/               # rota agrupada — login + onboarding
+│   │       │   │   ├── layout.tsx
+│   │       │   │   ├── login/page.tsx
+│   │       │   │   └── onboarding/page.tsx
+│   │       │   ├── (pme)/                # rota agrupada — dashboard PME
+│   │       │   │   ├── layout.tsx
+│   │       │   │   └── pme/dashboard/page.tsx
+│   │       │   ├── (investor)/           # rota agrupada — dashboard Investidor
+│   │       │   │   ├── layout.tsx
+│   │       │   │   └── investor/dashboard/page.tsx
+│   │       │   └── (partner)/            # rota agrupada — dashboard Parceiro
+│   │       │       ├── layout.tsx
+│   │       │       └── partner/dashboard/page.tsx
+│   │       ├── components/
+│   │       │   ├── primitives/           # átomos reutilizáveis (Icon, Logo, StatusBadge)
+│   │       │   ├── patterns/             # padrões compostos (Sidebar, TopNav, AppTopBar, Timeline, MiniKpi)
+│   │       │   ├── auth/                 # KycFlow, LoginBG, StellarAuth
+│   │       │   ├── marketing/            # HeroNetwork, Audiences, HowItWorks, StatsBar, LandingFooter
+│   │       │   ├── pme/                  # InvoiceTable, PipelineCard, PipelineCol, UploadZone, YieldSpark
+│   │       │   ├── investor/             # NavChart, ShareCard
+│   │       │   └── partner/              # TrafficChart
+│   │       ├── hooks/                    # hooks reutilizáveis (useTheme, etc.)
+│   │       ├── lib/
+│   │       │   ├── api/                  # clientes HTTP por domínio (receivables, documents, settlements, audit)
+│   │       │   ├── i18n/                 # traduções PT/EN + useTranslation
+│   │       │   ├── validations/          # schemas Zod por domínio
+│   │       │   └── format.ts             # helpers de formatação (moeda, datas)
+│   │       ├── providers/                # QueryProvider (TanStack Query)
+│   │       └── types/
+│   │           ├── index.ts              # tipos locais do frontend
+│   │           └── shared.ts             # re-export dos tipos do @credbridge/types
+│   │
+│   └── api/                              # @credbridge/api — NestJS 10 backend
+│       ├── package.json                  # name: @credbridge/api (postinstall: prisma generate)
+│       ├── nest-cli.json
+│       ├── tsconfig.json
+│       ├── tsconfig.build.json
+│       ├── eslint.config.mjs
+│       ├── prisma.config.ts              # config Prisma 7 (datasource, migrations path)
+│       ├── prisma/
+│       │   └── schema.prisma             # modelos: Receivable, Document, Settlement, AuditLog
+│       ├── test/                         # testes e2e (Jest)
 │       └── src/
-│           ├── main.ts           # bootstrap, prefix /v1, port 3001
-│           ├── app.module.ts     # raiz: importa todos módulos
-│           ├── shared/           # serviços globais (DI por token)
-│           │   ├── prisma/       # PrismaService + PrismaModule (pg adapter)
-│           │   ├── blockchain/   # BlockchainService → StellarService
-│           │   ├── storage/      # StorageService → S3Service
-│           │   ├── kyc/          # KycService → KycProviderService
-│           │   └── payments/     # PaymentsService → PixService
-│           └── modules/          # business modules
-│               ├── receivables/  # controller + service + repo + DTO
-│               ├── documents/    # controller + service + repo + DTO
-│               ├── settlements/  # controller + service + repo + DTO
-│               ├── audit/        # service polimórfico (entity-agnostic)
-│               └── auth/         # SEP-10 stellar challenge/verify
+│           ├── main.ts                   # bootstrap, setGlobalPrefix('v1'), porta 3001
+│           ├── app.module.ts             # raiz: importa ConfigModule + todos módulos shared/business
+│           ├── shared/                   # serviços globais (DI por token Symbol)
+│           │   ├── prisma/               # PrismaService + PrismaModule (Prisma 7 + adapter pg)
+│           │   ├── blockchain/           # interface + StellarService stub + BlockchainModule
+│           │   ├── storage/              # interface + S3Service stub + StorageModule
+│           │   ├── kyc/                  # interface + KycProviderService stub + KycModule
+│           │   └── payments/             # interface + PixService stub + PaymentsModule
+│           └── modules/                  # business modules (controller → service → repository)
+│               ├── receivables/          # CRUD básico + DTO (CreateReceivableDto)
+│               ├── documents/            # registro metadado + DTO (CreateDocumentDto)
+│               ├── settlements/          # CRUD básico + DTO (CreateSettlementDto)
+│               ├── audit/                # AuditService polimórfico (entityType/entityId)
+│               └── auth/                 # SEP-10 stellar challenge/verify (stub)
+│
 └── packages/
-    └── types/                    # @credbridge/types
+    └── types/                            # @credbridge/types — tipos compartilhados
+        ├── package.json                  # name: @credbridge/types (build → dist)
+        ├── tsconfig.json
         └── src/
-            ├── receivable.ts
-            ├── settlement.ts
-            ├── investor.ts
-            ├── document.ts
-            └── index.ts
+            ├── receivable.ts             # Receivable, ReceivableStatus, ReceivableType, CreateReceivableInput
+            ├── settlement.ts             # Settlement, SettlementStatus, SettlementMethod, CreateSettlementInput
+            ├── investor.ts               # Investor
+            ├── document.ts               # Document, DocumentType, UploadDocumentInput
+            └── index.ts                  # barrel: re-exporta tudo
 ```
 
 ---
@@ -130,29 +203,35 @@ Após o `npm run dev`:
 
 ```bash
 npm run dev          # roda web + api em paralelo (concurrently)
-npm run dev:web      # apenas frontend
-npm run dev:api      # apenas backend
+npm run dev:web      # apenas frontend (Next.js em :3000)
+npm run dev:api      # apenas backend (NestJS em :3001)
 npm run build:types  # builda packages/types → dist/
-npm run build        # builda types → web → api
+npm run build:web    # builda types + apps/web (usado pelo deploy Vercel)
+npm run build:api    # builda types + apps/api (prisma generate + nest build)
+npm run build        # alias de build:web (escopo do deploy Vercel)
 npm run lint         # lint em web + api
 ```
+
+> **Por que `build` é só web?** O deploy Vercel roda `npm run build` na raiz. NestJS não roda em ambiente Vercel — o backend deve ir para Railway/Fly/Render. Para buildar a API local ou em CI próprio, use `npm run build:api`.
 
 ### Scripts por workspace
 
 ```bash
-# Frontend
-npm run build -w apps/web
-npm run start -w apps/web
+# Frontend (apps/web)
+npm run build -w apps/web    # next build
+npm run start -w apps/web    # next start (build de produção)
 npm run lint -w apps/web
 
-# Backend
-npm run build -w apps/api
-npm run start -w apps/api
-npm run start:prod -w apps/api
+# Backend (apps/api)
+npm run build -w apps/api    # prisma generate && nest build
+npm run start -w apps/api    # nest start
+npm run start:prod -w apps/api  # node dist/main (produção)
+npm run test -w apps/api     # jest
+npm run test:e2e -w apps/api # jest e2e
 
-# Tipos compartilhados
-npm run build -w packages/types
-npm run dev -w packages/types   # tsc --watch
+# Tipos compartilhados (packages/types)
+npm run build -w packages/types  # tsc → dist/
+npm run dev -w packages/types    # tsc --watch
 ```
 
 ---
