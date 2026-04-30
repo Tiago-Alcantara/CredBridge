@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Receivable {
+  id           String   @id @default(uuid())
+  userId       String
+  value        Float
+  type         String
+  status       String   @default("pending")
+  documentHash String?
+  txHash       String?
+  dueDate      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  documents    Document[]
+  settlements  Settlement[]
+}
+
+model Document {
+  id           String     @id @default(uuid())
+  receivableId String
+  url          String
+  hash         String
+  type         String
+  uploadedAt   DateTime   @default(now())
+
+  receivable   Receivable @relation(fields: [receivableId], references: [id])
+}
+
+model Settlement {
+  id             String     @id @default(uuid())
+  receivableId   String
+  amount         Float
+  method         String
+  status         String     @default("pending")
+  txHash         String?
+  stellarTxHash  String?
+  settledAt      DateTime?
+  createdAt      DateTime   @default(now())
+
+  receivable     Receivable @relation(fields: [receivableId], references: [id])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  event        String
+  entityId     String
+  entityType   String
+  userId       String
+  txHash       String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([entityId, entityType])
+  @@index([userId])
+}
