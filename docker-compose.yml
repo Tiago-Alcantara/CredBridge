@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: credbridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-credbridge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-credbridge}
+      POSTGRES_DB: ${POSTGRES_DB:-credbridge}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - credbridge-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-credbridge} -d ${POSTGRES_DB:-credbridge}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  credbridge-db-data:
