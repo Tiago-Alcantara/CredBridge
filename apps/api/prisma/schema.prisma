@@ -7,19 +7,21 @@ datasource db {
 }
 
 model Receivable {
-  id           String   @id @default(uuid())
-  userId       String
-  value        Float
-  type         String
-  status       String   @default("pending")
-  documentHash String?
-  txHash       String?
-  dueDate      DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  userId         String
+  value          Float
+  type           String
+  status         String   @default("pending")
+  debtorName     String
+  debtorDocument String
+  documentHash   String?
+  txHash         String?
+  dueDate        DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  documents    Document[]
-  settlements  Settlement[]
+  documents      Document[]
+  settlements    Settlement[]
 }
 
 model Document {
@@ -28,7 +30,7 @@ model Document {
   url          String
   hash         String
   type         String
-  uploadedAt   DateTime   @default(now())
+  createdAt    DateTime   @default(now())
 
   receivable   Receivable @relation(fields: [receivableId], references: [id])
 }
@@ -45,6 +47,14 @@ model Settlement {
   createdAt      DateTime   @default(now())
 
   receivable     Receivable @relation(fields: [receivableId], references: [id])
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("pme")
+  createdAt    DateTime @default(now())
 }
 
 model AuditLog {

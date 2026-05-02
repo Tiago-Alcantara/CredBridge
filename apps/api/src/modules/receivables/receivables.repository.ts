@@ -12,13 +12,15 @@ export class ReceivablesRepository {
         userId: data.userId,
         value: data.value,
         type: data.type,
+        debtorName: data.debtorName,
+        debtorDocument: data.debtorDocument,
         dueDate: new Date(data.dueDate),
       },
     });
   }
 
   async findAll() {
-    return this.prisma.receivable.findMany();
+    return this.prisma.receivable.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
   async findOne(id: string) {

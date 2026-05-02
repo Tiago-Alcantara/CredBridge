@@ -1,4 +1,4 @@
-export type ReceivableStatus = 'pending' | 'validated' | 'settled' | 'defaulted';
+export type ReceivableStatus = 'pending' | 'validated' | 'active' | 'settled' | 'defaulted';
 export type ReceivableType = 'invoice' | 'duplicate' | 'contract';
 
 export interface Receivable {
@@ -7,6 +7,8 @@ export interface Receivable {
   value: number;
   type: ReceivableType;
   status: ReceivableStatus;
+  debtorName: string;
+  debtorDocument: string;
   documentHash?: string;
   txHash?: string;
   dueDate: string;
@@ -18,5 +20,7 @@ export interface CreateReceivableInput {
   userId: string;
   value: number;
   type: ReceivableType;
+  debtorName: string;
+  debtorDocument: string;
   dueDate: string;
 }

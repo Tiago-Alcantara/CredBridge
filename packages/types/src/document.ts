@@ -6,7 +6,7 @@ export interface Document {
   url: string;
   hash: string;
   type: DocumentType;
-  uploadedAt: string;
+  createdAt: string;
 }
 
 export interface UploadDocumentInput {
@@ -14,4 +14,11 @@ export interface UploadDocumentInput {
   type: DocumentType;
   file: Buffer;
   filename: string;
+}
+
+export interface RegisterDocumentInput {
+  receivableId: string;
+  type: DocumentType;
+  url: string;
+  hash: string;
 }

@@ -3,11 +3,7 @@ import type { DocumentType } from '@credbridge/types';
 
 const DOCUMENT_TYPES: DocumentType[] = ['invoice', 'contract', 'duplicate', 'kyc'];
 
-export class CreateDocumentDto {
-  @IsString()
-  @MinLength(1)
-  receivableId!: string;
-
+export class CreateNestedDocumentDto {
   @IsIn(DOCUMENT_TYPES)
   type!: DocumentType;
 

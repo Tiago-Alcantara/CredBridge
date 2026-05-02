@@ -10,6 +10,10 @@ export class SettlementsRepository {
     return this.prisma.settlement.create({ data });
   }
 
+  async findAll() {
+    return this.prisma.settlement.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
   async findByReceivable(receivableId: string) {
     return this.prisma.settlement.findMany({ where: { receivableId } });
   }

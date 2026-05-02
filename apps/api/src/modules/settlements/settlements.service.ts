@@ -10,6 +10,10 @@ export class SettlementsService {
     return this.repo.create(data);
   }
 
+  async findAll() {
+    return this.repo.findAll();
+  }
+
   async findByReceivable(receivableId: string) {
     return this.repo.findByReceivable(receivableId);
   }

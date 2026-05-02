@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Receivable } from "@/types";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Receivable, CreateReceivableInput } from "@credbridge/types";
+import { apiFetch } from "./client";
 
 export const receivableQueryKeys = {
   all: ["receivables"] as const,
@@ -11,22 +10,25 @@ export const receivableQueryKeys = {
 export function useReceivables() {
   return useQuery<Receivable[]>({
     queryKey: receivableQueryKeys.all,
-    queryFn: async () => {
-      const response = await fetch(`${API_URL}/v1/receivables`);
-      if (!response.ok) throw new Error("Erro ao buscar recebíveis");
-      return response.json() as Promise<Receivable[]>;
-    },
+    queryFn: () => apiFetch<Receivable[]>("/receivables"),
   });
 }
 
 export function useReceivable(id: string) {
   return useQuery<Receivable>({
     queryKey: receivableQueryKeys.detail(id),
-    queryFn: async () => {
-      const response = await fetch(`${API_URL}/v1/receivables/${id}`);
-      if (!response.ok) throw new Error("Recebível não encontrado");
-      return response.json() as Promise<Receivable>;
-    },
+    queryFn: () => apiFetch<Receivable>(`/receivables/${id}`),
     enabled: !!id,
+  });
+}
+
+export function useCreateReceivable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateReceivableInput) =>
+      apiFetch<Receivable>("/receivables", { method: "POST", body: input }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+    },
   });
 }

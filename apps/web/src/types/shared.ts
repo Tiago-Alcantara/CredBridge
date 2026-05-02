@@ -1,1 +1,16 @@
-export type { Receivable, Settlement, Investor, Document } from '@credbridge/types';
+export type {
+  Receivable,
+  ReceivableStatus,
+  ReceivableType,
+  CreateReceivableInput,
+  Document,
+  DocumentType,
+  RegisterDocumentInput,
+  Settlement,
+  SettlementStatus,
+  SettlementMethod,
+  CreateSettlementInput,
+  Investor,
+  AuditEvent,
+  AuditEntityType,
+} from '@credbridge/types';

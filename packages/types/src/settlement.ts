@@ -1,5 +1,5 @@
 export type SettlementStatus = 'pending' | 'completed' | 'failed';
-export type SettlementMethod = 'pix' | 'ted';
+export type SettlementMethod = 'pix' | 'ted' | 'stellar';
 
 export interface Settlement {
   id: string;

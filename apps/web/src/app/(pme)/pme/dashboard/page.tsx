@@ -14,8 +14,8 @@ const pmeInvoices: InvoiceRow[] = [
   { nfe: "000.428.551", sacado: "Magazine Luiza S.A.",  cnpj: "47.960.950/0001-21", valor: 182450,  desagio: 3.05, liquido: 176884.27, due: "12 mai", status: "active",    days: 38 },
   { nfe: "000.428.539", sacado: "Via Varejo S.A.",      cnpj: "33.041.260/0065-28", valor: 94200,   desagio: 2.80, liquido: 91562.40,  due: "04 mai", status: "active",    days: 30 },
   { nfe: "000.428.502", sacado: "Americanas S.A.",      cnpj: "00.776.574/0006-60", valor: 246800,  desagio: 4.20, liquido: 236434.40, due: "22 mai", status: "pending",   days: 48 },
-  { nfe: "000.428.488", sacado: "Lojas Renner S.A.",    cnpj: "92.754.738/0001-62", valor: 58120,   desagio: 2.65, liquido: 56581.82,  due: "29 abr", status: "completed", days: 0  },
-  { nfe: "000.428.455", sacado: "C&A Modas Ltda.",      cnpj: "45.242.914/0001-05", valor: 132990,  desagio: 3.10, liquido: 128867.31, due: "19 abr", status: "completed", days: 0  },
+  { nfe: "000.428.488", sacado: "Lojas Renner S.A.",    cnpj: "92.754.738/0001-62", valor: 58120,   desagio: 2.65, liquido: 56581.82,  due: "29 abr", status: "settled", days: 0  },
+  { nfe: "000.428.455", sacado: "C&A Modas Ltda.",      cnpj: "45.242.914/0001-05", valor: 132990,  desagio: 3.10, liquido: 128867.31, due: "19 abr", status: "settled", days: 0  },
   { nfe: "000.428.401", sacado: "Pernambucanas",        cnpj: "61.189.288/0001-89", valor: 71450,   desagio: 5.20, liquido: 67734.60,  due: "07 abr", status: "defaulted", days: -6 },
 ];
 

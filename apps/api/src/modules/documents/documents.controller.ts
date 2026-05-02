@@ -1,17 +1,22 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
-import { CreateDocumentDto } from './dto/create-document.dto';
+import { CreateNestedDocumentDto } from './dto/create-nested-document.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@Controller('documents')
+@UseGuards(JwtAuthGuard)
+@Controller()
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @Post()
-  create(@Body() body: CreateDocumentDto) {
-    return this.documentsService.create(body);
+  @Post('receivables/:receivableId/documents')
+  create(
+    @Param('receivableId') receivableId: string,
+    @Body() body: CreateNestedDocumentDto,
+  ) {
+    return this.documentsService.create({ ...body, receivableId });
   }
 
-  @Get('receivable/:receivableId')
+  @Get('receivables/:receivableId/documents')
   findByReceivable(@Param('receivableId') receivableId: string) {
     return this.documentsService.findByReceivable(receivableId);
   }

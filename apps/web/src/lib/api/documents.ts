@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Document } from "@/types";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Document, RegisterDocumentInput } from "@credbridge/types";
+import { apiFetch } from "./client";
 
 export const documentQueryKeys = {
   byReceivable: (receivableId: string) =>
@@ -11,13 +10,26 @@ export const documentQueryKeys = {
 export function useDocumentsByReceivable(receivableId: string) {
   return useQuery<Document[]>({
     queryKey: documentQueryKeys.byReceivable(receivableId),
-    queryFn: async () => {
-      const response = await fetch(
-        `${API_URL}/v1/receivables/${receivableId}/documents`
-      );
-      if (!response.ok) throw new Error("Erro ao buscar documentos");
-      return response.json() as Promise<Document[]>;
-    },
+    queryFn: () =>
+      apiFetch<Document[]>(`/receivables/${receivableId}/documents`),
     enabled: !!receivableId,
+  });
+}
+
+export function useCreateDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RegisterDocumentInput) => {
+      const { receivableId, ...rest } = input;
+      return apiFetch<Document>(`/receivables/${receivableId}/documents`, {
+        method: "POST",
+        body: rest,
+      });
+    },
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({
+        queryKey: documentQueryKeys.byReceivable(input.receivableId),
+      });
+    },
   });
 }

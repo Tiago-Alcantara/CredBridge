@@ -2,13 +2,16 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { setOnUnauthorized } from "@/lib/api/client";
 
 interface QueryProviderProps {
   children: React.ReactNode;
 }
 
 export function QueryProvider({ children }: QueryProviderProps) {
+  const router = useRouter();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -20,6 +23,14 @@ export function QueryProvider({ children }: QueryProviderProps) {
         },
       })
   );
+
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      queryClient.clear();
+      router.push("/login");
+    });
+    return () => setOnUnauthorized(null);
+  }, [queryClient, router]);
 
   return (
     <QueryClientProvider client={queryClient}>

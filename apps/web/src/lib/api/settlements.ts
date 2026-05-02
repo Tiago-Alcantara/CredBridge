@@ -1,20 +1,39 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Settlement } from "@/types";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Settlement, CreateSettlementInput } from "@credbridge/types";
+import { apiFetch } from "./client";
 
 export const settlementQueryKeys = {
   all: ["settlements"] as const,
-  detail: (id: string) => ["settlements", id] as const,
+  byReceivable: (receivableId: string) =>
+    ["settlements", "receivable", receivableId] as const,
 };
 
 export function useSettlements() {
   return useQuery<Settlement[]>({
     queryKey: settlementQueryKeys.all,
-    queryFn: async () => {
-      const response = await fetch(`${API_URL}/v1/settlements`);
-      if (!response.ok) throw new Error("Erro ao buscar liquidações");
-      return response.json() as Promise<Settlement[]>;
+    queryFn: () => apiFetch<Settlement[]>("/settlements"),
+  });
+}
+
+export function useSettlementsByReceivable(receivableId: string) {
+  return useQuery<Settlement[]>({
+    queryKey: settlementQueryKeys.byReceivable(receivableId),
+    queryFn: () =>
+      apiFetch<Settlement[]>(`/settlements/receivable/${receivableId}`),
+    enabled: !!receivableId,
+  });
+}
+
+export function useCreateSettlement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSettlementInput) =>
+      apiFetch<Settlement>("/settlements", { method: "POST", body: input }),
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({ queryKey: settlementQueryKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: settlementQueryKeys.byReceivable(input.receivableId),
+      });
     },
   });
 }

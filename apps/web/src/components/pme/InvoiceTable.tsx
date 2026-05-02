@@ -1,6 +1,7 @@
 import { Icon } from "@/components/primitives/Icon";
 import { StatusBadge } from "@/components/primitives/StatusBadge";
 import { fmtBRL } from "@/lib/format";
+import type { ReceivableStatus } from "@/types";
 
 export interface InvoiceRow {
   nfe: string;
@@ -10,7 +11,7 @@ export interface InvoiceRow {
   desagio: number;
   liquido: number;
   due: string;
-  status: "active" | "pending" | "completed" | "defaulted";
+  status: ReceivableStatus;
   days: number;
 }
 
@@ -69,7 +70,7 @@ export function InvoiceTable({ rows, compact = false }: InvoiceTableProps) {
                 color:
                   r.status === "defaulted"
                     ? "var(--red)"
-                    : r.status === "completed"
+                    : r.status === "settled"
                     ? "var(--green)"
                     : "var(--fg)",
               }}
