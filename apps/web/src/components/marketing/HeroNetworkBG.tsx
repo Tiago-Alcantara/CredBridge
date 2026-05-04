@@ -36,10 +36,10 @@ export function HeroNetworkBG() {
         const a = (i / 18) * Math.PI * 2;
         const r1 = 140;
         const r2 = 300;
-        const x1 = 500 + Math.cos(a) * r1;
-        const y1 = 340 + Math.sin(a) * r1;
-        const x2 = 500 + Math.cos(a) * r2;
-        const y2 = 340 + Math.sin(a) * r2;
+        const x1 = (500 + Math.cos(a) * r1).toFixed(4);
+        const y1 = (340 + Math.sin(a) * r1).toFixed(4);
+        const x2 = (500 + Math.cos(a) * r2).toFixed(4);
+        const y2 = (340 + Math.sin(a) * r2).toFixed(4);
         return (
           <line
             key={i}

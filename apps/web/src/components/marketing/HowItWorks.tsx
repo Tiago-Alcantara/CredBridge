@@ -197,6 +197,78 @@ export function HowItWorks() {
               opacity="0.6"
             />
           </svg>
+          <svg
+            viewBox="0 0 1200 620"
+            preserveAspectRatio="none"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+            }}
+          >
+            <circle
+              r="4"
+              fill="#00D4FF"
+              style={{
+                filter: "drop-shadow(0 0 6px #00D4FF)",
+                offsetPath: "path('M 340 120 C 500 120, 500 310, 600 310')",
+                offsetRotate: "0deg",
+                animation: "tokenTravel 4s linear infinite",
+              }}
+            />
+            <circle
+              r="3"
+              fill="#00D4FF"
+              style={{
+                filter: "drop-shadow(0 0 5px #00D4FF)",
+                offsetPath: "path('M 340 120 C 500 120, 500 310, 600 310')",
+                animation: "tokenTravel 4s linear infinite",
+                animationDelay: "1.3s",
+              }}
+            />
+            <circle
+              r="3"
+              fill="#00D4FF"
+              style={{
+                filter: "drop-shadow(0 0 5px #00D4FF)",
+                offsetPath: "path('M 340 240 C 500 240, 520 340, 600 340')",
+                animation: "tokenTravel 4.5s linear infinite",
+                animationDelay: "0.8s",
+              }}
+            />
+            <circle
+              r="4"
+              fill="#7B2FFF"
+              style={{
+                filter: "drop-shadow(0 0 6px #7B2FFF)",
+                offsetPath: "path('M 600 310 C 700 310, 700 120, 860 120')",
+                animation: "tokenTravel 4.2s linear infinite",
+                animationDelay: "2s",
+              }}
+            />
+            <circle
+              r="3"
+              fill="#00FF94"
+              style={{
+                filter: "drop-shadow(0 0 6px #00FF94)",
+                offsetPath: "path('M 860 380 C 700 380, 700 450, 600 450')",
+                animation: "tokenTravel 4s linear infinite",
+                animationDelay: "0.4s",
+              }}
+            />
+            <circle
+              r="3"
+              fill="#00FF94"
+              style={{
+                filter: "drop-shadow(0 0 6px #00FF94)",
+                offsetPath: "path('M 860 380 C 700 380, 700 450, 600 450')",
+                animation: "tokenTravel 4s linear infinite",
+                animationDelay: "2.5s",
+              }}
+            />
+          </svg>
           <div
             style={{
               display: "grid",
