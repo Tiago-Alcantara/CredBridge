@@ -1,5 +1,28 @@
 const TOKEN_KEY = 'credbridge.accessToken';
 
+interface JwtPayload {
+  sub: string;
+  email: string;
+  role: string;
+  iat?: number;
+  exp?: number;
+}
+
+export function decodeToken(token: string): JwtPayload | null {
+  try {
+    const part = token.split('.')[1];
+    return JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function getTokenRole(): string | null {
+  const token = getAccessToken();
+  if (!token) return null;
+  return decodeToken(token)?.role ?? null;
+}
+
 export function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {

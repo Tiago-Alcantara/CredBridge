@@ -1,6 +1,9 @@
+"use client";
+
 import { AppTopBar } from "@/components/patterns/AppTopBar";
 import { Sidebar } from "@/components/patterns/Sidebar";
 import type { SidebarItem } from "@/components/patterns/Sidebar";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 const pmeSidebarItems: SidebarItem[] = [
   { href: "/pme/dashboard",       icon: "home",     label: "Dashboard" },
@@ -19,6 +22,10 @@ const pmeUser = {
 };
 
 export default function PmeLayout({ children }: { children: React.ReactNode }) {
+  const { isReady } = useRequireAuth("pme");
+
+  if (!isReady) return null;
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <AppTopBar user={pmeUser} />

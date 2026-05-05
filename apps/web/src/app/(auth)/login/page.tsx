@@ -6,11 +6,12 @@ import { Logo } from "@/components/primitives/Logo";
 import { Icon, type IconName } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { LoginBG } from "@/components/auth/LoginBG";
-import { StellarAuth } from "@/components/auth/StellarAuth";
 import { KycFlow } from "@/components/auth/KycFlow";
+import { useLogin, useRegister } from "@/lib/api/auth";
 
 type RoleKey = "pme" | "investor" | "partner";
-type Step = "role" | "credentials" | "stellar" | "kyc" | "done";
+type Step = "role" | "credentials" | "kyc";
+type Mode = "login" | "register";
 
 interface RoleOption {
   k: RoleKey;
@@ -25,11 +26,59 @@ export default function LoginPage() {
   const { t } = useTranslation("pt");
   const [role, setRole] = useState<RoleKey>("pme");
   const [step, setStep] = useState<Step>("role");
+  const [mode, setMode] = useState<Mode>("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const handleStellarDone = useCallback(
-    () => setStep(role === "pme" ? "kyc" : "done"),
-    [role]
+  const loginMutation = useLogin();
+  const registerMutation = useRegister();
+
+  const isPending = loginMutation.isPending || registerMutation.isPending;
+
+  const dashFor = useCallback(
+    (r: RoleKey) => {
+      if (r === "pme") router.push("/pme/dashboard");
+      else if (r === "investor") router.push("/investor/dashboard");
+      else router.push("/partner/dashboard");
+    },
+    [router]
   );
+
+  const handleSubmit = useCallback(async () => {
+    setError(null);
+    if (mode === "login") {
+      loginMutation.mutate(
+        { email, password },
+        {
+          onSuccess: () => dashFor(role),
+          onError: (err: unknown) => {
+            const msg =
+              err instanceof Error ? err.message : "Credenciais inválidas";
+            setError(msg);
+          },
+        }
+      );
+    } else {
+      registerMutation.mutate(
+        { email, password, role },
+        {
+          onSuccess: () => {
+            if (role === "pme") {
+              setStep("kyc");
+            } else {
+              dashFor(role);
+            }
+          },
+          onError: (err: unknown) => {
+            const msg =
+              err instanceof Error ? err.message : "Erro ao criar conta";
+            setError(msg);
+          },
+        }
+      );
+    }
+  }, [mode, email, password, role, loginMutation, registerMutation, dashFor]);
 
   const roles: RoleOption[] = [
     {
@@ -54,12 +103,6 @@ export default function LoginPage() {
       desc: t("role_partner_desc"),
     },
   ];
-
-  function dashFor(r: RoleKey): void {
-    if (r === "pme") router.push("/pme/dashboard");
-    else if (r === "investor") router.push("/investor/dashboard");
-    else router.push("/partner/dashboard");
-  }
 
   return (
     <div
@@ -134,10 +177,35 @@ export default function LoginPage() {
       >
         <div className="row between">
           <span className="t-3" style={{ fontSize: 13 }}>
-            Novo na CredBridge?{" "}
-            <a href="#" className="t-blue" style={{ textDecoration: "none" }}>
-              Criar conta
-            </a>
+            {mode === "login" ? (
+              <>
+                Novo na CredBridge?{" "}
+                <button
+                  className="appnav-link t-blue"
+                  style={{ display: "inline", padding: 0 }}
+                  onClick={() => {
+                    setMode("register");
+                    setError(null);
+                  }}
+                >
+                  Criar conta
+                </button>
+              </>
+            ) : (
+              <>
+                Já tem conta?{" "}
+                <button
+                  className="appnav-link t-blue"
+                  style={{ display: "inline", padding: 0 }}
+                  onClick={() => {
+                    setMode("login");
+                    setError(null);
+                  }}
+                >
+                  Entrar
+                </button>
+              </>
+            )}
           </span>
           <button
             className="btn btn-ghost btn-sm"
@@ -147,12 +215,12 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <div
-          style={{ margin: "auto 0", width: "100%", maxWidth: 440 }}
-        >
-          <h2 style={{ fontSize: 32, marginBottom: 8 }}>{t("login_title")}</h2>
+        <div style={{ margin: "auto 0", width: "100%", maxWidth: 440 }}>
+          <h2 style={{ fontSize: 32, marginBottom: 8 }}>
+            {mode === "login" ? t("login_title") : "Criar conta"}
+          </h2>
           <p className="t-2" style={{ marginBottom: 32, fontSize: 14 }}>
-            {t("login_sub")}
+            {mode === "login" ? t("login_sub") : "Escolha seu perfil para começar."}
           </p>
 
           {step === "role" && (
@@ -250,6 +318,9 @@ export default function LoginPage() {
                     className="input"
                     type="email"
                     placeholder="fulano@empresa.com.br"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isPending}
                   />
                 </div>
                 <div>
@@ -258,44 +329,42 @@ export default function LoginPage() {
                     className="input"
                     type="password"
                     placeholder="••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isPending}
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   />
                 </div>
               </div>
+
+              {error && (
+                <p
+                  style={{
+                    color: "var(--red)",
+                    fontSize: 13,
+                    marginBottom: 12,
+                  }}
+                >
+                  {error}
+                </p>
+              )}
+
               <button
                 className="btn btn-primary btn-lg"
                 style={{ width: "100%" }}
-                onClick={() => setStep("stellar")}
+                onClick={handleSubmit}
+                disabled={isPending || !email || !password}
               >
-                {t("login_continue")} <Icon name="arrow_right" size={16} />
+                {isPending
+                  ? "Aguarde…"
+                  : (
+                    <>
+                      {mode === "login" ? t("login_continue") : "Criar conta"}{" "}
+                      <Icon name="arrow_right" size={16} />
+                    </>
+                  )}
               </button>
-              <div
-                className="row"
-                style={{ margin: "24px 0", gap: 12, alignItems: "center" }}
-              >
-                <div
-                  style={{ flex: 1, height: 1, background: "var(--line)" }}
-                />
-                <span
-                  className="t-3"
-                  style={{
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.14em",
-                  }}
-                >
-                  {t("login_or")}
-                </span>
-                <div
-                  style={{ flex: 1, height: 1, background: "var(--line)" }}
-                />
-              </div>
-              <button
-                className="btn btn-ghost btn-lg"
-                style={{ width: "100%" }}
-                onClick={() => setStep("stellar")}
-              >
-                <Icon name="chain" size={16} /> {t("login_stellar")}
-              </button>
+
               <button
                 className="appnav-link"
                 style={{ width: "100%", marginTop: 12 }}
@@ -306,47 +375,7 @@ export default function LoginPage() {
             </>
           )}
 
-          {step === "stellar" && (
-            <StellarAuth
-              onDone={handleStellarDone}
-              onBack={() => setStep("credentials")}
-            />
-          )}
-
           {step === "kyc" && <KycFlow onDone={() => dashFor(role)} />}
-
-          {step === "done" && (
-            <div
-              className="card hi"
-              style={{ textAlign: "center", padding: 40 }}
-            >
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: "50%",
-                  background: "var(--green-soft)",
-                  color: "var(--green)",
-                  display: "grid",
-                  placeItems: "center",
-                  margin: "0 auto 20px",
-                }}
-              >
-                <Icon name="check" size={32} />
-              </div>
-              <h3>Autenticação concluída</h3>
-              <p className="t-2" style={{ marginTop: 8, marginBottom: 24 }}>
-                Autenticação concluída. Clique abaixo para continuar.
-              </p>
-              <button
-                className="btn btn-primary btn-lg"
-                style={{ width: "100%" }}
-                onClick={() => dashFor(role)}
-              >
-                Ir para o painel <Icon name="arrow_right" size={16} />
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

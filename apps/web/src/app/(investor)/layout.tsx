@@ -1,6 +1,9 @@
+"use client";
+
 import { AppTopBar } from "@/components/patterns/AppTopBar";
 import { Sidebar } from "@/components/patterns/Sidebar";
 import type { SidebarItem } from "@/components/patterns/Sidebar";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 const investorSidebarItems: SidebarItem[] = [
   { href: "/investor/dashboard",      icon: "chart",    label: "Portfólio" },
@@ -18,6 +21,10 @@ const investorUser = {
 };
 
 export default function InvestorLayout({ children }: { children: React.ReactNode }) {
+  const { isReady } = useRequireAuth("investor");
+
+  if (!isReady) return null;
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <AppTopBar user={investorUser} />
