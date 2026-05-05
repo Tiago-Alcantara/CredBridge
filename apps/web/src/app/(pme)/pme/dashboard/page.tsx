@@ -8,16 +8,30 @@ import { UploadZone } from "@/components/pme/UploadZone";
 import { YieldSpark } from "@/components/pme/YieldSpark";
 import { InvoiceTable } from "@/components/pme/InvoiceTable";
 import type { InvoiceRow } from "@/components/pme/InvoiceTable";
+import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useReceivables } from "@/lib/api/receivables";
+import type { Receivable } from "@/types";
 
-const pmeInvoices: InvoiceRow[] = [
-  { nfe: "000.428.551", sacado: "Magazine Luiza S.A.",  cnpj: "47.960.950/0001-21", valor: 182450,  desagio: 3.05, liquido: 176884.27, due: "12 mai", status: "active",    days: 38 },
-  { nfe: "000.428.539", sacado: "Via Varejo S.A.",      cnpj: "33.041.260/0065-28", valor: 94200,   desagio: 2.80, liquido: 91562.40,  due: "04 mai", status: "active",    days: 30 },
-  { nfe: "000.428.502", sacado: "Americanas S.A.",      cnpj: "00.776.574/0006-60", valor: 246800,  desagio: 4.20, liquido: 236434.40, due: "22 mai", status: "pending",   days: 48 },
-  { nfe: "000.428.488", sacado: "Lojas Renner S.A.",    cnpj: "92.754.738/0001-62", valor: 58120,   desagio: 2.65, liquido: 56581.82,  due: "29 abr", status: "settled", days: 0  },
-  { nfe: "000.428.455", sacado: "C&A Modas Ltda.",      cnpj: "45.242.914/0001-05", valor: 132990,  desagio: 3.10, liquido: 128867.31, due: "19 abr", status: "settled", days: 0  },
-  { nfe: "000.428.401", sacado: "Pernambucanas",        cnpj: "61.189.288/0001-89", valor: 71450,   desagio: 5.20, liquido: 67734.60,  due: "07 abr", status: "defaulted", days: -6 },
-];
+const MONTHS = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+
+function toInvoiceRow(r: Receivable): InvoiceRow {
+  const due = new Date(r.dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+  return {
+    nfe: r.id.slice(-9).toUpperCase(),
+    sacado: r.debtorName,
+    cnpj: r.debtorDocument,
+    valor: r.value,
+    desagio: 0,
+    liquido: r.value,
+    due: `${due.getDate()} ${MONTHS[due.getMonth()]}`,
+    status: r.status,
+    days,
+  };
+}
 
 const pmeTimeline: TimelineItem[] = [
   { time: "há 12 min", label: "Pix enviado · Itaú Unibanco",           value: "+R$ 176.884,27", kind: "green"  },
@@ -30,6 +44,9 @@ const pmeTimeline: TimelineItem[] = [
 
 export default function PmeDashboardPage() {
   const { t } = useTranslation("pt");
+  const { data: receivables, isLoading, isError } = useReceivables();
+
+  const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
   function scrollToUpload() {
     document
@@ -157,7 +174,11 @@ export default function PmeDashboardPage() {
           <div>
             <h3>{t("dash_active")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-              6 operações · atualizado há 12 min
+              {isLoading
+                ? "Carregando…"
+                : isError
+                ? "Erro ao carregar"
+                : `${invoiceRows.length} operaç${invoiceRows.length === 1 ? "ão" : "ões"}`}
             </p>
           </div>
           <div className="row" style={{ gap: 8 }}>
@@ -178,7 +199,62 @@ export default function PmeDashboardPage() {
             <button className="btn btn-ghost btn-sm">{t("view_all")}</button>
           </div>
         </div>
-        <InvoiceTable rows={pmeInvoices} />
+
+        {isLoading && <InvoiceTableSkeleton />}
+
+        {isError && (
+          <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--red)" }}>
+            Erro ao carregar recebíveis. Tente novamente.
+          </div>
+        )}
+
+        {!isLoading && !isError && invoiceRows.length === 0 && (
+          <div
+            style={{
+              padding: "56px 24px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 0,
+            }}
+          >
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                background: "rgba(0,212,255,0.08)",
+                color: "var(--blue)",
+                display: "grid",
+                placeItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Icon name="doc" size={28} />
+            </div>
+            <p
+              style={{
+                fontFamily: "var(--sans)",
+                fontWeight: 600,
+                fontSize: 16,
+                marginBottom: 6,
+              }}
+            >
+              Nenhum recebível ainda
+            </p>
+            <p className="t-2" style={{ fontSize: 13, marginBottom: 20, maxWidth: 300 }}>
+              Envie sua primeira NF-e para iniciar o processo de antecipação.
+            </p>
+            <button className="btn btn-primary" onClick={scrollToUpload}>
+              <Icon name="plus" size={14} /> Enviar primeira NF-e
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !isError && invoiceRows.length > 0 && (
+          <InvoiceTable rows={invoiceRows} />
+        )}
       </div>
 
       {/* Timeline */}

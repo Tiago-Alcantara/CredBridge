@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setOnUnauthorized } from "@/lib/api/client";
+import { useToast } from "@/providers/ToastProvider";
 
 interface QueryProviderProps {
   children: React.ReactNode;
@@ -12,6 +13,7 @@ interface QueryProviderProps {
 
 export function QueryProvider({ children }: QueryProviderProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -27,10 +29,11 @@ export function QueryProvider({ children }: QueryProviderProps) {
   useEffect(() => {
     setOnUnauthorized(() => {
       queryClient.clear();
+      showToast("Sessão expirada. Faça login novamente.", "error");
       router.push("/login");
     });
     return () => setOnUnauthorized(null);
-  }, [queryClient, router]);
+  }, [queryClient, router, showToast]);
 
   return (
     <QueryClientProvider client={queryClient}>
