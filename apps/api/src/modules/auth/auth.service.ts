@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -9,6 +10,8 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -63,6 +66,56 @@ export class AuthService {
   async verifyStellarChallenge(signedTransaction: string): Promise<{ token: string }> {
     this.logger.log('verifyStellarChallenge called');
     return { token: `jwt-${Date.now()}` };
+  }
+
+  private readonly userSelect = {
+    id: true,
+    email: true,
+    role: true,
+    name: true,
+    phone: true,
+    address: true,
+    companyName: true,
+    cnpj: true,
+    monthlyRevenue: true,
+    sector: true,
+    investorType: true,
+    riskProfile: true,
+    operationalLimit: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
+
+  async findMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: this.userSelect,
+    });
+    if (!user) throw new UnauthorizedException();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash: _pw, ...safe } = user as typeof user & { passwordHash?: string };
+    return safe;
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: this.userSelect,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash: _pw, ...safe } = user as typeof user & { passwordHash?: string };
+    return safe;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!ok) throw new BadRequestException('Senha atual incorreta');
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { message: 'ok' };
   }
 
   private async issueToken(sub: string, email: string, role: string) {
