@@ -50,11 +50,22 @@ model Settlement {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  role         String   @default("pme")
-  createdAt    DateTime @default(now())
+  id               String   @id @default(uuid())
+  email            String   @unique
+  passwordHash     String
+  role             String   @default("pme")
+  name             String?
+  phone            String?
+  address          String?
+  companyName      String?
+  cnpj             String?
+  monthlyRevenue   Float?
+  sector           String?
+  investorType     String?
+  riskProfile      String?
+  operationalLimit Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model AuditLog {
