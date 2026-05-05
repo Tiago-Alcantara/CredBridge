@@ -6,12 +6,12 @@ import { CreateReceivableDto } from './dto/create-receivable.dto';
 export class ReceivablesService {
   constructor(private readonly repo: ReceivablesRepository) {}
 
-  async create(data: CreateReceivableDto) {
-    return this.repo.create(data);
+  async create(userId: string, data: CreateReceivableDto) {
+    return this.repo.create(userId, data);
   }
 
-  async findAll() {
-    return this.repo.findAll();
+  async findAll(userId: string) {
+    return this.repo.findAll(userId);
   }
 
   async findOne(id: string) {

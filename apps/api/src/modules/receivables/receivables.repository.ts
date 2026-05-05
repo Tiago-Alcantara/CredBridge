@@ -6,10 +6,10 @@ import { CreateReceivableDto } from './dto/create-receivable.dto';
 export class ReceivablesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateReceivableDto) {
+  async create(userId: string, data: CreateReceivableDto) {
     return this.prisma.receivable.create({
       data: {
-        userId: data.userId,
+        userId,
         value: data.value,
         type: data.type,
         debtorName: data.debtorName,
@@ -19,8 +19,11 @@ export class ReceivablesRepository {
     });
   }
 
-  async findAll() {
-    return this.prisma.receivable.findMany({ orderBy: { createdAt: 'desc' } });
+  async findAll(userId: string) {
+    return this.prisma.receivable.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async findOne(id: string) {

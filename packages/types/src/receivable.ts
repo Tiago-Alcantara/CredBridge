@@ -17,7 +17,6 @@ export interface Receivable {
 }
 
 export interface CreateReceivableInput {
-  userId: string;
   value: number;
   type: ReceivableType;
   debtorName: string;

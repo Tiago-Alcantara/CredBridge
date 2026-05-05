@@ -13,7 +13,8 @@
     "build:web": "npm run build:types && npm run build -w apps/web",
     "build:api": "npm run build:types && npm run build -w apps/api",
     "build": "npm run build:web",
-    "lint": "npm run lint -w apps/web && npm run lint -w apps/api"
+    "lint": "npm run lint -w apps/web && npm run lint -w apps/api",
+    "seed": "npm run seed -w apps/api"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

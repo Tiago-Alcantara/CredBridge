@@ -4,10 +4,6 @@ import type { ReceivableType } from '@credbridge/types';
 const RECEIVABLE_TYPES: ReceivableType[] = ['invoice', 'duplicate', 'contract'];
 
 export class CreateReceivableDto {
-  @IsString()
-  @MinLength(1)
-  userId!: string;
-
   @IsNumber()
   @IsPositive()
   value!: number;
