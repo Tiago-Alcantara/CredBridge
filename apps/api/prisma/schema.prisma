@@ -58,7 +58,7 @@ model User {
   phone            String?
   address          String?
   companyName      String?
-  cnpj             String?
+  cnpj             String?  @unique
   monthlyRevenue   Float?
   sector           String?
   investorType     String?
