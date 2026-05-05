@@ -6,25 +6,24 @@ tags:
   - credbridge
   - status
   - checklist
-date: 2026-05-02
+date: 2026-05-04
 status: em-desenvolvimento
 ---
 
 # Status do Projeto — CredBridge
 
 > Snapshot do que já foi entregue no repositório real (`~/projects/CredBridge`) e do que ainda falta.
-> Última varredura no código: **2026-05-02** (HEAD `ff7f463`).
+> Última varredura no código: **2026-05-04**.
 
-## Decisões fixadas em 2026-05-02
+## Decisões fixadas
 
 - **MVP só NF-e** — qualquer outro tipo de recebível (duplicata, contrato) fica fora do escopo inicial.
-- **Próxima fase:** substituir mocks do frontend por endpoints reais + montar UI de login/registro consumindo `/v1/auth/*` (auth backend já está pronto).
-- **Persona prioritária:** PME. Investidor e Parceiro ficam com mock até PME estar 100%.
-- **Stellar SEP-10:** abordagem ainda **em aberto**; manter JWT email/senha como auth principal por enquanto.
+- **Stellar SEP-10:** removido do fluxo de login por enquanto; JWT email/senha é o auth principal.
 - **Solana:** descartado.
 - **Cortado do MVP:** Redis, BullMQ, Auth.js/Keycloak, OpenTelemetry, Prometheus/Grafana.
 - **Token storage:** migrar `localStorage` → cookie httpOnly antes de produção.
 - **Deploy backend:** provider ainda **em aberto** (Railway / Fly / Render).
+- **Tela de configurações:** mesma página para PME e Investor — campos específicos por role ficam ocultos.
 
 ---
 
@@ -33,10 +32,10 @@ status: em-desenvolvimento
 | Camada | % entregue | Comentário |
 |---|---|---|
 | Estrutura/Monorepo | 100% | npm workspaces, 3 pacotes |
-| Banco + Schema | 95% | falta seed e índices de busca |
-| Backend (API) | 40% | scaffolds + auth real; integrações externas em stub |
-| Frontend (UI) | 60% | dashboards renderizam, dados ainda mockados |
-| Integração Front↔Back | 60% | hooks e wrapper prontos; consumo real parcial |
+| Banco + Schema | 97% | seed pronto; faltam índices |
+| Backend (API) | 50% | auth + CRUD real; userId extraído do JWT; integrações externas em stub |
+| Frontend (UI) | 70% | login/register real, dashboard PME parcialmente real, sub-páginas por criar |
+| Integração Front↔Back | 75% | login, receivables, documents, error handling, route guards prontos |
 | Blockchain (Stellar) | 5% | só interface + stub |
 | Storage (S3) | 5% | só interface + stub |
 | Pagamentos (PIX/TED) | 5% | só interface + stub |
@@ -52,69 +51,52 @@ status: em-desenvolvimento
 ### Infra e repositório
 
 - [x] Monorepo com npm workspaces (`apps/web`, `apps/api`, `packages/types`)
-- [x] `package.json` raiz com scripts `dev`, `build:web`, `build:api`, `build:types`, `lint`
+- [x] `package.json` raiz com scripts `dev`, `build:web`, `build:api`, `build:types`, `lint`, `seed`
 - [x] `.env.example` raiz + `apps/web/.env.local.example`
 - [x] `docker-compose.yml` para Postgres local
 - [x] `vercel.json` apontando para `apps/web/.next`
 - [x] `AGENTS.md` + `CLAUDE.md` com instruções de agentes
-- [x] `README.md` com árvore de pastas e setup
 
 ### Banco de dados
 
 - [x] Prisma 7 + adapter `@prisma/adapter-pg`
 - [x] Modelos: `Receivable`, `Document`, `Settlement`, `User`, `AuditLog`
-- [x] Migration inicial + migration `align_with_shared_types` + migration `add_user`
+- [x] Migrations aplicadas
 - [x] `AuditLog` polimórfico (`entityType` + `entityId`, sem FKs)
+- [x] Seed realista (`prisma/seed.ts`) — 3 usuários, 9 recebíveis, 7 docs, 3 liquidações, 18 audit logs
 
 ### Backend (`apps/api`)
 
 - [x] Bootstrap Nest com `setGlobalPrefix('v1')` na porta 3001
-- [x] CORS habilitado
-- [x] `ConfigModule` global
-- [x] `PrismaModule` global com `PrismaService`
-- [x] `ValidationPipe` global (`whitelist: true, transform: true`)
+- [x] CORS, `ConfigModule`, `PrismaModule`, `ValidationPipe` globais
 - [x] Módulo `health` (`GET /v1/health/ping`)
-- [x] Módulo `receivables` (CRUD básico via repository)
+- [x] Módulo `receivables` — `userId` extraído do JWT (não mais do body); `findAll` filtra por usuário
 - [x] Módulo `documents` em rota nested (`/v1/receivables/:id/documents`)
 - [x] Módulo `settlements` (CRUD + listar todos)
 - [x] Módulo `audit` (`GET /v1/audit`, `findByEntity`)
-- [x] Módulo `auth` real:
-  - [x] `POST /v1/auth/register` (bcrypt 10 rounds)
-  - [x] `POST /v1/auth/login`
-  - [x] `JwtStrategy` + `JwtAuthGuard`
-  - [x] `@UseGuards(JwtAuthGuard)` em receivables, documents, settlements, audit
-- [x] DTOs com `class-validator` (`CreateReceivableDto`, `CreateDocumentDto`, `CreateSettlementDto`, `LoginDto`, `RegisterDto`)
-- [x] Interfaces shared: `BlockchainService`, `StorageService`, `PaymentsService`, `KycService` (DI por token Symbol)
+- [x] Módulo `auth` real: register (bcrypt), login, JwtStrategy, JwtAuthGuard
+- [x] `decodeToken` / `getTokenRole` no cliente para leitura do JWT sem biblioteca
 
 ### Frontend (`apps/web`)
 
-- [x] Next.js 16 (App Router + Turbopack)
-- [x] Tailwind v4 + `tokens.css`
-- [x] Root layout com providers (TanStack Query)
+- [x] Next.js 16 (App Router + Turbopack) + Tailwind v4 + `tokens.css`
 - [x] Route groups: `(marketing)`, `(auth)`, `(pme)`, `(investor)`, `(partner)`
-- [x] Landing (`(marketing)/page.tsx`) com `HeroNetwork`, `Audiences`, `HowItWorks`, `StatsBar`, `LandingFooter`
-- [x] Auth: `login/page.tsx`, `onboarding/page.tsx`, `KycFlow`, `StellarAuth`, `LoginBG`
-- [x] Dashboards renderizando: PME, Investor, Partner
-- [x] Componentes: primitives (`Icon`, `Logo`, `StatusBadge`), patterns (`Sidebar`, `TopNav`, `AppTopBar`, `Timeline`, `MiniKpi`)
-- [x] Componentes PME: `InvoiceTable`, `PipelineCard`, `PipelineCol`, `UploadZone`, `YieldSpark`
-- [x] Componentes Investor: `NavChart`, `ShareCard`
-- [x] Componente Partner: `TrafficChart`
-- [x] i18n PT/EN com `useTranslation`
-- [x] `useTheme` (dark/light via `data-theme`)
-- [x] Validações Zod por domínio (`receivable`, `document`, `settlement`)
-- [x] Hooks API por domínio (`receivables`, `documents`, `settlements`, `audit`, `auth`)
-- [x] `apiFetch` wrapper + `ApiError`
-- [x] `auth-storage` (token em `localStorage`) + injeção `Authorization: Bearer` automático
-- [x] Página `/test` para smoke test de integração
-- [x] `QueryProvider` com TanStack Query v5
+- [x] Landing page completa
+- [x] **Login/Register** — fluxo unificado em `/login`; toggle login ↔ registro; KYC só para PME; wired `useLogin` + `useRegister`; erro inline; loading state
+- [x] `useRequireAuth(role?)` — guarda de rota com verificação de role; redireciona para dashboard correto se role errado
+- [x] Layouts `(pme)`, `(investor)`, `(partner)` com guarda de rota por role
+- [x] Dashboard PME — `InvoiceTable` consome `useReceivables()` (dados reais)
+- [x] Dashboard PME — `UploadZone` wired: cria `Receivable` + registra `Document`; drag/drop XML; form com sacado/CNPJ/valor/vencimento
+- [x] `ToastProvider` — toast global com `showToast(msg, kind)`; 401 → toast "Sessão expirada" + redirect
+- [x] Skeletons animados (`Skeleton` primitivo + `InvoiceTableSkeleton`)
+- [x] Empty states com CTA na tabela de recebíveis
+- [x] `auth-storage` com `decodeToken` + `getTokenRole` (decodifica JWT sem biblioteca)
+- [x] `extractApiErrorMessage` para mensagens de erro da API
 
 ### Pacote compartilhado (`packages/types`)
 
-- [x] `Receivable` + `ReceivableStatus` + `ReceivableType` + `CreateReceivableInput`
-- [x] `Settlement` + `SettlementStatus` + `SettlementMethod` + `CreateSettlementInput`
-- [x] `Document` + `DocumentType` + `UploadDocumentInput`
-- [x] `Investor`
-- [x] Build via `tsc → dist/`
+- [x] Todos os tipos de domínio — `Receivable`, `Settlement`, `Document`, `Investor`, `AuditEvent`
+- [x] `CreateReceivableInput` sem `userId` (extraído do JWT no backend)
 
 ### Deploy
 
@@ -124,84 +106,80 @@ status: em-desenvolvimento
 
 ## ❌ A fazer
 
-### Integrações externas (todas em stub hoje)
+### Dashboard PME — remover mocks (FASE ATUAL)
 
-- [ ] **Stellar SDK real** em `stellar.service.ts`
-  - [ ] `registerProof` → tx real `manageData`/`memo`
-  - [ ] `settlePayment` → tx real
-  - [ ] `getTransactionStatus` → consulta Horizon
-- [ ] **SEP-10** real em `auth.service.ts` (`getStellarChallenge` + `verifyStellarChallenge` hoje só geram strings fake)
-- [ ] **AWS S3** real em `s3.service.ts` (`upload`, `getSignedUrl`, `delete`)
-- [ ] **PIX/TED** provider real em `pix.service.ts`
-- [ ] **KYC/KYB** provider real em `kyc.service.ts` (CPF e CNPJ)
-- [ ] **Antifraude documental** (não há nem interface ainda)
-- [ ] **Assinatura eletrônica** (não há nem interface ainda)
-- [ ] **ERP connectors** (não há nem interface ainda)
+- [ ] **KPI "Em análise"** — calcular de `receivables` (soma de `pending` + `validated`)
+- [ ] **KPI "Liberado"** — calcular de `receivables` (soma de `settled`)
+- [ ] **KPI "Total NF-e"** — calcular contagem e breakdown por status
+- [ ] **Saudação** — exibir nome real do usuário (decodificar email do JWT ou endpoint `/me`)
+- [ ] **Timeline** — substituir mock por `useAuditLog` consumindo `GET /v1/audit`
+- [ ] **Saldo disponível** (card hero) — conceito não existe no banco; definir modelo antes de implementar
+- [ ] **YieldSpark** (gráfico de yield) — precisa de histórico de deságio por período (endpoint não existe)
+- [ ] **Endereço Stellar** — mock hardcoded; só real quando SEP-10 for implementado
+
+### Sub-páginas PME — criar do zero
+
+- [ ] `/pme/recebiveis` — listagem completa com filtros por status, busca, paginação
+- [ ] `/pme/documentos` — listagem de documentos por recebível, preview, re-upload
+- [ ] `/pme/liquidacao` — histórico de liquidações (`useSettlements`), status PIX/Stellar
+- [ ] `/pme/auditoria` — log de eventos (`useAuditLog`), filtro por entidade/data
+
+### Dashboard Investor — remover mocks
+
+- [ ] KPIs do portfólio (volume investido, yield médio, cotas ativas) — calcular de dados reais
+- [ ] Listagem de recebíveis disponíveis para investimento
+- [ ] Gráfico `NavChart` com dados reais de NAV
+
+### Sub-páginas Investor — criar do zero
+
+- [ ] `/investor/recebiveis` — recebíveis disponíveis para compra, filtros de risco/yield/vencimento
+- [ ] `/investor/cotas` — posição atual do investidor, cotas por fundo/série
+- [ ] `/investor/auditoria` — log de eventos do investidor
+
+### Configurações de conta (compartilhada PME + Investor)
+
+- [ ] `/pme/configuracoes` e `/investor/configuracoes` apontam para o mesmo componente `AccountSettings`
+- [ ] Campos comuns: nome, email, senha, telefone, endereço
+- [ ] Campos PME (hidden para Investor): razão social, CNPJ, faturamento mensal, setor
+- [ ] Campos Investor (hidden para PME): tipo de investidor (PF/PJ), perfil de risco, limite operacional
+- [ ] Salvar via endpoint `/me` (a criar no backend)
 
 ### Backend — regra de negócio
 
-- [ ] Validação de domínio em `ReceivablesService` (estados, transições, deságio)
-- [ ] Emissão de eventos `AuditLog` em todas as mutações (criar, mudar status, liquidar)
-- [ ] Módulo de **risco/elegibilidade** (não existe)
-- [ ] Módulo de **originação** separado (hoje misturado com receivables)
-- [ ] Conciliação banco ↔ ledger ↔ on-chain
-- [ ] BullMQ + Redis para filas (validação, hashing, registro on-chain)
-- [ ] Rate limiting / guard por role (`pme`, `investor`, `partner`, `admin`)
+- [ ] Endpoint `GET /v1/auth/me` — retorna dados do usuário autenticado
+- [ ] `PATCH /v1/auth/me` — atualiza perfil do usuário
+- [ ] Validação de estados e transições em `ReceivablesService` (pending → validated → active → settled)
+- [ ] Emissão automática de `AuditLog` em todas as mutações
+- [ ] `GET /v1/audit` filtrado por userId autenticado (hoje retorna todos)
+- [ ] Módulo de risco/elegibilidade (não existe)
+- [ ] Rate limiting / guard por role
 - [ ] Refresh token / rotação de JWT
-- [ ] Cookie httpOnly em vez de `localStorage` para o token (decisão pendente)
+- [ ] Cookie httpOnly em vez de `localStorage`
 
 ### Banco
 
-- [ ] Seed de dados para dev (`prisma/seed.ts`)
 - [ ] Índices em `Receivable.userId`, `Receivable.status`, `Settlement.status`
 - [ ] Soft delete (decisão pendente)
 
-### Frontend — substituir mocks por dados reais (FASE ATUAL — foco PME)
+### Integrações externas (todas em stub)
 
-- [ ] **Login + Registro UI** consumindo `POST /v1/auth/login` e `POST /v1/auth/register`
-- [ ] **Dashboard PME** — `InvoiceTable` consome `useReceivables`
-- [ ] **Dashboard PME** — `Timeline` consome `useAuditByEntity`
-- [ ] **Dashboard PME** — `UploadZone` chama `useCreateDocument` (NF-e)
-- [ ] Tratamento de erro UI (toast/banner) consumindo `ApiError.body.message`
-- [ ] Loading states e skeletons nas tabelas PME
-- [ ] Empty states nas listas PME
-- [ ] Guarda de rota por `role` no client (PME não acessa `/investor`, etc)
-- [ ] Migrar token de `localStorage` → cookie httpOnly antes de produção
-
-### Frontend — fora da fase atual (Investor / Partner mantêm mock)
-
-- [ ] Dashboard Investor — listagem real de propostas
-- [ ] Dashboard Partner — métricas reais
+- [ ] **AWS S3** — upload real de XML NF-e
+- [ ] **KYC/KYB** — validação CPF/CNPJ (Serpro, Receita Federal ou provider)
+- [ ] **PIX/TED** — liquidação real
+- [ ] **Stellar SDK** — registro on-chain e liquidação
+- [ ] **SEFAZ** — validação de NF-e
 
 ### Testes
 
 - [ ] Jest unitário nos services (`auth`, `receivables`, `settlements`, `audit`)
-- [ ] e2e Nest cobrindo as rotas autenticadas
+- [ ] e2e Nest cobrindo rotas autenticadas
 - [ ] Vitest ou Playwright no frontend
-- [ ] Testes de contrato dos DTOs (validações)
-
-### Observabilidade e operação
-
-- [ ] OpenTelemetry no backend
-- [ ] Prometheus + Grafana
-- [ ] Logs estruturados (Pino?) em vez de `Logger` padrão
-- [ ] Sentry no frontend e backend
-- [ ] Health check com verificação de DB/Stellar/S3
 
 ### CI/CD
 
 - [ ] GitHub Actions: lint + build + test
 - [ ] Migrations Prisma em pipeline
 - [ ] Deploy do backend (Railway / Fly / Render — escolher)
-- [ ] Variáveis de ambiente em ambiente staging vs prod
-
-### Produto / negócio
-
-- [ ] Definir o **primeiro tipo de recebível** suportado no MVP (NF-e? duplicata?)
-- [ ] Mapear jornada completa do empreendedor (cadastro → liquidação)
-- [ ] Definir quais eventos entram na trilha de auditoria
-- [ ] Definir o que vai on-chain (lista exata de eventos)
-- [ ] Modelar regras regulatórias (LGPD, cessão de crédito)
 
 ---
 
@@ -211,4 +189,3 @@ status: em-desenvolvimento
 - [[Decisoes de Arquitetura]]
 - [[Stack de Tecnologia]]
 - [[Tarefas]]
-- [[Inconsistencias Obsidian vs Repositorio]]
