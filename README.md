@@ -1,3 +1,5 @@
+![CredBridge](docs/brand/readme-banner.svg)
+
 # CredBridge
 
 Plataforma de tokenização de recebíveis que conecta PMEs que precisam de crédito com investidores. As empresas submetem seus recebíveis (notas fiscais, duplicatas, contratos), investidores financiam essas operações, e as liquidações acontecem via PIX, TED ou blockchain Stellar. Todo o fluxo é auditado on-chain.
