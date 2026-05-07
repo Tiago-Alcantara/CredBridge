@@ -38,8 +38,8 @@
   </text>
 
   <!-- Dot: glow + solid, cy=150 (icon vertical center) -->
-  <circle cx="800" cy="150" r="6" fill="#00FF94" filter="url(#cb-banner-dg)"/>
-  <circle cx="800" cy="150" r="6" fill="#00FF94"/>
+  <circle cx="750" cy="150" r="6" fill="#00FF94" filter="url(#cb-banner-dg)"/>
+  <circle cx="750" cy="150" r="6" fill="#00FF94"/>
 
   <!-- Tagline -->
   <text x="600" y="212"
