@@ -11,7 +11,10 @@ import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useReceivables } from "@/lib/api/receivables";
+import { useMe } from "@/lib/api/me";
+import { useAuditLog } from "@/lib/api/audit";
 import type { Receivable } from "@/types";
+import type { AuditEvent } from "@credbridge/types";
 
 const MONTHS = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
 
@@ -33,20 +36,69 @@ function toInvoiceRow(r: Receivable): InvoiceRow {
   };
 }
 
-const pmeTimeline: TimelineItem[] = [
-  { time: "há 12 min", label: "Pix enviado · Itaú Unibanco",           value: "+R$ 176.884,27", kind: "green"  },
-  { time: "há 14 min", label: "Liquidação on-chain · tx 0xA7F2…91C",   value: "Confirmada",     kind: "blue"   },
-  { time: "há 15 min", label: "Smart contract executado · Soroban",     value: "182.450 USDC",   kind: "violet" },
-  { time: "há 17 min", label: "Proposta aprovada · Cota Sênior",        value: "Deságio 3,05%",  kind: "blue"   },
-  { time: "há 21 min", label: "NF-e 000.428.551 validada · SEFAZ",      value: "OK",             kind: "green"  },
-  { time: "há 2h",     label: "Cessão assinada · Stellar Auth",         value: "SEP-10",         kind: "violet" },
-];
+function fmtBRL(value: number): string {
+  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(2).replace(".", ",")}M`;
+  if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(1).replace(".", ",")}k`;
+  return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+}
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `há ${hours}h`;
+  return `há ${Math.floor(hours / 24)}d`;
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  "receivable.created": "Recebível enviado",
+  "receivable.updated": "Recebível atualizado",
+  "receivable.validated": "Recebível validado",
+  "document.created": "Documento enviado",
+  "document.uploaded": "Documento enviado",
+  "settlement.created": "Liquidação criada",
+  "settlement.updated": "Liquidação atualizada",
+  "settlement.completed": "Liquidação concluída",
+};
+
+const ENTITY_KIND: Record<string, TimelineItem["kind"]> = {
+  receivable: "blue",
+  document: "blue",
+  settlement: "green",
+  user: "violet",
+};
+
+function auditToTimeline(e: AuditEvent): TimelineItem {
+  return {
+    time: relativeTime(e.createdAt),
+    label: EVENT_LABELS[e.event] ?? e.event,
+    value: e.entityType,
+    kind: ENTITY_KIND[e.entityType] ?? "blue",
+  };
+}
 
 export default function PmeDashboardPage() {
   const { t } = useTranslation("pt");
   const { data: receivables, isLoading, isError } = useReceivables();
+  const { data: me } = useMe();
+  const { data: auditEvents } = useAuditLog();
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
+
+  // KPI computations from real receivable data
+  const analysisRows = (receivables ?? []).filter(
+    (r) => r.status === "pending" || r.status === "validated",
+  );
+  const settledRows = (receivables ?? []).filter((r) => r.status === "settled");
+  const analysisValue = analysisRows.reduce((sum, r) => sum + r.value, 0);
+  const settledValue = settledRows.reduce((sum, r) => sum + r.value, 0);
+  const totalCount = receivables?.length ?? 0;
+
+  const firstName = me?.name?.split(" ")[0] ?? me?.email?.split("@")[0] ?? "";
+
+  const timelineItems: TimelineItem[] = auditEvents?.map(auditToTimeline) ?? [];
 
   function scrollToUpload() {
     document.getElementById("upload-zone")?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -66,7 +118,7 @@ export default function PmeDashboardPage() {
       >
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>
-            {t("dash_greeting")}, Luciana
+            {t("dash_greeting")}{firstName ? `, ${firstName}` : ""}
           </div>
           <h2 style={{ fontSize: 32 }}>Sua liquidez hoje</h2>
         </div>
@@ -94,14 +146,13 @@ export default function PmeDashboardPage() {
             {t("dash_avail")}
           </div>
           <div className="kpi kpi-lg num">
-            <span className="unit">R$</span>284.716
-            <span style={{ color: "var(--fg-2)", fontWeight: 500 }}>,08</span>
+            <span className="unit">R$</span>—
           </div>
           <div className="row" style={{ gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary">
+            <button className="btn btn-primary" disabled>
               <Icon name="download" size={14} /> {t("dash_withdraw")}
             </button>
-            <button className="btn btn-ghost">
+            <button className="btn btn-ghost" disabled>
               <Icon name="arrow_up_right" size={14} /> Transferir
             </button>
           </div>
@@ -120,28 +171,28 @@ export default function PmeDashboardPage() {
               <span className="dot-live" />
               <span>BRL Digital · Stellar</span>
             </span>
-            <span className="mono">GDCH7Q4X…FQT9M4</span>
+            <span className="mono">—</span>
           </div>
         </div>
 
         <MiniKpi
           label={t("dash_pending")}
-          value="R$ 523,5k"
-          sub="3 NF-e"
+          value={isLoading ? "…" : fmtBRL(analysisValue)}
+          sub={isLoading ? "" : `${analysisRows.length} NF-e`}
           color="#FFC857"
           icon="bolt"
         />
         <MiniKpi
           label={t("dash_released")}
-          value="R$ 1,28M"
-          sub="+23% vs mar"
+          value={isLoading ? "…" : fmtBRL(settledValue)}
+          sub={isLoading ? "" : `${settledRows.length} liquidadas`}
           color="#00FF94"
           icon="arrow_up_right"
         />
         <MiniKpi
           label={t("dash_nf_count")}
-          value="12"
-          sub="6 em análise"
+          value={isLoading ? "…" : String(totalCount)}
+          sub={isLoading ? "" : `${analysisRows.length} em análise`}
           color="#00D4FF"
           icon="doc"
         />
@@ -269,7 +320,13 @@ export default function PmeDashboardPage() {
             <span className="dot-live" /> Ao vivo
           </span>
         </div>
-        <Timeline items={pmeTimeline} />
+        {timelineItems.length === 0 ? (
+          <div style={{ padding: "32px 24px", color: "var(--fg-2)", fontSize: 13 }}>
+            Nenhuma atividade registrada ainda.
+          </div>
+        ) : (
+          <Timeline items={timelineItems} />
+        )}
       </div>
     </>
   );

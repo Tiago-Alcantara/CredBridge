@@ -4,6 +4,7 @@ import { apiFetch } from "./client";
 
 export const auditQueryKeys = {
   byEntity: (entityId: string) => ["audit", entityId] as const,
+  me: ["audit", "me"] as const,
 };
 
 export function useAuditTrail(entityId: string) {
@@ -14,5 +15,12 @@ export function useAuditTrail(entityId: string) {
         `/audit?entityId=${encodeURIComponent(entityId)}`,
       ),
     enabled: !!entityId,
+  });
+}
+
+export function useAuditLog() {
+  return useQuery<AuditEvent[]>({
+    queryKey: auditQueryKeys.me,
+    queryFn: () => apiFetch<AuditEvent[]>("/audit"),
   });
 }

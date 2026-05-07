@@ -39,4 +39,12 @@ export class AuditService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async findByUser(userId: string, limit = 20) {
+    return this.prisma.auditLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
 }
