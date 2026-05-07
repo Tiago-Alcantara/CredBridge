@@ -31,18 +31,15 @@
   </svg>
 
   <!-- Wordmark: font-size 48, baseline y=170 -->
-  <text x="504" y="170"
+  <text x="498" y="170"
         font-family="'Space Grotesk','Inter',system-ui,sans-serif"
-        font-weight="700" font-size="48" letter-spacing="-2"
-        fill="#7B2FFF">Cred</text>
-  <text x="611" y="170"
-        font-family="'Space Grotesk','Inter',system-ui,sans-serif"
-        font-weight="700" font-size="48" letter-spacing="-2"
-        fill="#F5F6FB">Bridge</text>
+        font-weight="700" font-size="48" letter-spacing="-2">
+    <tspan fill="#7B2FFF">Cred</tspan><tspan fill="#F5F6FB">Bridge</tspan>
+  </text>
 
   <!-- Dot: glow + solid, cy=150 (icon vertical center) -->
-  <circle cx="752" cy="150" r="6" fill="#00FF94" filter="url(#cb-banner-dg)"/>
-  <circle cx="752" cy="150" r="6" fill="#00FF94"/>
+  <circle cx="800" cy="150" r="6" fill="#00FF94" filter="url(#cb-banner-dg)"/>
+  <circle cx="800" cy="150" r="6" fill="#00FF94"/>
 
   <!-- Tagline -->
   <text x="600" y="212"
