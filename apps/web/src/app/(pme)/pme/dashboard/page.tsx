@@ -49,9 +49,7 @@ export default function PmeDashboardPage() {
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
   function scrollToUpload() {
-    document
-      .getElementById("upload-zone")
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    document.getElementById("upload-zone")?.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
   return (
