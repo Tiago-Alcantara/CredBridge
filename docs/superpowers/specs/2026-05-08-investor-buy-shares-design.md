@@ -171,6 +171,20 @@ Novo arquivo `apps/web/src/lib/api/investments.ts`:
 
 ## 6. Web — UI
 
+### Design system
+
+Todas as telas e componentes novos **devem reutilizar o design system existente** do projeto. Não criar estilos custom paralelos. Em particular:
+
+- **Tokens de cor:** usar variáveis CSS já definidas (`var(--surface)`, `var(--surface-2)`, `var(--line)`, `var(--line-2)`, `var(--fg-1)`, `var(--fg-2)`, `var(--fg-3)`, `var(--blue)`, `var(--violet)`, `var(--green)`, `var(--amber)`, `var(--red)`, etc.). Nada de hex inline novo.
+- **Tipografia:** classes existentes — `kpi`, `kpi-lg`, `eyebrow`, `num`, `mono`, `t-2`, `t-3`, `t-blue`, `t-green`.
+- **Componentes:** `card`, `btn` (com modificadores `btn-primary`, `btn-violet`, `btn-ghost`, `btn-sm`, `btn-lg`, `grow`), `input`, `field-label`, `chip`, `dot-live`, `progress`, `badge`, `tbl`, `row`, `col`, `between`.
+- **Primitivos:** importar de `@/components/primitives/` (`Logo`, `Icon`) e padrões de `@/components/patterns/` (`MiniKpi`, `AppTopBar`, `Sidebar`).
+- **Drawer/modal:** se não houver primitivo de drawer no projeto, criar um novo `apps/web/src/components/primitives/Drawer.tsx` reutilizável seguindo o padrão visual dos demais componentes (mesmo `border`, `surface`, `radius`).
+- **Formato de moeda/data:** usar `fmtBRL` de `@/lib/format` e `Date.toLocaleDateString("pt-BR", ...)` para datas.
+- **i18n:** strings exibidas devem passar pelo `useTranslation("pt")` quando reutilizam chaves existentes; novas strings podem ficar inline em PT (consistente com o resto do dashboard) e podem ser extraídas para `pt.json` se reaproveitadas.
+
+Referências de estilo: o próprio dashboard do investidor (`apps/web/src/app/(investor)/investor/dashboard/page.tsx`) e os componentes `ShareCard`, `MiniKpi`, `NavChart` exemplificam o padrão a seguir.
+
 ### Componentes novos (sob `apps/web/src/components/investor/`)
 
 - `PoolToggle.tsx` — segmented control com props `value: 'pool' | 'mine'`, `onChange`.
