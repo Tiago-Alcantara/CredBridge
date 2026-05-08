@@ -17,6 +17,7 @@
     "seed": "npm run seed -w apps/api"
   },
   "devDependencies": {
+    "@stellar/stellar-sdk": "^15.1.0",
     "concurrently": "^8.2.2"
   }
 }

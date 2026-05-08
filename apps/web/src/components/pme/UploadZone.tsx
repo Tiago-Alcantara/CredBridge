@@ -82,7 +82,7 @@ export function UploadZone({ id }: UploadZoneProps) {
       await createDocument.mutateAsync({
         receivableId: receivable.id,
         type: "invoice",
-        url: `stub://${file.name}`,
+        url: `https://stub/${encodeURIComponent(file.name)}`,
         hash,
       });
 
