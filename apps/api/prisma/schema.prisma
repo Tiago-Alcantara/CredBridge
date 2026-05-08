@@ -22,6 +22,7 @@ model Receivable {
 
   documents      Document[]
   settlements    Settlement[]
+  investment     Investment?
 }
 
 model Document {
@@ -80,4 +81,22 @@ model AuditLog {
 
   @@index([entityId, entityType])
   @@index([userId])
+}
+
+model Investment {
+  id             String     @id @default(uuid())
+  investorUserId String
+  receivableId   String     @unique
+  amountPaid     Float
+  faceValue      Float
+  discountRate   Float      @default(0.03)
+  status         String     @default("active")
+  pixTxId        String?
+  paidAt         DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  receivable     Receivable @relation(fields: [receivableId], references: [id])
+
+  @@index([investorUserId])
 }
