@@ -22,6 +22,16 @@ export class ReceivablesController {
     return this.receivablesService.findAll(req.user.userId);
   }
 
+  @Get('pool/stats')
+  getPoolStats() {
+    return this.receivablesService.getPoolStats();
+  }
+
+  @Get('pool')
+  findPool() {
+    return this.receivablesService.findPool();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.receivablesService.findOne(id);

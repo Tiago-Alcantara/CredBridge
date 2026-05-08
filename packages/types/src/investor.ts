@@ -6,3 +6,10 @@ export interface Investor {
   stellarAddress?: string;
   createdAt: string;
 }
+
+export interface InvestorPoolStats {
+  totalValue: number;
+  activeCount: number;
+  validatedCount: number;
+  poolCount: number;
+}

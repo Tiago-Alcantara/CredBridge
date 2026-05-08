@@ -6,33 +6,30 @@ import { NavChart } from "@/components/investor/NavChart";
 import { ShareCard } from "@/components/investor/ShareCard";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { fmtBRL } from "@/lib/format";
+import { useInvestorPool, useInvestorStats } from "@/lib/api/receivables";
 
-interface Receivable {
-  nfe: string;
-  sacado: string;
-  score: string;
-  valor: number;
-  yield: number;
-  due: string;
-  tx: string;
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+  });
 }
 
-const invReceivables: Receivable[] = [
-  { nfe: "428.551", sacado: "Magazine Luiza", score: "AAA", valor: 182450,  yield: 18.4, due: "12 mai", tx: "0xA7F2…91C" },
-  { nfe: "428.539", sacado: "Via Varejo",      score: "AA",  valor: 94200,  yield: 19.1, due: "04 mai", tx: "0xB3D1…88F" },
-  { nfe: "428.502", sacado: "Americanas",      score: "A+",  valor: 246800, yield: 22.8, due: "22 mai", tx: "0xC9E4…42B" },
-  { nfe: "428.488", sacado: "Lojas Renner",    score: "AAA", valor: 58120,  yield: 17.2, due: "29 abr", tx: "0xD2A7…10E" },
-  { nfe: "428.477", sacado: "Havan",           score: "AA",  valor: 88710,  yield: 20.4, due: "14 mai", tx: "0xE881…75C" },
-];
+function shortId(id: string): string {
+  return id.slice(0, 8).toUpperCase();
+}
 
-function scoreColor(score: string): string {
-  if (score.startsWith("AAA")) return "var(--green)";
-  if (score.startsWith("AA")) return "var(--blue)";
-  return "var(--amber)";
+function shortTx(tx: string): string {
+  return tx.length > 10 ? `${tx.slice(0, 6)}…${tx.slice(-3)}` : tx;
 }
 
 export default function InvestorDashboardPage() {
   const { t } = useTranslation("pt");
+  const { data: pool = [], isLoading: loadingPool } = useInvestorPool();
+  const { data: stats, isLoading: loadingStats } = useInvestorStats();
+
+  const totalValue = stats?.totalValue ?? 0;
+  const poolCount = stats?.poolCount ?? 0;
 
   return (
     <>
@@ -64,22 +61,14 @@ export default function InvestorDashboardPage() {
         <div className="card violet-hi" style={{ padding: 32 }}>
           <div className="eyebrow" style={{ marginBottom: 12 }}>{t("inv_invested")}</div>
           <div className="kpi kpi-lg num">
-            <span className="unit">R$</span>2.450.000
-            <span style={{ color: "var(--fg-2)", fontWeight: 500 }}>,00</span>
+            {loadingStats ? (
+              <span className="t-3">—</span>
+            ) : (
+              <span>{fmtBRL(totalValue)}</span>
+            )}
           </div>
           <div className="row" style={{ gap: 16, marginTop: 14, fontSize: 12.5 }}>
-            <span className="t-2">NAV R$ 2.906.342</span>
-            <span className="t-green">▲ R$ 456.342 · 18,6%</span>
-          </div>
-          <div className="progress" style={{ marginTop: 18 }}>
-            <i style={{ width: "64%" }} />
-          </div>
-          <div
-            className="row between"
-            style={{ marginTop: 8, fontSize: 11, color: "var(--fg-3)" }}
-          >
-            <span>Sênior 64%</span>
-            <span>Anjo 36%</span>
+            <span className="t-2">{poolCount} recebíveis no pool</span>
           </div>
         </div>
         <MiniKpi label={t("inv_nav")} value="1,186" sub="por cota" color="#00D4FF" icon="chart" />
@@ -117,11 +106,10 @@ export default function InvestorDashboardPage() {
           <div className="row" style={{ gap: 24, marginBottom: 10 }}>
             <div>
               <div className="kpi num" style={{ fontSize: 28 }}>
-                R$ 2.906.342
+                {loadingStats ? "—" : fmtBRL(totalValue)}
               </div>
               <div className="row" style={{ gap: 8, fontSize: 12 }}>
-                <span className="t-green">▲ R$ 38.492 hoje</span>
-                <span className="t-3">· +1,34%</span>
+                <span className="t-3">Pool total</span>
               </div>
             </div>
           </div>
@@ -130,27 +118,16 @@ export default function InvestorDashboardPage() {
 
         <div className="col" style={{ gap: 12 }}>
           <ShareCard
-            title={t("inv_senior")}
+            title={t("inv_shares")}
             color="#00D4FF"
-            allocation="64%"
-            value="R$ 1.568.000"
-            yieldVal="CDI + 4,8%"
-            desc={t("inv_senior_desc")}
-          />
-          <ShareCard
-            title={t("inv_angel")}
-            color="#7B2FFF"
-            allocation="36%"
-            value="R$ 882.000"
-            yieldVal="CDI + 14,2%"
-            desc={t("inv_angel_desc")}
+            allocation="100%"
+            value={loadingStats ? "—" : fmtBRL(totalValue)}
+            yieldVal="—"
+            desc="Cotas do fundo"
           />
           <div className="card" style={{ padding: 16, display: "flex", gap: 10 }}>
             <button className="btn btn-primary grow">
               <Icon name="plus" size={14} /> {t("inv_buy")}
-            </button>
-            <button className="btn btn-ghost grow">
-              <Icon name="arrow_up_right" size={14} /> {t("inv_sell")}
             </button>
           </div>
         </div>
@@ -165,7 +142,7 @@ export default function InvestorDashboardPage() {
           <div>
             <h3>{t("inv_receivables")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-              342 ativos · todos com prova on-chain
+              {loadingPool ? "Carregando…" : `${poolCount} ativos · todos com prova on-chain`}
             </p>
           </div>
           <button className="btn btn-ghost btn-sm">
@@ -175,58 +152,72 @@ export default function InvestorDashboardPage() {
         <table className="tbl">
           <thead>
             <tr>
-              <th>NF-e</th>
+              <th>ID</th>
               <th>Sacado</th>
-              <th>Rating</th>
+              <th>Status</th>
               <th style={{ textAlign: "right" }}>Valor</th>
-              <th style={{ textAlign: "right" }}>Yield</th>
               <th>Vencimento</th>
               <th>Prova on-chain</th>
             </tr>
           </thead>
           <tbody>
-            {invReceivables.map((r) => (
-              <tr key={r.nfe}>
-                <td>
-                  <span className="mono">{r.nfe}</span>
-                </td>
-                <td style={{ fontWeight: 500 }}>{r.sacado}</td>
-                <td>
-                  <span
-                    className="badge neutral no-dot"
-                    style={{
-                      fontFamily: "var(--mono)",
-                      fontSize: 11,
-                      color: scoreColor(r.score),
-                    }}
-                  >
-                    {r.score}
-                  </span>
-                </td>
-                <td className="num" style={{ textAlign: "right", fontWeight: 500 }}>
-                  {fmtBRL(r.valor)}
-                </td>
-                <td className="num t-green" style={{ textAlign: "right", fontWeight: 600 }}>
-                  {r.yield.toFixed(1).replace(".", ",")}%
-                </td>
-                <td style={{ fontSize: 13 }}>{r.due}</td>
-                <td>
-                  <a
-                    href="#"
-                    className="row"
-                    style={{
-                      gap: 6,
-                      fontSize: 12.5,
-                      color: "var(--blue)",
-                      textDecoration: "none",
-                      fontFamily: "var(--mono)",
-                    }}
-                  >
-                    <Icon name="chain" size={12} /> {r.tx}
-                  </a>
+            {loadingPool ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: 32, color: "var(--fg-3)" }}>
+                  Carregando recebíveis…
                 </td>
               </tr>
-            ))}
+            ) : pool.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: 32, color: "var(--fg-3)" }}>
+                  Nenhum recebível disponível no pool.
+                </td>
+              </tr>
+            ) : (
+              pool.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <span className="mono">{shortId(r.id)}</span>
+                  </td>
+                  <td style={{ fontWeight: 500 }}>{r.debtorName}</td>
+                  <td>
+                    <span
+                      className="badge neutral no-dot"
+                      style={{
+                        fontFamily: "var(--mono)",
+                        fontSize: 11,
+                        color: r.status === "active" ? "var(--green)" : "var(--blue)",
+                      }}
+                    >
+                      {r.status === "active" ? "Ativo" : "Validado"}
+                    </span>
+                  </td>
+                  <td className="num" style={{ textAlign: "right", fontWeight: 500 }}>
+                    {fmtBRL(r.value)}
+                  </td>
+                  <td style={{ fontSize: 13 }}>{fmtDate(r.dueDate)}</td>
+                  <td>
+                    {r.txHash ? (
+                      <a
+                        href="#"
+                        className="row"
+                        style={{
+                          gap: 6,
+                          fontSize: 12.5,
+                          color: "var(--blue)",
+                          textDecoration: "none",
+                          fontFamily: "var(--mono)",
+                        }}
+                      >
+                        <Icon name="chain" size={12} /> {shortTx(r.txHash)}
+                      </a>
+                    ) : (
+                      <span className="t-3" style={{ fontSize: 12 }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

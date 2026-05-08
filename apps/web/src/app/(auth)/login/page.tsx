@@ -8,8 +8,10 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { LoginBG } from "@/components/auth/LoginBG";
 import { KycFlow } from "@/components/auth/KycFlow";
 import { useLogin, useRegister } from "@/lib/api/auth";
+import { clearAccessToken } from "@/lib/api/auth-storage";
+import { extractApiErrorMessage } from "@/lib/api/client";
 
-type RoleKey = "pme" | "investor" | "partner";
+type RoleKey = "pme" | "investor";
 type Step = "role" | "credentials" | "kyc";
 type Mode = "login" | "register";
 
@@ -39,11 +41,19 @@ export default function LoginPage() {
   const dashFor = useCallback(
     (r: RoleKey) => {
       if (r === "pme") router.push("/pme/dashboard");
-      else if (r === "investor") router.push("/investor/dashboard");
-      else router.push("/partner/dashboard");
+      else router.push("/investor/dashboard");
     },
     [router]
   );
+
+  const translateApiError = useCallback((msg: string): string => {
+    const map: Record<string, string> = {
+      "Email already registered": "E-mail já cadastrado",
+      "Invalid credentials": "Credenciais inválidas",
+      "Unauthorized": "Credenciais inválidas",
+    };
+    return map[msg] ?? msg;
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -51,10 +61,17 @@ export default function LoginPage() {
       loginMutation.mutate(
         { email, password },
         {
-          onSuccess: () => dashFor(role),
+          onSuccess: (data) => {
+            if (data.user.role !== role) {
+              clearAccessToken();
+              setError("Conta não encontrada");
+              return;
+            }
+            dashFor(data.user.role as RoleKey);
+          },
           onError: (err: unknown) => {
             const msg =
-              err instanceof Error ? err.message : "Credenciais inválidas";
+              translateApiError(extractApiErrorMessage(err)) || "Credenciais inválidas";
             setError(msg);
           },
         }
@@ -72,13 +89,13 @@ export default function LoginPage() {
           },
           onError: (err: unknown) => {
             const msg =
-              err instanceof Error ? err.message : "Erro ao criar conta";
+              translateApiError(extractApiErrorMessage(err)) || "Erro ao criar conta";
             setError(msg);
           },
         }
       );
     }
-  }, [mode, email, password, role, loginMutation, registerMutation, dashFor]);
+  }, [mode, email, password, role, loginMutation, registerMutation, dashFor, translateApiError]);
 
   const roles: RoleOption[] = [
     {
@@ -94,13 +111,6 @@ export default function LoginPage() {
       icon: "chart",
       label: t("role_inv"),
       desc: t("role_inv_desc"),
-    },
-    {
-      k: "partner",
-      c: "#00FF94",
-      icon: "code",
-      label: t("role_partner"),
-      desc: t("role_partner_desc"),
     },
   ];
 

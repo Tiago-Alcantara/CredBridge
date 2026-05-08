@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Receivable, CreateReceivableInput } from "@credbridge/types";
+import type { Receivable, CreateReceivableInput, InvestorPoolStats } from "@credbridge/types";
 import { apiFetch } from "./client";
 
 export const receivableQueryKeys = {
@@ -19,6 +19,20 @@ export function useReceivable(id: string) {
     queryKey: receivableQueryKeys.detail(id),
     queryFn: () => apiFetch<Receivable>(`/receivables/${id}`),
     enabled: !!id,
+  });
+}
+
+export function useInvestorPool() {
+  return useQuery<Receivable[]>({
+    queryKey: ["receivables", "pool"],
+    queryFn: () => apiFetch<Receivable[]>("/receivables/pool"),
+  });
+}
+
+export function useInvestorStats() {
+  return useQuery<InvestorPoolStats>({
+    queryKey: ["receivables", "pool", "stats"],
+    queryFn: () => apiFetch<InvestorPoolStats>("/receivables/pool/stats"),
   });
 }
 

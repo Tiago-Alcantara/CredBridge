@@ -17,4 +17,12 @@ export class ReceivablesService {
   async findOne(id: string) {
     return this.repo.findOne(id);
   }
+
+  async findPool() {
+    return this.repo.findPool();
+  }
+
+  async getPoolStats() {
+    return this.repo.getPoolStats();
+  }
 }
