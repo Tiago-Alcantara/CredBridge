@@ -9,6 +9,7 @@ import { ReceivablesModule } from './modules/receivables/receivables.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { SettlementsModule } from './modules/settlements/settlements.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { InvestmentsModule } from './modules/investments/investments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 
@@ -24,6 +25,7 @@ import { HealthModule } from './modules/health/health.module';
     DocumentsModule,
     SettlementsModule,
     AuditModule,
+    InvestmentsModule,
     AuthModule,
     HealthModule,
   ],
