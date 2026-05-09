@@ -3,7 +3,7 @@ export type IconName =
   | "settings" | "plus" | "arrow_right" | "arrow_up_right"
   | "upload" | "download" | "check" | "chain" | "shield"
   | "bell" | "search" | "key" | "webhook" | "doc" | "bolt"
-  | "user" | "logout" | "copy" | "eye" | "menu";
+  | "user" | "logout" | "copy" | "eye" | "menu" | "close";
 
 interface IconProps {
   name: IconName;
@@ -38,6 +38,7 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   copy:           <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></>,
   eye:            <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></>,
   menu:           <><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></>,
+  close:          <><path d="M5 5l14 14"/><path d="M19 5L5 19"/></>,
 };
 
 export function Icon({ name, size = 18, className }: IconProps) {
