@@ -132,4 +132,29 @@ describe('InvestmentsService', () => {
       );
     });
   });
+
+  describe('findMine', () => {
+    it('returns positions for the given investor', async () => {
+      const positions = [
+        { id: 'a', investorUserId: investorId, receivableId, faceValue: 100, amountPaid: 97 },
+      ] as never;
+      repo.findManyByInvestor.mockResolvedValue(positions);
+      const result = await service.findMine(investorId);
+      expect(repo.findManyByInvestor).toHaveBeenCalledWith(investorId);
+      expect(result).toBe(positions);
+    });
+  });
+
+  describe('getMyStats', () => {
+    it('returns aggregate stats for the investor', async () => {
+      repo.getStatsByInvestor.mockResolvedValue({
+        totalInvested: 9700,
+        expectedReturn: 300,
+        activePositions: 1,
+      });
+      const result = await service.getMyStats(investorId);
+      expect(repo.getStatsByInvestor).toHaveBeenCalledWith(investorId);
+      expect(result).toEqual({ totalInvested: 9700, expectedReturn: 300, activePositions: 1 });
+    });
+  });
 });

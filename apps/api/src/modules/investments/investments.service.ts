@@ -60,4 +60,12 @@ export class InvestmentsService {
       return investment;
     });
   }
+
+  findMine(investorUserId: string) {
+    return this.repo.findManyByInvestor(investorUserId);
+  }
+
+  getMyStats(investorUserId: string) {
+    return this.repo.getStatsByInvestor(investorUserId);
+  }
 }
