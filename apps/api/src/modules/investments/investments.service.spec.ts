@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { InvestmentsService } from './investments.service';
 import { InvestmentsRepository } from './investments.repository';
 import { PrismaService } from '../../shared/prisma/prisma.service';
@@ -129,6 +130,34 @@ describe('InvestmentsService', () => {
       expect(repo.createInvestment).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ pixTxId: 'pix-abc' }),
+      );
+    });
+
+    it('rolls back the transaction when setReceivableActive fails', async () => {
+      repo.findReceivableForUpdate.mockResolvedValue(baseReceivable());
+      repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
+      repo.setReceivableActive.mockRejectedValue(new Error('db update failed'));
+
+      await expect(service.create(investorId, { receivableId })).rejects.toThrow(
+        'db update failed',
+      );
+
+      expect(repo.createInvestment).toHaveBeenCalled();
+      expect(repo.setReceivableActive).toHaveBeenCalled();
+      expect(repo.recordAudit).not.toHaveBeenCalled();
+    });
+
+    it('maps Prisma P2002 unique violation to ConflictException', async () => {
+      repo.findReceivableForUpdate.mockResolvedValue(baseReceivable());
+      repo.createInvestment.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('unique violation', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(service.create(investorId, { receivableId })).rejects.toBeInstanceOf(
+        ConflictException,
       );
     });
   });
