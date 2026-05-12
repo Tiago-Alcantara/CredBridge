@@ -164,32 +164,55 @@ CredBridge/
 
 - [Node.js](https://nodejs.org) v18 ou superior
 - npm v9 ou superior
-- PostgreSQL 14+ (rodando local ou remoto) — opcional para o boot, mas obrigatório para queries
+- [Docker](https://docs.docker.com/get-docker/) + Docker Compose — para subir o PostgreSQL localmente (recomendado)
+  - Alternativa: PostgreSQL 14+ instalado e rodando na máquina
 
 ---
 
 ## Como rodar
 
+### 1. Clonar e instalar dependências
+
 ```bash
-# 1. Instalar dependências (npm workspaces resolve tudo de uma vez)
+git clone <repo-url>
+cd CredBridge
 npm install
+```
 
-# 2. Configurar variáveis de ambiente
+### 2. Configurar variáveis de ambiente
+
+```bash
 cp .env.example .env
-# edite .env com DATABASE_URL e demais segredos
 cp apps/web/.env.local.example apps/web/.env.local
-# edite apps/web/.env.local com valores reais do frontend
+```
 
-# 3. Build do pacote de tipos compartilhados
+Os valores padrão do `.env` já funcionam com o banco Docker abaixo — não é necessário editar nada para rodar localmente.
+
+### 3. Subir o banco de dados
+
+**Com Docker (recomendado):**
+
+```bash
+docker compose up -d
+```
+
+Isso sobe um PostgreSQL 16 na porta `5432` com usuário `credbridge`, senha `credbridge` e banco `credbridge` — exatamente o que está no `.env.example`.
+
+**Sem Docker:** certifique-se de ter um PostgreSQL rodando e ajuste `DATABASE_URL` no `.env`.
+
+### 4. Build dos tipos compartilhados e migração
+
+```bash
 npm run build:types
 
-# 4. (Opcional, se for usar DB) gerar Prisma client e aplicar schema
 cd apps/api
-npx prisma generate
 npx prisma migrate dev --name init
 cd ../..
+```
 
-# 5. Rodar tudo em modo desenvolvimento
+### 5. Rodar em modo desenvolvimento
+
+```bash
 npm run dev
 ```
 
@@ -197,7 +220,7 @@ Após o `npm run dev`:
 - Frontend: [http://localhost:3000](http://localhost:3000)
 - API: [http://localhost:3001/v1](http://localhost:3001/v1)
 
-> Sem PostgreSQL rodando, o NestJS sobe normalmente (com warning `Prisma failed to connect at startup`). Queries falharão até a `DATABASE_URL` apontar para um banco real.
+> O banco sobe vazio. Crie usuários via `POST /v1/auth/register` ou use a tela de login/onboarding.
 
 ---
 

@@ -27,6 +27,13 @@ export default function InvestorDashboardPage() {
 
   const isMine = view === "mine";
 
+  const goToPool = () => {
+    setView("pool");
+    requestAnimationFrame(() => {
+      document.getElementById("pool-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const headerValue = isMine
     ? posStats?.totalInvested ?? 0
     : poolStats?.totalValue ?? 0;
@@ -49,7 +56,7 @@ export default function InvestorDashboardPage() {
           </button>
           <button
             className="btn btn-violet"
-            onClick={() => setView("pool")}
+            onClick={goToPool}
           >
             <Icon name="plus" size={14} /> {t("inv_buy")}
           </button>
@@ -143,7 +150,7 @@ export default function InvestorDashboardPage() {
             desc="Cotas do fundo"
           />
           <div className="card" style={{ padding: 16, display: "flex", gap: 10 }}>
-            <button className="btn btn-primary grow" onClick={() => setView("pool")}>
+            <button className="btn btn-primary grow" onClick={goToPool}>
               <Icon name="plus" size={14} /> {t("inv_buy")}
             </button>
           </div>
@@ -151,7 +158,7 @@ export default function InvestorDashboardPage() {
       </div>
 
       {/* Pool / Positions table */}
-      <div className="card" style={{ padding: 0 }}>
+      <div id="pool-table" className="card" style={{ padding: 0 }}>
         <div
           className="row between"
           style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}
@@ -159,8 +166,7 @@ export default function InvestorDashboardPage() {
           <div>
             <h3>{isMine ? "Minhas cotas" : t("inv_receivables")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-              {isMine
-                ? loadingPositions
+              {isMine? loadingPositions
                   ? "Carregando…"
                   : `${positions.length} posições · todas com prova on-chain`
                 : loadingPool

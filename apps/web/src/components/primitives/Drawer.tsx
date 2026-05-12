@@ -62,6 +62,7 @@ export function Drawer({ open, onClose, title, children, width = 480 }: DrawerPr
         <header
           className="row between"
           style={{
+            backgroundColor: "#0A0A1A",
             padding: "18px 22px",
             borderBottom: "1px solid var(--line)",
           }}
@@ -71,7 +72,7 @@ export function Drawer({ open, onClose, title, children, width = 480 }: DrawerPr
             <Icon name="close" size={14} />
           </button>
         </header>
-        <div style={{ flex: 1, overflow: "auto", padding: "22px" }}>{children}</div>
+        <div style={{ backgroundColor: "#0A0A1A", flex: 1, overflow: "auto", padding: "22px" }}>{children}</div>
       </aside>
     </div>
   );

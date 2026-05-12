@@ -7,9 +7,10 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 const investorSidebarItems: SidebarItem[] = [
   { href: "/investor/dashboard",      icon: "chart",    label: "Portfólio" },
-  { href: "/investor/recebiveis",     icon: "box",      label: "Recebíveis" },
-  { href: "/investor/cotas",          icon: "wallet",   label: "Cotas" },
-  { href: "/investor/auditoria",      icon: "shield",   label: "Auditoria" },
+  // @TODO estamos pensando em como organizar melhor as páginas de recebíveis e cotas, então por ora vamos deixar elas de fora do menu
+  // { href: "/investor/recebiveis",     icon: "box",      label: "Recebíveis" },
+  // { href: "/investor/cotas",          icon: "wallet",   label: "Cotas" },
+  // { href: "/investor/auditoria",      icon: "shield",   label: "Auditoria" },
   { group: "CONTA" },
   { href: "/investor/configuracoes",  icon: "settings", label: "Configurações" },
 ];

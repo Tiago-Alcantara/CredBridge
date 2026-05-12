@@ -20,6 +20,7 @@ model Receivable {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  user           User       @relation("UserReceivables", fields: [userId], references: [id])
   documents      Document[]
   settlements    Settlement[]
   investment     Investment?
@@ -67,6 +68,10 @@ model User {
   operationalLimit Float?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  receivables      Receivable[] @relation("UserReceivables")
+  investments      Investment[] @relation("UserInvestments")
+  auditLogs        AuditLog[]   @relation("UserAuditLogs")
 }
 
 model AuditLog {
@@ -78,6 +83,8 @@ model AuditLog {
   txHash       String?
   metadata     Json?
   createdAt    DateTime @default(now())
+
+  user         User     @relation("UserAuditLogs", fields: [userId], references: [id])
 
   @@index([entityId, entityType])
   @@index([userId])
@@ -97,6 +104,7 @@ model Investment {
   updatedAt      DateTime   @updatedAt
 
   receivable     Receivable @relation(fields: [receivableId], references: [id])
+  investor       User       @relation("UserInvestments", fields: [investorUserId], references: [id])
 
   @@index([investorUserId])
 }
