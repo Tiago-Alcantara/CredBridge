@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Patch, Body, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -14,11 +15,13 @@ interface AuthRequest {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('register')
   register(@Body() body: RegisterDto) {
     return this.authService.register(body);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('login')
   login(@Body() body: LoginDto) {
     return this.authService.login(body);
@@ -42,11 +45,13 @@ export class AuthController {
     return this.authService.changePassword(req.user.userId, body);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('stellar/challenge')
   getStellarChallenge(@Body() body: { stellarAddress: string }) {
     return this.authService.getStellarChallenge(body.stellarAddress);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('stellar/verify')
   verifyStellarChallenge(@Body() body: { signedTransaction: string }) {
     return this.authService.verifyStellarChallenge(body.signedTransaction);

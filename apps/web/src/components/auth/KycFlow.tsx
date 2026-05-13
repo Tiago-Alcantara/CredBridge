@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useUpdateProfile } from "@/lib/api/auth";
 
 interface KycFlowProps {
   onDone: () => void;
@@ -23,13 +24,45 @@ const docs: DocItem[] = [
   { id: "balanco", label: "Último balanço", st: "pending" },
 ];
 
+const MONTHLY_REVENUE_MAP: Record<string, number> = {
+  "500k-2m": 1_000_000,
+  "2m-10m": 6_000_000,
+};
+
 export function KycFlow({ onDone }: KycFlowProps) {
   const { t } = useTranslation("pt");
   const [step, setStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [cnpj, setCnpj] = useState("");
+  const [revenueKey, setRevenueKey] = useState("500k-2m");
+  const [sector, setSector] = useState("industria");
+
+  const updateProfile = useUpdateProfile();
 
   const stepKeys = ["kyc_step_1", "kyc_step_2", "kyc_step_3", "kyc_step_4"] as const;
   type StepKey = (typeof stepKeys)[number];
   const steps = stepKeys.map((k) => t(k as StepKey));
+
+  const handleFinish = async () => {
+    setError(null);
+    try {
+      await updateProfile.mutateAsync({
+        name: name || undefined,
+        phone: phone || undefined,
+        companyName: companyName || undefined,
+        cnpj: cnpj || undefined,
+        monthlyRevenue: MONTHLY_REVENUE_MAP[revenueKey],
+        sector,
+      });
+      onDone();
+    } catch {
+      setError("Erro ao salvar perfil. Tente novamente.");
+    }
+  };
 
   return (
     <div>
@@ -88,15 +121,8 @@ export function KycFlow({ onDone }: KycFlowProps) {
               <input
                 className="input"
                 placeholder="Luciana Martins Ribeiro"
-                defaultValue="Luciana Martins Ribeiro"
-              />
-            </div>
-            <div>
-              <label className="field-label">CPF</label>
-              <input
-                className="input"
-                placeholder="000.000.000-00"
-                defaultValue="318.442.907-55"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div>
@@ -104,7 +130,8 @@ export function KycFlow({ onDone }: KycFlowProps) {
               <input
                 className="input"
                 placeholder="+55 (11) 00000-0000"
-                defaultValue="+55 (11) 98421-7720"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
               />
             </div>
           </div>
@@ -116,28 +143,51 @@ export function KycFlow({ onDone }: KycFlowProps) {
               <label className="field-label">Razão social</label>
               <input
                 className="input"
-                defaultValue="Tecelagem Ribeiro Indústria Ltda."
+                placeholder="Empresa Ltda."
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
               />
             </div>
             <div>
               <label className="field-label">CNPJ</label>
-              <input className="input" defaultValue="42.317.854/0001-28" />
+              <input
+                className="input"
+                placeholder="00.000.000/0001-00"
+                value={cnpj}
+                onChange={(e) => setCnpj(e.target.value)}
+              />
             </div>
             <div
               style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
             >
               <div>
                 <label className="field-label">Faturamento mensal</label>
-                <select className="input">
-                  <option>R$ 500k – 2M</option>
-                  <option>R$ 2M – 10M</option>
+                <select
+                  className="input"
+                  value={revenueKey}
+                  onChange={(e) => setRevenueKey(e.target.value)}
+                >
+                  <option value="500k-2m">R$ 500k – 2M</option>
+                  <option value="2m-10m">R$ 2M – 10M</option>
                 </select>
               </div>
               <div>
                 <label className="field-label">Setor</label>
-                <select className="input">
-                  <option>Indústria</option>
-                  <option>Comércio</option>
+                <select
+                  className="input"
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                >
+                  <option value="industria">Indústria</option>
+                  <option value="varejo">Comércio/Varejo</option>
+                  <option value="tecnologia">Tecnologia</option>
+                  <option value="servicos">Serviços</option>
+                  <option value="agronegocio">Agronegócio</option>
+                  <option value="saude">Saúde</option>
+                  <option value="construcao">Construção</option>
+                  <option value="transporte">Transporte</option>
+                  <option value="educacao">Educação</option>
+                  <option value="financeiro">Financeiro</option>
                 </select>
               </div>
             </div>
@@ -207,11 +257,15 @@ export function KycFlow({ onDone }: KycFlowProps) {
         )}
       </div>
 
+      {error && (
+        <p style={{ color: "var(--red)", fontSize: 13, marginTop: 12 }}>{error}</p>
+      )}
+
       <div className="row between" style={{ marginTop: 20 }}>
         <button
           className="btn btn-ghost"
           onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
+          disabled={step === 0 || updateProfile.isPending}
           style={{ opacity: step === 0 ? 0.4 : 1 }}
         >
           Voltar
@@ -220,12 +274,18 @@ export function KycFlow({ onDone }: KycFlowProps) {
           <button
             className="btn btn-primary"
             onClick={() => setStep(step + 1)}
+            disabled={updateProfile.isPending}
           >
             Continuar <Icon name="arrow_right" size={14} />
           </button>
         ) : (
-          <button className="btn btn-primary" onClick={onDone}>
-            Ir para painel <Icon name="arrow_right" size={14} />
+          <button
+            className="btn btn-primary"
+            onClick={handleFinish}
+            disabled={updateProfile.isPending}
+          >
+            {updateProfile.isPending ? "Salvando…" : "Ir para painel"}{" "}
+            {!updateProfile.isPending && <Icon name="arrow_right" size={14} />}
           </button>
         )}
       </div>
