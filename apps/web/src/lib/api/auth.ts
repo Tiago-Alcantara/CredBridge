@@ -56,6 +56,33 @@ export function useRegister() {
   });
 }
 
+export interface UpdateProfileInput {
+  name?: string;
+  phone?: string;
+  address?: string;
+  companyName?: string;
+  cnpj?: string;
+  monthlyRevenue?: number;
+  sector?: string;
+  investorType?: string;
+  riskProfile?: string;
+  operationalLimit?: number;
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateProfileInput) =>
+      apiFetch<AuthUser>("/auth/me", {
+        method: "PATCH",
+        body: input,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+}
+
 export function logout(): void {
   clearAccessToken();
 }
