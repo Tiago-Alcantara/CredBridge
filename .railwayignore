@@ -1,0 +1,9 @@
+node_modules
+apps/web
+apps/api/node_modules
+contracts
+docs
+documentacao
+**/.env
+**/*.local
+dist
