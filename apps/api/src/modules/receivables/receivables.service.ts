@@ -1,7 +1,8 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { ReceivablesRepository } from './receivables.repository';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
-import { BlockchainService, BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
+import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
+import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
 @Injectable()
 export class ReceivablesService {

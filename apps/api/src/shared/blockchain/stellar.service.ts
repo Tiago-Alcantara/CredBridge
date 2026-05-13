@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { BlockchainService, TokenizeNfeInput } from './blockchain.interface';
+import type { BlockchainService, TokenizeNfeInput } from './blockchain.interface';
 
 @Injectable()
 export class StellarService implements BlockchainService {
