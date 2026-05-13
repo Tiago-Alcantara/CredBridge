@@ -45,11 +45,13 @@ export class AuthController {
     return this.authService.changePassword(req.user.userId, body);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('stellar/challenge')
   getStellarChallenge(@Body() body: { stellarAddress: string }) {
     return this.authService.getStellarChallenge(body.stellarAddress);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('stellar/verify')
   verifyStellarChallenge(@Body() body: { signedTransaction: string }) {
     return this.authService.verifyStellarChallenge(body.signedTransaction);
