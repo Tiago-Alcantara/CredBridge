@@ -40,6 +40,27 @@ describe('AllExceptionsFilter', () => {
       expect(statusFn).toHaveBeenCalledWith(500);
       expect(jsonFn).toHaveBeenCalledWith({ statusCode: 500, message: 'Internal server error' });
     });
+
+    it('hides internal message for HttpException 5xx', () => {
+      const filter = makeFilter(true);
+      const statusFn = jest.fn().mockReturnThis();
+      const jsonFn = jest.fn();
+      const ctx = makeCtx(statusFn, jsonFn);
+      filter.catch(new HttpException('DB error details', HttpStatus.INTERNAL_SERVER_ERROR), ctx);
+      expect(statusFn).toHaveBeenCalledWith(500);
+      expect(jsonFn).toHaveBeenCalledWith({ statusCode: 500, message: 'Internal server error' });
+    });
+
+    it('returns first message from validation array', () => {
+      const filter = makeFilter(true);
+      const statusFn = jest.fn().mockReturnThis();
+      const jsonFn = jest.fn();
+      const ctx = makeCtx(statusFn, jsonFn);
+      const exc = new HttpException({ message: ['field is required', 'must be a string'], error: 'Bad Request' }, HttpStatus.BAD_REQUEST);
+      filter.catch(exc, ctx);
+      expect(statusFn).toHaveBeenCalledWith(400);
+      expect(jsonFn).toHaveBeenCalledWith({ statusCode: 400, message: 'field is required' });
+    });
   });
 
   describe('in development', () => {
@@ -53,6 +74,28 @@ describe('AllExceptionsFilter', () => {
       expect(statusFn).toHaveBeenCalledWith(500);
       const call = jsonFn.mock.calls[0][0] as Record<string, unknown>;
       expect(call).toHaveProperty('stack');
+    });
+  });
+
+  describe('logger behavior', () => {
+    it('calls logger.error for 5xx', () => {
+      const filter = makeFilter(false);
+      const logSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      const statusFn = jest.fn().mockReturnThis();
+      const ctx = makeCtx(statusFn, jest.fn());
+      filter.catch(new Error('boom'), ctx);
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      logSpy.mockRestore();
+    });
+
+    it('does not call logger.error for 4xx', () => {
+      const filter = makeFilter(false);
+      const logSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      const statusFn = jest.fn().mockReturnThis();
+      const ctx = makeCtx(statusFn, jest.fn());
+      filter.catch(new HttpException('not found', HttpStatus.NOT_FOUND), ctx);
+      expect(logSpy).not.toHaveBeenCalled();
+      logSpy.mockRestore();
     });
   });
 });
