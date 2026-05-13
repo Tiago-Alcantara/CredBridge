@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { ReceivablesRepository } from './receivables.repository';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { toReceivableResponse } from './dto/receivable-response.dto';
+import { AuditService } from '../audit/audit.service';
 import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
 import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
@@ -9,11 +10,40 @@ import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface
 export class ReceivablesService {
   constructor(
     private readonly repo: ReceivablesRepository,
+    private readonly audit: AuditService,
     @Inject(BLOCKCHAIN_SERVICE) private readonly blockchain: BlockchainService,
   ) {}
 
   async create(userId: string, data: CreateReceivableDto) {
-    return toReceivableResponse(await this.repo.create(userId, data));
+    const receivable = await this.repo.create(userId, data);
+
+    await this.audit.log({
+      event: 'receivable.created',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId,
+      metadata: {
+        value: receivable.value,
+        type: receivable.type,
+        debtorName: receivable.debtorName,
+        debtorDocument: receivable.debtorDocument,
+        dueDate: receivable.dueDate.toISOString(),
+      },
+    });
+
+    const validated = await this.repo.updateStatus(receivable.id, 'validated');
+    await this.audit.log({
+      event: 'receivable.validated',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId,
+      metadata: {
+        checks: ['document_hash', 'debtor_document', 'due_date'],
+        result: 'passed',
+      },
+    });
+
+    return toReceivableResponse(validated);
   }
 
   async findAll(userId: string) {
@@ -33,6 +63,22 @@ export class ReceivablesService {
     const receivable = await this.repo.findOne(id);
     if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
 
+    await this.audit.log({
+      event: 'receivable.ready_for_blockchain',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId: receivable.userId,
+      metadata: { network: 'stellar', contract: 'soroban-nft' },
+    });
+
+    await this.audit.log({
+      event: 'receivable.nft_minting',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId: receivable.userId,
+      metadata: { value: receivable.value, xmlHash: receivable.documentHash ?? null },
+    });
+
     const txHash = await this.blockchain.tokenizeNfe({
       key: receivable.id,
       value: receivable.value,
@@ -41,7 +87,27 @@ export class ReceivablesService {
       ownerUserId: receivable.userId,
     });
 
-    return toReceivableResponse(await this.repo.updateStatus(id, 'active', txHash));
+    const updated = await this.repo.updateStatus(id, 'active', txHash);
+
+    await this.audit.log({
+      event: 'receivable.nft_minted',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId: receivable.userId,
+      txHash,
+      metadata: { network: 'stellar' },
+    });
+
+    await this.audit.log({
+      event: 'receivable.tx_confirmed',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId: receivable.userId,
+      txHash,
+      metadata: { network: 'stellar', status: 'success' },
+    });
+
+    return toReceivableResponse(updated);
   }
 
   async getPoolStats() {

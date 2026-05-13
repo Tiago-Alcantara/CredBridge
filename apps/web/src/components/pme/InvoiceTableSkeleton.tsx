@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/primitives/Skeleton";
 const ROWS = 5;
 
 const COLS: { width: string | number; subWidth?: string | number }[] = [
+  { width: 12 },
   { width: 88 },
   { width: 140, subWidth: 80 },
   { width: 72 },
@@ -18,9 +19,9 @@ export function InvoiceTableSkeleton() {
     <table className="tbl">
       <thead>
         <tr>
-          {["NF-e", "Sacado", "Valor", "Deságio", "Líquido", "Vencimento", "Status", ""].map(
-            (h) => (
-              <th key={h}>{h}</th>
+          {["", "NF-e", "Sacado", "Valor", "Deságio", "Líquido", "Vencimento", "Status", ""].map(
+            (h, i) => (
+              <th key={`${h}-${i}`}>{h}</th>
             )
           )}
         </tr>

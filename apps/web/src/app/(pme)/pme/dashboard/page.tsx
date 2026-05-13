@@ -229,17 +229,7 @@ export default function PmeDashboardPage() {
           <div className="row" style={{ gap: 8 }}>
             <div className="chip">
               <Icon name="search" size={12} />
-              <input
-                placeholder={t("search")}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  outline: "none",
-                  color: "var(--fg)",
-                  width: 140,
-                  font: "inherit",
-                }}
-              />
+              <input placeholder={t("search")} style={{ background: "transparent",border: 0,outline: "none",color: "var(--fg)",width: 140,font: "inherit",}}/>
             </div>
             <button className="btn btn-ghost btn-sm">{t("view_all")}</button>
           </div>
@@ -307,7 +297,8 @@ export default function PmeDashboardPage() {
       </div>
 
       {/* Timeline */}
-      <div className="card" style={{ padding: 0 }}>
+      {/* @TODO deixar comentado por enquanto */}
+      {/* <div className="card" style={{ padding: 0 }}>
         <div
           className="row between"
           style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}
@@ -327,7 +318,7 @@ export default function PmeDashboardPage() {
         ) : (
           <Timeline items={timelineItems} />
         )}
-      </div>
+      </div> */}
     </>
   );
 }

@@ -7,7 +7,12 @@ export const auditQueryKeys = {
   me: ["audit", "me"] as const,
 };
 
-export function useAuditTrail(entityId: string) {
+interface UseAuditTrailOptions {
+  pollMs?: number;
+}
+
+export function useAuditTrail(entityId: string, options: UseAuditTrailOptions = {}) {
+  const { pollMs = 3000 } = options;
   return useQuery<AuditEvent[]>({
     queryKey: auditQueryKeys.byEntity(entityId),
     queryFn: () =>
@@ -15,6 +20,10 @@ export function useAuditTrail(entityId: string) {
         `/audit?entityId=${encodeURIComponent(entityId)}`,
       ),
     enabled: !!entityId,
+    refetchInterval: pollMs,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 }
 

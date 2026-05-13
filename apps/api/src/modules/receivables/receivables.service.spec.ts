@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReceivablesService } from './receivables.service';
 import { ReceivablesRepository } from './receivables.repository';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
 describe('ReceivablesService', () => {
   let service: ReceivablesService;
@@ -28,6 +30,8 @@ describe('ReceivablesService', () => {
         ReceivablesService,
         ReceivablesRepository,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: BLOCKCHAIN_SERVICE, useValue: { tokenizeNfe: jest.fn() } },
       ],
     }).compile();
 

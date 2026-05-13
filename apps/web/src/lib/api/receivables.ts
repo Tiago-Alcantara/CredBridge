@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Receivable, CreateReceivableInput, InvestorPoolStats } from "@credbridge/types";
 import { apiFetch } from "./client";
+import { auditQueryKeys } from "./audit";
 
 export const receivableQueryKeys = {
   all: ["receivables"] as const,
@@ -41,8 +42,12 @@ export function useCreateReceivable() {
   return useMutation({
     mutationFn: (input: CreateReceivableInput) =>
       apiFetch<Receivable>("/receivables", { method: "POST", body: input }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.me });
+      if (created?.id) {
+        queryClient.invalidateQueries({ queryKey: auditQueryKeys.byEntity(created.id) });
+      }
     },
   });
 }
@@ -52,8 +57,10 @@ export function useActivateReceivable() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch<Receivable>(`/receivables/${id}/activate`, { method: "PATCH" }),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.me });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.byEntity(id) });
     },
   });
 }
