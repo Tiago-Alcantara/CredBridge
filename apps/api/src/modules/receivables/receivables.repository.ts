@@ -41,6 +41,13 @@ export class ReceivablesRepository {
     });
   }
 
+  async updateStatus(id: string, status: string, txHash?: string) {
+    return this.prisma.receivable.update({
+      where: { id },
+      data: { status, ...(txHash ? { txHash } : {}) },
+    });
+  }
+
   async getPoolStats() {
     const [active, validated, totalAgg] = await Promise.all([
       this.prisma.receivable.count({

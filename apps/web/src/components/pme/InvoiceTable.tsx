@@ -4,6 +4,7 @@ import { fmtBRL } from "@/lib/format";
 import type { ReceivableStatus } from "@/types";
 
 export interface InvoiceRow {
+  id: string;
   nfe: string;
   sacado: string;
   cnpj: string;
@@ -18,9 +19,11 @@ export interface InvoiceRow {
 interface InvoiceTableProps {
   rows: InvoiceRow[];
   compact?: boolean;
+  onActivate?: (id: string) => void;
+  activatingId?: string;
 }
 
-export function InvoiceTable({ rows, compact = false }: InvoiceTableProps) {
+export function InvoiceTable({ rows, compact = false, onActivate, activatingId }: InvoiceTableProps) {
   const visibleRows = compact ? rows.slice(0, 4) : rows;
 
   return (
@@ -39,7 +42,7 @@ export function InvoiceTable({ rows, compact = false }: InvoiceTableProps) {
       </thead>
       <tbody>
         {visibleRows.map((r) => (
-          <tr key={r.nfe}>
+          <tr key={r.id}>
             <td>
               <span className="mono" style={{ fontSize: 13 }}>
                 {r.nfe}
@@ -91,12 +94,23 @@ export function InvoiceTable({ rows, compact = false }: InvoiceTableProps) {
               <StatusBadge status={r.status} lang="pt" />
             </td>
             <td style={{ textAlign: "right" }}>
-              <button
-                className="btn btn-ghost btn-sm"
-                aria-label="verify"
-              >
-                <Icon name="chain" size={12} />
-              </button>
+              {r.status === "pending" && onActivate ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  aria-label="Ativar recebível"
+                  disabled={activatingId === r.id}
+                  onClick={() => onActivate(r.id)}
+                >
+                  {activatingId === r.id ? "…" : "Ativar"}
+                </button>
+              ) : (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  aria-label="verify"
+                >
+                  <Icon name="chain" size={12} />
+                </button>
+              )}
             </td>
           </tr>
         ))}

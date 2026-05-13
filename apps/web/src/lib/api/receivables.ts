@@ -46,3 +46,14 @@ export function useCreateReceivable() {
     },
   });
 }
+
+export function useActivateReceivable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<Receivable>(`/receivables/${id}/activate`, { method: "PATCH" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+    },
+  });
+}

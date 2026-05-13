@@ -10,7 +10,7 @@ import { InvoiceTable } from "@/components/pme/InvoiceTable";
 import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import { useReceivables } from "@/lib/api/receivables";
+import { useReceivables, useActivateReceivable } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
 import { useAuditLog } from "@/lib/api/audit";
 import type { Receivable } from "@/types";
@@ -24,6 +24,7 @@ function toInvoiceRow(r: Receivable): InvoiceRow {
   today.setHours(0, 0, 0, 0);
   const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
   return {
+    id: r.id,
     nfe: r.id.slice(-9).toUpperCase(),
     sacado: r.debtorName,
     cnpj: r.debtorDocument,
@@ -84,6 +85,7 @@ export default function PmeDashboardPage() {
   const { data: receivables, isLoading, isError } = useReceivables();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
+  const activate = useActivateReceivable();
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
@@ -212,14 +214,8 @@ export default function PmeDashboardPage() {
       </div>
 
       {/* Active anticipations table */}
-      <div
-        className="card"
-        style={{ padding: 0, overflow: "hidden", marginBottom: 24 }}
-      >
-        <div
-          className="row between"
-          style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}
-        >
+      <div className="card" id="receivables-table" style={{ padding: 0, overflow: "hidden", marginBottom: 24 }}>
+        <div className="row between" style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
           <div>
             <h3>{t("dash_active")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
@@ -302,7 +298,11 @@ export default function PmeDashboardPage() {
         )}
 
         {!isLoading && !isError && invoiceRows.length > 0 && (
-          <InvoiceTable rows={invoiceRows} />
+          <InvoiceTable
+            rows={invoiceRows}
+            onActivate={(id) => activate.mutate(id)}
+            activatingId={activate.isPending ? (activate.variables as string) : undefined}
+          />
         )}
       </div>
 
