@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { ReceivablesRepository } from './receivables.repository';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
+import { toReceivableResponse } from './dto/receivable-response.dto';
 import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
 import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
@@ -12,19 +13,20 @@ export class ReceivablesService {
   ) {}
 
   async create(userId: string, data: CreateReceivableDto) {
-    return this.repo.create(userId, data);
+    return toReceivableResponse(await this.repo.create(userId, data));
   }
 
   async findAll(userId: string) {
-    return this.repo.findAll(userId);
+    return (await this.repo.findAll(userId)).map(toReceivableResponse);
   }
 
   async findOne(id: string) {
-    return this.repo.findOne(id);
+    const r = await this.repo.findOne(id);
+    return r ? toReceivableResponse(r) : null;
   }
 
   async findPool() {
-    return this.repo.findPool();
+    return (await this.repo.findPool()).map(toReceivableResponse);
   }
 
   async activate(id: string) {
@@ -39,7 +41,7 @@ export class ReceivablesService {
       ownerUserId: receivable.userId,
     });
 
-    return this.repo.updateStatus(id, 'active', txHash);
+    return toReceivableResponse(await this.repo.updateStatus(id, 'active', txHash));
   }
 
   async getPoolStats() {
