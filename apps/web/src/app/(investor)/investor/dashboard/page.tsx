@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Receivable } from "@credbridge/types";
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
+import { WalletSetupBanner } from "@/components/auth/WalletSetupBanner";
 import { NavChart } from "@/components/investor/NavChart";
 import { ShareCard } from "@/components/investor/ShareCard";
 import { PoolToggle, type PoolView } from "@/components/investor/PoolToggle";
@@ -62,6 +63,8 @@ export default function InvestorDashboardPage() {
           </button>
         </div>
       </div>
+
+      <WalletSetupBanner />
 
       {/* KPI row */}
       <div
