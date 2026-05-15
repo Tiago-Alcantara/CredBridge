@@ -19,8 +19,14 @@ function getNetworkPassphrase(): string {
 export async function registerAndDeployWallet(
   userEmail: string,
 ): Promise<{ contractId: string; keyId: string }> {
-  const rpcUrl = process.env.NEXT_PUBLIC_STELLAR_RPC_URL!;
-  const walletWasmHash = process.env.NEXT_PUBLIC_STELLAR_WALLET_WASM_HASH!;
+  const rpcUrl = process.env.NEXT_PUBLIC_STELLAR_RPC_URL;
+  const walletWasmHash = process.env.NEXT_PUBLIC_STELLAR_WALLET_WASM_HASH;
+
+  if (!rpcUrl || !walletWasmHash) {
+    throw new Error(
+      'Stellar env vars are not configured (NEXT_PUBLIC_STELLAR_RPC_URL, NEXT_PUBLIC_STELLAR_WALLET_WASM_HASH)',
+    );
+  }
 
   const account = new PasskeyKit({
     rpcUrl,
@@ -30,14 +36,17 @@ export async function registerAndDeployWallet(
 
   let keyIdBase64: string;
   let contractId: string;
-  let signedTx: string;
+  let signedTxXdr: string;
 
   try {
     const result = await account.createWallet('CredBridge', userEmail);
+    if (!result.signedTx) {
+      throw new Error('passkey-kit did not return a signed transaction');
+    }
     keyIdBase64 = result.keyIdBase64;
     contractId = result.contractId;
     // signedTx is a Transaction object; serialize to base64-encoded XDR envelope
-    signedTx = result.signedTx.toXDR();
+    signedTxXdr = result.signedTx.toXDR();
   } catch (err) {
     if (err instanceof Error && err.name === 'NotAllowedError') {
       throw new PasskeyAbortedError();
@@ -53,7 +62,7 @@ export async function registerAndDeployWallet(
       jsonrpc: '2.0',
       id: 1,
       method: 'sendTransaction',
-      params: { transaction: signedTx },
+      params: { transaction: signedTxXdr },
     }),
   });
 
@@ -65,8 +74,14 @@ export async function registerAndDeployWallet(
     result?: { hash?: string; status?: string };
     error?: unknown;
   };
+
   if (sendResult.error) {
-    throw new Error(`Stellar transaction failed: ${JSON.stringify(sendResult.error)}`);
+    throw new Error(`Stellar transaction rejected: ${JSON.stringify(sendResult.error)}`);
+  }
+
+  const sendStatus = sendResult.result?.status;
+  if (sendStatus === 'ERROR' || sendStatus === 'TRY_AGAIN_LATER') {
+    throw new Error(`Stellar RPC rejected transaction: ${sendStatus}`);
   }
 
   const txHash = sendResult.result?.hash;
@@ -74,15 +89,13 @@ export async function registerAndDeployWallet(
     throw new Error('Stellar RPC did not return a transaction hash');
   }
 
-  // Poll until the transaction is confirmed (SUCCESS) or fails
+  // Poll until the transaction is confirmed on-chain
   const POLL_INTERVAL_MS = 2000;
   const POLL_TIMEOUT_MS = 30000;
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   let confirmed = false;
 
   while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-
     const pollResponse = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,19 +107,21 @@ export async function registerAndDeployWallet(
       }),
     });
 
-    if (!pollResponse.ok) continue;
+    if (pollResponse.ok) {
+      const pollResult = await pollResponse.json() as {
+        result?: { status?: string };
+        error?: unknown;
+      };
 
-    const pollResult = await pollResponse.json() as {
-      result?: { status?: string };
-      error?: unknown;
-    };
-
-    const status = pollResult.result?.status;
-    if (status === 'SUCCESS') { confirmed = true; break; }
-    if (status === 'FAILED') {
-      throw new Error('Stellar wallet deployment transaction failed on-chain');
+      const status = pollResult.result?.status;
+      if (status === 'SUCCESS') { confirmed = true; break; }
+      if (status === 'FAILED') {
+        throw new Error('Stellar wallet deployment transaction failed on-chain');
+      }
+      // NOT_FOUND or PENDING — wait and retry
     }
-    // NOT_FOUND or PENDING — keep polling
+
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 
   if (!confirmed) {
