@@ -7,7 +7,7 @@ import { registerAndDeployWallet, PasskeyAbortedError } from "@/lib/wallet/passk
 import { useMe } from "@/lib/api/me";
 
 export function WalletSetupBanner() {
-  const { data: wallet, isLoading, refetch } = useGetWallet();
+  const { data: wallet, isLoading } = useGetWallet();
   const { data: me } = useMe();
   const createWallet = useCreateWallet();
   const [dismissed, setDismissed] = useState(
@@ -23,7 +23,6 @@ export function WalletSetupBanner() {
     try {
       const { contractId, keyId } = await registerAndDeployWallet(me.email);
       await createWallet.mutateAsync({ contractId, keyId });
-      await refetch();
     } catch (err) {
       if (err instanceof PasskeyAbortedError) {
         setDismissed(true);

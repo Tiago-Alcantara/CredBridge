@@ -15,6 +15,7 @@ export interface MeResponse {
   investorType: string | null;
   riskProfile: string | null;
   operationalLimit: number | null;
+  stellarWalletId: string | null;
   createdAt: string;
   updatedAt: string;
 }

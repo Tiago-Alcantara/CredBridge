@@ -30,6 +30,7 @@ export function useGetWallet(enabled = true) {
     queryKey: ['wallet'],
     queryFn: () => apiFetch<WalletInfo | null>('/wallet'),
     staleTime: Infinity,
+    retry: false,
     enabled,
   });
 }

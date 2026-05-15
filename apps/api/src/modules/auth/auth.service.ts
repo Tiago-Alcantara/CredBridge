@@ -165,6 +165,7 @@ export class AuthService {
     investorType: true,
     riskProfile: true,
     operationalLimit: true,
+    stellarWalletId: true,
     createdAt: true,
     updatedAt: true,
   } as const;

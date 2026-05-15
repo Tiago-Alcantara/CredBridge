@@ -68,10 +68,8 @@ export default function LoginPage() {
         try {
           const { contractId, keyId } = await registerAndDeployWallet(data.user.email);
           await createWalletMutation.mutateAsync({ contractId, keyId });
-        } catch (err) {
-          if (!(err instanceof PasskeyAbortedError)) {
-            setError("Erro ao configurar carteira Stellar. Você pode fazer isso depois no painel.");
-          }
+        } catch {
+          // Wallet setup is optional here — WalletSetupBanner handles retry on the dashboard
         } finally {
           setWalletSetting(false);
         }

@@ -5,6 +5,7 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=()",
@@ -12,7 +13,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["passkey-kit", "passkey-kit-sdk"],
+  transpilePackages: ["passkey-kit", "passkey-kit-sdk", "sac-sdk"],
+  serverExternalPackages: ["@stellar/stellar-sdk"],
   async headers() {
     return [
       {
