@@ -59,6 +59,8 @@ model User {
   provider         String   @default("email")
   role             String?
   name             String?
+  stellarWalletId  String?
+  passkeyId        String?
   phone            String?
   address          String?
   companyName      String?
