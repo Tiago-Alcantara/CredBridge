@@ -12,6 +12,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["passkey-kit", "passkey-kit-sdk"],
   async headers() {
     return [
       {
