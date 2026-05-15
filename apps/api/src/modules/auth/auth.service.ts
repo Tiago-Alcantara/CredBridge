@@ -123,6 +123,7 @@ export class AuthService {
     const tokenResult = await this.issueToken(user.id, user.email, user.role);
     return {
       ...tokenResult,
+      user: { ...tokenResult.user, stellarWalletId: user.stellarWalletId ?? null },
       needsRoleSelection: user.role === null,
     };
   }
