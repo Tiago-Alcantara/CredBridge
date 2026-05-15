@@ -15,6 +15,7 @@ export function GoogleSignInButton({
   text = "continue_with",
 }: GoogleSignInButtonProps) {
   const mutation = useGoogleSignIn();
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   const handleCredential = (resp: CredentialResponse) => {
     if (!resp.credential) {
@@ -26,6 +27,8 @@ export function GoogleSignInButton({
       onError: () => onError?.("Falha ao autenticar com Google"),
     });
   };
+
+  if (!clientId) return null;
 
   return (
     <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
