@@ -6,6 +6,7 @@ export interface AuthUser {
   id: string;
   email: string;
   role: string | null;
+  stellarWalletId?: string | null;
 }
 
 export interface AuthResponse {
