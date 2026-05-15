@@ -11,6 +11,8 @@ import { useLogin, useRegister, type GoogleAuthResponse } from "@/lib/api/auth";
 import { clearAccessToken } from "@/lib/api/auth-storage";
 import { extractApiErrorMessage } from "@/lib/api/client";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { registerAndDeployWallet, PasskeyAbortedError } from "@/lib/wallet/passkey-client";
+import { useCreateWallet } from "@/lib/api/wallet";
 
 type RoleKey = "pme" | "investor";
 type Step = "role" | "credentials" | "kyc";
@@ -36,6 +38,8 @@ export default function LoginPage() {
 
   const loginMutation = useLogin();
   const registerMutation = useRegister();
+  const createWalletMutation = useCreateWallet();
+  const [walletSetting, setWalletSetting] = useState(false);
 
   const isPending = loginMutation.isPending || registerMutation.isPending;
 
@@ -48,20 +52,34 @@ export default function LoginPage() {
   );
 
   const handleGoogleSuccess = useCallback(
-    (data: GoogleAuthResponse) => {
+    async (data: GoogleAuthResponse) => {
       setError(null);
+
       if (data.needsRoleSelection || !data.user.role) {
         router.push("/onboarding/role");
         return;
       }
+
       const r = data.user.role as RoleKey;
-      if (r === "pme" || r === "investor") {
-        dashFor(r);
-      } else {
-        router.push("/");
+      const dest = r === "pme" ? "/pme/dashboard" : r === "investor" ? "/investor/dashboard" : "/";
+
+      if (!data.user.stellarWalletId) {
+        setWalletSetting(true);
+        try {
+          const { contractId, keyId } = await registerAndDeployWallet(data.user.email);
+          await createWalletMutation.mutateAsync({ contractId, keyId });
+        } catch (err) {
+          if (!(err instanceof PasskeyAbortedError)) {
+            setError("Erro ao configurar carteira Stellar. Você pode fazer isso depois no painel.");
+          }
+        } finally {
+          setWalletSetting(false);
+        }
       }
+
+      router.push(dest);
     },
-    [router, dashFor]
+    [router, createWalletMutation],
   );
 
   const handleGoogleError = useCallback((msg: string) => setError(msg), []);
@@ -261,6 +279,11 @@ export default function LoginPage() {
                   onError={handleGoogleError}
                   text={mode === "login" ? "signin_with" : "signup_with"}
                 />
+                {walletSetting && (
+                  <p style={{ textAlign: "center", fontSize: 13, color: "var(--fg-2)", marginTop: 8 }}>
+                    Configurando sua carteira Stellar…
+                  </p>
+                )}
               </div>
               {error && (
                 <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
@@ -367,6 +390,11 @@ export default function LoginPage() {
                   onError={handleGoogleError}
                   text={mode === "login" ? "signin_with" : "signup_with"}
                 />
+                {walletSetting && (
+                  <p style={{ textAlign: "center", fontSize: 13, color: "var(--fg-2)", marginTop: 8 }}>
+                    Configurando sua carteira Stellar…
+                  </p>
+                )}
               </div>
               <div
                 className="row"
