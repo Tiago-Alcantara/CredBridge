@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { StellarWalletService } from './stellar-wallet.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
@@ -72,7 +72,7 @@ describe('StellarWalletService', () => {
 
       await expect(
         service.createWallet('bad-id', { contractId: 'C123', keyId: 'k1' }),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

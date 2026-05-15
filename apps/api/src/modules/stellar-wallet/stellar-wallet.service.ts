@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 
@@ -8,7 +8,7 @@ export class StellarWalletService {
 
   async createWallet(userId: string, dto: CreateWalletDto): Promise<{ contractId: string }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new ConflictException('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
     if (user.stellarWalletId) {
       return { contractId: user.stellarWalletId };
@@ -22,12 +22,12 @@ export class StellarWalletService {
     return { contractId: dto.contractId };
   }
 
-  async getWallet(userId: string): Promise<{ contractId: string; passkeyId: string } | null> {
+  async getWallet(userId: string): Promise<{ contractId: string; passkeyId: string | null } | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { stellarWalletId: true, passkeyId: true },
     });
     if (!user?.stellarWalletId) return null;
-    return { contractId: user.stellarWalletId, passkeyId: user.passkeyId ?? '' };
+    return { contractId: user.stellarWalletId, passkeyId: user.passkeyId };
   }
 }
