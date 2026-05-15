@@ -3,7 +3,7 @@ import { AuditService } from './audit.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 interface AuthRequest {
-  user: { userId: string; email: string; role: string };
+  user: { userId: string; email: string; role: string | null };
 }
 
 @UseGuards(JwtAuthGuard)

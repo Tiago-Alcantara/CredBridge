@@ -5,12 +5,16 @@ import { clearAccessToken, setAccessToken } from "./auth-storage";
 export interface AuthUser {
   id: string;
   email: string;
-  role: string;
+  role: string | null;
 }
 
 export interface AuthResponse {
   accessToken: string;
   user: AuthUser;
+}
+
+export interface GoogleAuthResponse extends AuthResponse {
+  needsRoleSelection: boolean;
 }
 
 export interface LoginInput {
@@ -78,6 +82,41 @@ export function useUpdateProfile() {
         body: input,
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+}
+
+export function useGoogleSignIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (idToken: string) =>
+      apiFetch<GoogleAuthResponse>("/auth/google", {
+        method: "POST",
+        body: { idToken },
+        skipAuth: true,
+      }),
+    onSuccess: (data) => {
+      setAccessToken(data.accessToken);
+      queryClient.invalidateQueries();
+    },
+  });
+}
+
+export interface SetRoleInput {
+  role: "pme" | "investor";
+}
+
+export function useSetRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SetRoleInput) =>
+      apiFetch<AuthResponse>("/auth/me/role", {
+        method: "PATCH",
+        body: input,
+      }),
+    onSuccess: (data) => {
+      setAccessToken(data.accessToken);
       queryClient.invalidateQueries();
     },
   });

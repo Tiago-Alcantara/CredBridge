@@ -54,8 +54,10 @@ model Settlement {
 model User {
   id               String   @id @default(uuid())
   email            String   @unique
-  passwordHash     String
-  role             String   @default("pme")
+  passwordHash     String?
+  googleId         String?  @unique
+  provider         String   @default("email")
+  role             String?
   name             String?
   phone            String?
   address          String?

@@ -3,7 +3,7 @@ const TOKEN_KEY = 'credbridge.accessToken';
 interface JwtPayload {
   sub: string;
   email: string;
-  role: string;
+  role: string | null;
   iat?: number;
   exp?: number;
 }

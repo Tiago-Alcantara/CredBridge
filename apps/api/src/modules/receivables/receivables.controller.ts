@@ -4,7 +4,7 @@ import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 interface AuthRequest {
-  user: { userId: string; email: string; role: string };
+  user: { userId: string; email: string; role: string | null };
 }
 
 @UseGuards(JwtAuthGuard)

@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
+import { GoogleAuthProvider } from "@/providers/GoogleAuthProvider";
 import { ThemeToggle } from "@/components/primitives/ThemeToggle";
 
 const inter = Inter({
@@ -37,7 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body>
         <ToastProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <GoogleAuthProvider>{children}</GoogleAuthProvider>
+          </QueryProvider>
         </ToastProvider>
         <ThemeToggle />
       </body>

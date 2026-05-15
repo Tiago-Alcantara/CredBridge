@@ -5,10 +5,12 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { SetRoleDto } from './dto/set-role.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 interface AuthRequest {
-  user: { userId: string; email: string; role: string };
+  user: { userId: string; email: string; role: string | null };
 }
 
 @Controller('auth')
@@ -25,6 +27,18 @@ export class AuthController {
   @Post('login')
   login(@Body() body: LoginDto) {
     return this.authService.login(body);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('google')
+  googleLogin(@Body() body: GoogleLoginDto) {
+    return this.authService.googleLogin(body.idToken);
+  }
+
+  @Patch('me/role')
+  @UseGuards(JwtAuthGuard)
+  setRole(@Req() req: AuthRequest, @Body() body: SetRoleDto) {
+    return this.authService.setRole(req.user.userId, body);
   }
 
   @Get('me')

@@ -1,34 +1,44 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SetRoleDto } from './dto/set-role.dto';
 
 const BCRYPT_ROUNDS = 10;
 
 export interface JwtPayload {
   sub: string;
   email: string;
-  role: string;
+  role: string | null;
 }
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly googleClient: OAuth2Client;
+  private readonly googleClientId: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
+    this.googleClient = new OAuth2Client(this.googleClientId);
+  }
 
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -48,7 +58,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user) {
+    if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
     }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
@@ -56,6 +66,78 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
     return this.issueToken(user.id, user.email, user.role);
+  }
+
+  async googleLogin(idToken: string) {
+    if (!this.googleClientId) {
+      throw new BadRequestException('Google login not configured');
+    }
+
+    let payload;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: this.googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch (err) {
+      this.logger.warn(`Google ID token verification failed: ${(err as Error).message}`);
+      throw new UnauthorizedException('Invalid Google credentials');
+    }
+
+    if (!payload?.sub || !payload.email) {
+      throw new UnauthorizedException('Invalid Google credentials');
+    }
+    if (!payload.email_verified) {
+      throw new ForbiddenException('Google email not verified');
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email;
+    const name = payload.name ?? null;
+
+    let user = await this.prisma.user.findUnique({ where: { googleId } });
+
+    if (!user) {
+      user = await this.prisma.user.findUnique({ where: { email } });
+      if (user) {
+        if (!user.googleId) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: { googleId },
+          });
+        }
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            googleId,
+            provider: 'google',
+            name,
+            role: null,
+          },
+        });
+      }
+    }
+
+    const tokenResult = await this.issueToken(user.id, user.email, user.role);
+    return {
+      ...tokenResult,
+      needsRoleSelection: user.role === null,
+    };
+  }
+
+  async setRole(userId: string, dto: SetRoleDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    if (user.role) {
+      throw new ConflictException('Role already set');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: dto.role },
+    });
+    return this.issueToken(updated.id, updated.email, updated.role);
   }
 
   async getStellarChallenge(stellarAddress: string): Promise<{ challenge: string }> {
@@ -111,6 +193,9 @@ export class AuthService {
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+    if (!user.passwordHash) {
+      throw new BadRequestException('Conta sem senha cadastrada');
+    }
     const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!ok) throw new BadRequestException('Senha atual incorreta');
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
@@ -118,7 +203,7 @@ export class AuthService {
     return { message: 'ok' };
   }
 
-  private async issueToken(sub: string, email: string, role: string) {
+  private async issueToken(sub: string, email: string, role: string | null) {
     const payload: JwtPayload = { sub, email, role };
     const accessToken = await this.jwt.signAsync(payload);
     return { accessToken, user: { id: sub, email, role } };

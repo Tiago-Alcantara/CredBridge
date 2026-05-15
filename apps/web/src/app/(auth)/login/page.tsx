@@ -7,9 +7,10 @@ import { Icon, type IconName } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { LoginBG } from "@/components/auth/LoginBG";
 import { KycFlow } from "@/components/auth/KycFlow";
-import { useLogin, useRegister } from "@/lib/api/auth";
+import { useLogin, useRegister, type GoogleAuthResponse } from "@/lib/api/auth";
 import { clearAccessToken } from "@/lib/api/auth-storage";
 import { extractApiErrorMessage } from "@/lib/api/client";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 type RoleKey = "pme" | "investor";
 type Step = "role" | "credentials" | "kyc";
@@ -45,6 +46,25 @@ export default function LoginPage() {
     },
     [router]
   );
+
+  const handleGoogleSuccess = useCallback(
+    (data: GoogleAuthResponse) => {
+      setError(null);
+      if (data.needsRoleSelection || !data.user.role) {
+        router.push("/onboarding/role");
+        return;
+      }
+      const r = data.user.role as RoleKey;
+      if (r === "pme" || r === "investor") {
+        dashFor(r);
+      } else {
+        router.push("/");
+      }
+    },
+    [router, dashFor]
+  );
+
+  const handleGoogleError = useCallback((msg: string) => setError(msg), []);
 
   const translateApiError = useCallback((msg: string): string => {
     const map: Record<string, string> = {
@@ -235,6 +255,26 @@ export default function LoginPage() {
 
           {step === "role" && (
             <>
+              <div style={{ marginBottom: 20 }}>
+                <GoogleSignInButton
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  text={mode === "login" ? "signin_with" : "signup_with"}
+                />
+              </div>
+              {error && (
+                <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
+                  {error}
+                </p>
+              )}
+              <div
+                className="row"
+                style={{ alignItems: "center", gap: 12, margin: "0 0 20px", color: "var(--fg-2)", fontSize: 12 }}
+              >
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+                <span>ou</span>
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+              </div>
               <div className="col" style={{ gap: 10, marginBottom: 24 }}>
                 {roles.map((r) => (
                   <button
@@ -321,6 +361,21 @@ export default function LoginPage() {
 
           {step === "credentials" && (
             <>
+              <div style={{ marginBottom: 16 }}>
+                <GoogleSignInButton
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  text={mode === "login" ? "signin_with" : "signup_with"}
+                />
+              </div>
+              <div
+                className="row"
+                style={{ alignItems: "center", gap: 12, margin: "0 0 16px", color: "var(--fg-2)", fontSize: 12 }}
+              >
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+                <span>ou</span>
+                <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+              </div>
               <div className="col" style={{ gap: 16, marginBottom: 20 }}>
                 <div>
                   <label className="field-label">{t("login_email")}</label>
