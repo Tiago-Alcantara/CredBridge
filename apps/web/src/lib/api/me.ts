@@ -4,7 +4,7 @@ import { apiFetch } from "./client";
 export interface MeResponse {
   id: string;
   email: string;
-  role: string;
+  role: string | null;
   name: string | null;
   phone: string | null;
   address: string | null;

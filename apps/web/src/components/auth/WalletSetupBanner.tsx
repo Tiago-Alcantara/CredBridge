@@ -10,7 +10,9 @@ export function WalletSetupBanner() {
   const { data: wallet, isLoading, refetch } = useGetWallet();
   const { data: me } = useMe();
   const createWallet = useCreateWallet();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(
+    () => typeof window !== 'undefined' && sessionStorage.getItem('wallet-banner-dismissed') === '1',
+  );
   const [setting, setSetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +55,7 @@ export function WalletSetupBanner() {
       </button>
       <button
         className="btn btn-ghost btn-sm"
-        onClick={() => setDismissed(true)}
+        onClick={() => { sessionStorage.setItem('wallet-banner-dismissed', '1'); setDismissed(true); }}
         style={{ flexShrink: 0, padding: "4px 8px" }}
         aria-label="Fechar"
       >

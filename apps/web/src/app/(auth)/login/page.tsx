@@ -274,11 +274,13 @@ export default function LoginPage() {
           {step === "role" && (
             <>
               <div style={{ marginBottom: 20 }}>
-                <GoogleSignInButton
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  text={mode === "login" ? "signin_with" : "signup_with"}
-                />
+                <div style={walletSetting ? { pointerEvents: "none", opacity: 0.5 } : undefined}>
+                  <GoogleSignInButton
+                    onSuccess={handleGoogleSuccess}
+                    onError={handleGoogleError}
+                    text={mode === "login" ? "signin_with" : "signup_with"}
+                  />
+                </div>
                 {walletSetting && (
                   <p style={{ textAlign: "center", fontSize: 13, color: "var(--fg-2)", marginTop: 8 }}>
                     Configurando sua carteira Stellar…

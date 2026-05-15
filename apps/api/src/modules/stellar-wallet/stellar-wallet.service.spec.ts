@@ -67,7 +67,7 @@ describe('StellarWalletService', () => {
       expect(result).toEqual({ contractId: 'CEXISTING456' });
     });
 
-    it('throws ConflictException when user not found', async () => {
+    it('throws NotFoundException when user not found', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
       await expect(
