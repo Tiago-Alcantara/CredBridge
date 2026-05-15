@@ -4,6 +4,9 @@ import { useState } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useUpdateProfile } from "@/lib/api/auth";
+import { registerAndDeployWallet, PasskeyAbortedError } from "@/lib/wallet/passkey-client";
+import { useCreateWallet } from "@/lib/api/wallet";
+import { useMe } from "@/lib/api/me";
 
 interface KycFlowProps {
   onDone: () => void;
@@ -42,6 +45,8 @@ export function KycFlow({ onDone }: KycFlowProps) {
   const [sector, setSector] = useState("industria");
 
   const updateProfile = useUpdateProfile();
+  const createWallet = useCreateWallet();
+  const { data: me } = useMe();
 
   const stepKeys = ["kyc_step_1", "kyc_step_2", "kyc_step_3", "kyc_step_4"] as const;
   type StepKey = (typeof stepKeys)[number];
@@ -58,10 +63,24 @@ export function KycFlow({ onDone }: KycFlowProps) {
         monthlyRevenue: MONTHLY_REVENUE_MAP[revenueKey],
         sector,
       });
-      onDone();
     } catch {
       setError("Erro ao salvar perfil. Tente novamente.");
+      return;
     }
+
+    try {
+      const { contractId, keyId } = await registerAndDeployWallet(
+        me?.email ?? 'credbridge-user',
+      );
+      await createWallet.mutateAsync({ contractId, keyId });
+    } catch (err) {
+      if (!(err instanceof PasskeyAbortedError)) {
+        setError("Erro ao criar carteira. Você pode configurar depois no painel.");
+      }
+      // PasskeyAbortedError or any other error: still proceed to dashboard
+    }
+
+    onDone();
   };
 
   return (
@@ -282,10 +301,10 @@ export function KycFlow({ onDone }: KycFlowProps) {
           <button
             className="btn btn-primary"
             onClick={handleFinish}
-            disabled={updateProfile.isPending}
+            disabled={updateProfile.isPending || createWallet.isPending}
           >
-            {updateProfile.isPending ? "Salvando…" : "Ir para painel"}{" "}
-            {!updateProfile.isPending && <Icon name="arrow_right" size={14} />}
+            {updateProfile.isPending || createWallet.isPending ? "Aguarde…" : "Ir para painel"}{" "}
+            {!(updateProfile.isPending || createWallet.isPending) && <Icon name="arrow_right" size={14} />}
           </button>
         )}
       </div>
