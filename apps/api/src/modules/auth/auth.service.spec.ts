@@ -12,6 +12,8 @@ const mockUser = {
   passwordHash: '',
   role: 'pme',
   name: 'Test User',
+  stellarWalletId: null,
+  passkeyId: null,
   phone: null,
   address: null,
   companyName: null,
