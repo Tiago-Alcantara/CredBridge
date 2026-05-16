@@ -133,9 +133,6 @@ export default function PmeDashboardPage() {
           <button className="btn btn-ghost">
             <Icon name="download" size={14} /> Extrato
           </button>
-          <button className="btn btn-ghost" onClick={() => setOfframpOpen(true)}>
-            <Icon name="upload" size={14} /> Sacar BRL
-          </button>
           <button className="btn btn-primary" onClick={scrollToUpload}>
             <Icon name="plus" size={14} /> {t("dash_upload")}
           </button>
@@ -162,11 +159,8 @@ export default function PmeDashboardPage() {
             <span className="unit">R$</span>—
           </div>
           <div className="row" style={{ gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" disabled>
+            <button className="btn btn-primary" onClick={() => setOfframpOpen(true)} >
               <Icon name="download" size={14} /> {t("dash_withdraw")}
-            </button>
-            <button className="btn btn-ghost" disabled>
-              <Icon name="arrow_up_right" size={14} /> Transferir
             </button>
           </div>
           <div
