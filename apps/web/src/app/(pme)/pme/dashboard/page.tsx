@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
 import { WalletSetupBanner } from "@/components/auth/WalletSetupBanner";
@@ -11,6 +12,7 @@ import { YieldSpark } from "@/components/pme/YieldSpark";
 import { InvoiceTable } from "@/components/pme/InvoiceTable";
 import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
+import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useReceivables, useActivateReceivable } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
@@ -88,6 +90,7 @@ export default function PmeDashboardPage() {
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
   const activate = useActivateReceivable();
+  const [offrampOpen, setOfframpOpen] = useState(false);
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
@@ -129,6 +132,9 @@ export default function PmeDashboardPage() {
         <div className="row" style={{ gap: 8 }}>
           <button className="btn btn-ghost">
             <Icon name="download" size={14} /> Extrato
+          </button>
+          <button className="btn btn-ghost" onClick={() => setOfframpOpen(true)}>
+            <Icon name="upload" size={14} /> Sacar BRL
           </button>
           <button className="btn btn-primary" onClick={scrollToUpload}>
             <Icon name="plus" size={14} /> {t("dash_upload")}
@@ -324,6 +330,8 @@ export default function PmeDashboardPage() {
           <Timeline items={timelineItems} />
         )}
       </div> */}
+
+      <AnchorDrawer mode="offramp" open={offrampOpen} onClose={() => setOfframpOpen(false)} />
     </>
   );
 }
