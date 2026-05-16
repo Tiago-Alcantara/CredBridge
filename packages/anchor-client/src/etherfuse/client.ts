@@ -374,8 +374,8 @@ export class EtherfuseClient implements Anchor {
             );
         }
 
-        const customerId = crypto.randomUUID();
-        const bankAccountId = crypto.randomUUID();
+        const customerId = crypto.randomUUID().replace(/-/g, '');
+        const bankAccountId = crypto.randomUUID().replace(/-/g, '');
         const publicKey = input.publicKey;
 
         try {
@@ -485,7 +485,7 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
-        const quoteId = crypto.randomUUID();
+        const quoteId = crypto.randomUUID().replace(/-/g, '');
         const [sourceAsset, targetAsset] = await this.resolveAssetPair(
             input.fromCurrency,
             input.toCurrency,
@@ -527,7 +527,7 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
-        const orderId = crypto.randomUUID();
+        const orderId = crypto.randomUUID().replace(/-/g, '');
 
         let bankAccountId = input.bankAccountId;
         if (!bankAccountId && input.customerId) {
@@ -633,7 +633,7 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
-        const orderId = crypto.randomUUID();
+        const orderId = crypto.randomUUID().replace(/-/g, '');
 
         let bankAccountId = input.fiatAccountId;
         if (!bankAccountId && input.customerId) {
@@ -721,7 +721,7 @@ export class EtherfuseClient implements Anchor {
             );
         }
 
-        const resolvedBankAccountId = bankAccountId || crypto.randomUUID();
+        const resolvedBankAccountId = bankAccountId || crypto.randomUUID().replace(/-/g, '');
 
         const response = await this.request<EtherfuseOnboardingResponse>(
             'POST',
