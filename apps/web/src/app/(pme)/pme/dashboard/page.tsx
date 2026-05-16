@@ -3,6 +3,7 @@
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
 import { WalletSetupBanner } from "@/components/auth/WalletSetupBanner";
+import { StellarWalletAddress } from "@/components/auth/StellarWalletAddress";
 import { Timeline } from "@/components/patterns/Timeline";
 import type { TimelineItem } from "@/components/patterns/Timeline";
 import { UploadZone } from "@/components/pme/UploadZone";
@@ -136,6 +137,7 @@ export default function PmeDashboardPage() {
       </div>
 
       <WalletSetupBanner />
+      <StellarWalletAddress />
 
       {/* Balance hero + KPI cards */}
       <div

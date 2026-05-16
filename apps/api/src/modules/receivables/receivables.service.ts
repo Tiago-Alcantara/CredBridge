@@ -87,7 +87,7 @@ export class ReceivablesService {
       ownerUserId: receivable.userId,
     });
 
-    const updated = await this.repo.updateStatus(id, 'active', txHash);
+    await this.repo.updateStatus(id, 'active', txHash);
 
     await this.audit.log({
       event: 'receivable.nft_minted',
@@ -105,6 +105,29 @@ export class ReceivablesService {
       userId: receivable.userId,
       txHash,
       metadata: { network: 'stellar', status: 'success' },
+    });
+
+    // PME paid 1 XLM per BRL of face value
+    const paymentTxHash = await this.blockchain.payPme({
+      pmeUserId: receivable.userId,
+      amountXlm: receivable.value,
+      memo: receivable.id,
+    });
+
+    const updated = await this.repo.setPaymentTxHash(id, paymentTxHash);
+
+    await this.audit.log({
+      event: 'receivable.pme_paid',
+      entityId: receivable.id,
+      entityType: 'receivable',
+      userId: receivable.userId,
+      txHash: paymentTxHash,
+      metadata: {
+        network: 'stellar',
+        asset: 'XLM',
+        amount: receivable.value,
+        rate: '1 XLM per BRL',
+      },
     });
 
     return toReceivableResponse(updated);

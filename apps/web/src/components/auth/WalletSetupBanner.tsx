@@ -32,7 +32,7 @@ export function WalletSetupBanner() {
     } finally {
       setSetting(false);
     }
-  }, [me?.email, createWallet, refetch]);
+  }, [me?.email, createWallet]);
 
   if (isLoading || wallet || dismissed) return null;
 

@@ -16,6 +16,7 @@ model Receivable {
   debtorDocument String
   documentHash   String?
   txHash         String?
+  paymentTxHash  String?
   dueDate        DateTime
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -95,17 +96,19 @@ model AuditLog {
 }
 
 model Investment {
-  id             String     @id @default(uuid())
-  investorUserId String
-  receivableId   String     @unique
-  amountPaid     Float
-  faceValue      Float
-  discountRate   Float      @default(0.03)
-  status         String     @default("active")
-  pixTxId        String?
-  paidAt         DateTime   @default(now())
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id                 String     @id @default(uuid())
+  investorUserId     String
+  receivableId       String     @unique
+  amountPaid         Float
+  faceValue          Float
+  discountRate       Float      @default(0.03)
+  status             String     @default("active")
+  pixTxId            String?
+  paymentTxHash      String?
+  nftTransferTxHash  String?
+  paidAt             DateTime   @default(now())
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   receivable     Receivable @relation(fields: [receivableId], references: [id])
   investor       User       @relation("UserInvestments", fields: [investorUserId], references: [id])

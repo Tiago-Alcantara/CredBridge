@@ -1,27 +1,38 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { InvestmentsRepository } from './investments.repository';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
+import {
+  BLOCKCHAIN_SERVICE,
+  type BlockchainService,
+} from '../../shared/blockchain/blockchain.interface';
 
 const DISCOUNT_RATE = 0.03;
-const ALLOWED_STATUSES = new Set(['validated', 'active']);
+const ALLOWED_STATUSES = new Set(['active']);
 
 @Injectable()
 export class InvestmentsService {
+  private readonly logger = new Logger(InvestmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly repo: InvestmentsRepository,
+    @Inject(BLOCKCHAIN_SERVICE)
+    private readonly blockchain: BlockchainService,
   ) {}
 
   async create(investorUserId: string, dto: CreateInvestmentDto) {
+    let investment: { id: string; receivableId: string; amountPaid: number };
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      investment = await this.prisma.$transaction(async (tx) => {
         const receivable = await this.repo.findReceivableForUpdate(tx, dto.receivableId);
         if (!receivable) {
           throw new NotFoundException('Recebível não encontrado');
@@ -41,7 +52,7 @@ export class InvestmentsService {
         const faceValue = receivable.value;
         const amountPaid = Number((faceValue * (1 - DISCOUNT_RATE)).toFixed(2));
 
-        const investment = await this.repo.createInvestment(tx, {
+        const created = await this.repo.createInvestment(tx, {
           investorUserId,
           receivableId: receivable.id,
           faceValue,
@@ -52,14 +63,14 @@ export class InvestmentsService {
 
         await this.repo.setReceivableActive(tx, receivable.id);
         await this.repo.recordAudit(tx, {
-          investmentId: investment.id,
+          investmentId: created.id,
           investorUserId,
           receivableId: receivable.id,
           amountPaid,
           faceValue,
         });
 
-        return investment;
+        return { id: created.id, receivableId: receivable.id, amountPaid };
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -67,6 +78,25 @@ export class InvestmentsService {
       }
       throw e;
     }
+
+    // On-chain settlement: investor pays XLM, platform transfers NFT
+    this.logger.log(
+      `Investment ${investment.id} reserved — charging investor + transferring NFT`,
+    );
+    const paymentTxHash = await this.blockchain.chargeInvestor({
+      investorUserId,
+      amountXlm: investment.amountPaid,
+      memo: investment.receivableId,
+    });
+    const nftTransferTxHash = await this.blockchain.transferNftToInvestor({
+      receivableKey: investment.receivableId,
+      investorUserId,
+    });
+
+    return this.repo.setBlockchainTxHashes(investment.id, {
+      paymentTxHash,
+      nftTransferTxHash,
+    });
   }
 
   findMine(investorUserId: string) {

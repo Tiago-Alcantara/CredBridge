@@ -11,6 +11,8 @@ export interface Investment {
   discountRate: number;
   status: InvestmentStatus;
   pixTxId?: string;
+  paymentTxHash?: string;
+  nftTransferTxHash?: string;
   paidAt: string;
   createdAt: string;
   updatedAt: string;

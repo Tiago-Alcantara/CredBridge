@@ -33,7 +33,7 @@ export class ReceivablesRepository {
   async findPool(limit = 50) {
     return this.prisma.receivable.findMany({
       where: {
-        status: { in: ['validated', 'active'] },
+        status: 'active',
         investment: null,
       },
       orderBy: { dueDate: 'asc' },
@@ -48,6 +48,13 @@ export class ReceivablesRepository {
     });
   }
 
+  async setPaymentTxHash(id: string, paymentTxHash: string) {
+    return this.prisma.receivable.update({
+      where: { id },
+      data: { paymentTxHash },
+    });
+  }
+
   async getPoolStats() {
     const [active, validated, totalAgg] = await Promise.all([
       this.prisma.receivable.count({
@@ -58,7 +65,7 @@ export class ReceivablesRepository {
       }),
       this.prisma.receivable.aggregate({
         where: {
-          status: { in: ['validated', 'active'] },
+          status: 'active',
           investment: null,
         },
         _sum: { value: true },

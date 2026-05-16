@@ -68,6 +68,19 @@ export class InvestmentsRepository {
     });
   }
 
+  setBlockchainTxHashes(
+    investmentId: string,
+    data: { paymentTxHash: string; nftTransferTxHash: string },
+  ) {
+    return this.prisma.investment.update({
+      where: { id: investmentId },
+      data: {
+        paymentTxHash: data.paymentTxHash,
+        nftTransferTxHash: data.nftTransferTxHash,
+      },
+    });
+  }
+
   findManyByInvestor(investorUserId: string) {
     return this.prisma.investment.findMany({
       where: { investorUserId },

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -11,6 +12,8 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
+import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -35,6 +38,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    @Inject(BLOCKCHAIN_SERVICE) private readonly blockchain: BlockchainService,
   ) {
     this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
     this.googleClient = new OAuth2Client(this.googleClientId);
@@ -120,10 +124,23 @@ export class AuthService {
       }
     }
 
+    let stellarWalletId = user.stellarWalletId;
+    if (!stellarWalletId) {
+      try {
+        stellarWalletId = await this.blockchain.createCustodialWallet(googleId);
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { stellarWalletId },
+        });
+      } catch (err) {
+        this.logger.warn(`Wallet creation failed for user ${user.id}: ${(err as Error).message}`);
+      }
+    }
+
     const tokenResult = await this.issueToken(user.id, user.email, user.role);
     return {
       ...tokenResult,
-      user: { ...tokenResult.user, stellarWalletId: user.stellarWalletId ?? null },
+      user: { ...tokenResult.user, stellarWalletId: stellarWalletId ?? null },
       needsRoleSelection: user.role === null,
     };
   }

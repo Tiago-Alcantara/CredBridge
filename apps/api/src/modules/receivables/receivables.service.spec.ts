@@ -31,7 +31,10 @@ describe('ReceivablesService', () => {
         ReceivablesRepository,
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditService, useValue: { log: jest.fn() } },
-        { provide: BLOCKCHAIN_SERVICE, useValue: { tokenizeNfe: jest.fn() } },
+        {
+          provide: BLOCKCHAIN_SERVICE,
+          useValue: { tokenizeNfe: jest.fn(), payPme: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -45,7 +48,7 @@ describe('ReceivablesService', () => {
       expect(findManyMock).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            status: { in: ['validated', 'active'] },
+            status: 'active',
             investment: null,
           }),
         }),
@@ -61,7 +64,7 @@ describe('ReceivablesService', () => {
       const aggregateCall = aggregateMock.mock.calls[0][0];
       expect(aggregateCall.where).toEqual(
         expect.objectContaining({
-          status: { in: ['validated', 'active'] },
+          status: 'active',
           investment: null,
         }),
       );

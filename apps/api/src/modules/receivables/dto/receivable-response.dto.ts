@@ -8,6 +8,7 @@ export interface ReceivableResponse {
   dueDate: Date;
   createdAt: Date;
   txHash: string | null;
+  paymentTxHash: string | null;
 }
 
 export function toReceivableResponse(r: {
@@ -20,6 +21,7 @@ export function toReceivableResponse(r: {
   dueDate: Date;
   createdAt: Date;
   txHash?: string | null;
+  paymentTxHash?: string | null;
 }): ReceivableResponse {
   return {
     id: r.id,
@@ -31,5 +33,6 @@ export function toReceivableResponse(r: {
     dueDate: r.dueDate,
     createdAt: r.createdAt,
     txHash: r.txHash ?? null,
+    paymentTxHash: r.paymentTxHash ?? null,
   };
 }
