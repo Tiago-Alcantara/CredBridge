@@ -1,0 +1,23 @@
+{
+  "name": "@credbridge/anchor-client",
+  "version": "0.0.1",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest"
+  },
+  "peerDependencies": {
+    "@stellar/stellar-sdk": "^15.0.0"
+  },
+  "devDependencies": {
+    "@stellar/stellar-sdk": "^15.1.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.3"
+  }
+}
