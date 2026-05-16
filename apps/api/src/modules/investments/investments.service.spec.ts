@@ -110,7 +110,7 @@ describe('InvestmentsService', () => {
       expect(repo.recordAudit).toHaveBeenCalled();
       expect(blockchain.chargeInvestor).toHaveBeenCalledWith({
         investorUserId: investorId,
-        amountXlm: 97000,
+        amountBrl: 97000,
         memo: receivableId,
       });
       expect(blockchain.transferNftToInvestor).toHaveBeenCalledWith({

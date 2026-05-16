@@ -107,10 +107,9 @@ export class ReceivablesService {
       metadata: { network: 'stellar', status: 'success' },
     });
 
-    // PME paid 1 XLM per BRL of face value
     const paymentTxHash = await this.blockchain.payPme({
       pmeUserId: receivable.userId,
-      amountXlm: receivable.value,
+      amountBrl: receivable.value,
       memo: receivable.id,
     });
 
@@ -124,9 +123,8 @@ export class ReceivablesService {
       txHash: paymentTxHash,
       metadata: {
         network: 'stellar',
-        asset: 'XLM',
+        asset: 'TESOURO',
         amount: receivable.value,
-        rate: '1 XLM per BRL',
       },
     });
 

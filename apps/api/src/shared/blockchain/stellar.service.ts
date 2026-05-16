@@ -28,6 +28,8 @@ const NETWORK_PASSPHRASE =
     : Networks.TESTNET;
 
 const BASE_FEE = '1000000'; // 0.1 XLM — generous for Soroban ops
+const TESOURO_ISSUER = 'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4';
+const TESOURO = new Asset('TESOURO', TESOURO_ISSUER);
 const TX_TIMEOUT_SECONDS = 30;
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 60_000;
@@ -123,8 +125,8 @@ export class StellarService implements BlockchainService {
       data.pmeUserId,
     );
 
-    const amount = data.amountXlm.toFixed(7);
-    this.logger.log(`payPme — ${amount} XLM to ${pmeAddress} memo=${data.memo}`);
+    const amount = data.amountBrl.toFixed(7);
+    this.logger.log(`payPme — ${amount} TESOURO to ${pmeAddress} memo=${data.memo}`);
 
     const sourceAccount = await this.horizon.loadAccount(platformKeypair.publicKey());
 
@@ -135,7 +137,7 @@ export class StellarService implements BlockchainService {
       .addOperation(
         Operation.payment({
           destination: pmeAddress,
-          asset: Asset.native(),
+          asset: TESOURO,
           amount,
         }),
       )
@@ -183,9 +185,9 @@ export class StellarService implements BlockchainService {
       await this.ensureCustodialWalletForUser(data.investorUserId);
 
     const platformAddress = platformKeypair.publicKey();
-    const amount = data.amountXlm.toFixed(7);
+    const amount = data.amountBrl.toFixed(7);
     this.logger.log(
-      `chargeInvestor — ${amount} XLM from ${investorAddress} → platform memo=${data.memo}`,
+      `chargeInvestor — ${amount} TESOURO from ${investorAddress} → platform memo=${data.memo}`,
     );
 
     const sourceAccount = await this.horizon.loadAccount(investorAddress);
@@ -197,7 +199,7 @@ export class StellarService implements BlockchainService {
       .addOperation(
         Operation.payment({
           destination: platformAddress,
-          asset: Asset.native(),
+          asset: TESOURO,
           amount,
         }),
       )
@@ -260,6 +262,7 @@ export class StellarService implements BlockchainService {
     const keypair = this.deriveKeypair(googleId);
     const publicKey = keypair.publicKey();
 
+    let isNew = false;
     try {
       await this.horizon.loadAccount(publicKey);
       this.logger.log(`Custodial wallet already exists: ${publicKey}`);
@@ -271,7 +274,13 @@ export class StellarService implements BlockchainService {
       const res = await fetch(`https://friendbot.stellar.org?addr=${publicKey}`);
       if (!res.ok) {
         this.logger.warn(`Friendbot failed (${res.status}) for ${publicKey} — wallet unfunded`);
+      } else {
+        isNew = true;
       }
+    }
+
+    if (isNew) {
+      await this.establishTesourTrustline(keypair);
     }
 
     return publicKey;
@@ -310,6 +319,25 @@ export class StellarService implements BlockchainService {
 
     await this.waitForConfirmation(sendResult.hash, server);
     return sendResult.hash;
+  }
+
+  private async establishTesourTrustline(keypair: Keypair): Promise<void> {
+    const publicKey = keypair.publicKey();
+    try {
+      const account = await this.horizon.loadAccount(publicKey);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(Operation.changeTrust({ asset: TESOURO }))
+        .setTimeout(TX_TIMEOUT_SECONDS)
+        .build();
+      tx.sign(keypair);
+      await this.submitWithDetail(tx, 'changeTrust:TESOURO');
+      this.logger.log(`TESOURO trustline established for ${publicKey}`);
+    } catch (err) {
+      this.logger.warn(`Failed to establish TESOURO trustline for ${publicKey}: ${(err as Error).message}`);
+    }
   }
 
   private deriveKeypair(seedSource: string): Keypair {

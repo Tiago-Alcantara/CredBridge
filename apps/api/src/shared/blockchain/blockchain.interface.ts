@@ -8,7 +8,7 @@ export interface TokenizeNfeInput {
 
 export interface PayPmeInput {
   pmeUserId: string;
-  amountXlm: number;
+  amountBrl: number;
   memo: string;
 }
 
@@ -19,7 +19,7 @@ export interface TransferNftToInvestorInput {
 
 export interface ChargeInvestorInput {
   investorUserId: string;
-  amountXlm: number;
+  amountBrl: number;
   memo: string;
 }
 

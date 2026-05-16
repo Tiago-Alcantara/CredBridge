@@ -85,7 +85,7 @@ export class InvestmentsService {
     );
     const paymentTxHash = await this.blockchain.chargeInvestor({
       investorUserId,
-      amountXlm: investment.amountPaid,
+      amountBrl: investment.amountPaid,
       memo: investment.receivableId,
     });
     const nftTransferTxHash = await this.blockchain.transferNftToInvestor({
