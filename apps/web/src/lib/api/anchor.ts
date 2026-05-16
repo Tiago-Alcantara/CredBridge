@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./client";
 
 interface StartRampInput {
@@ -6,10 +6,38 @@ interface StartRampInput {
   quoteId?: string;
 }
 
+export interface PaymentInstructions {
+  type: "pix" | "spei";
+  pixCode?: string;
+  pixKey?: string;
+  pixKeyType?: string;
+  clabe?: string;
+  bankName?: string;
+  beneficiary?: string;
+  amount: string;
+  currency: string;
+}
+
 export interface StartRampResponse {
   id: string;
-  interactiveUrl?: string;
   status: string;
+  paymentInstructions?: PaymentInstructions;
+}
+
+export interface OnboardingStatusResponse {
+  onboarded: boolean;
+  kycUrl: string;
+}
+
+export function useAnchorOnboardingStatus(polling: boolean) {
+  return useQuery({
+    queryKey: ["anchor", "onboarding-status"],
+    queryFn: () =>
+      apiFetch<OnboardingStatusResponse>("/anchor/onboarding-status"),
+    enabled: polling,
+    refetchInterval: polling ? 3000 : false,
+    staleTime: 0,
+  });
 }
 
 export function useAnchorOnrampStart() {
@@ -31,4 +59,3 @@ export function useAnchorOfframpStart() {
       }),
   });
 }
-

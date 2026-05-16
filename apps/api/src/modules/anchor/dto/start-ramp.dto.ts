@@ -1,11 +1,12 @@
-import { IsNumber, IsPositive, IsString, IsOptional } from 'class-validator';
+import { IsNumber, IsPositive, IsOptional, IsUUID, ValidateIf } from 'class-validator';
 
 export class StartRampDto {
   @IsNumber()
   @IsPositive()
   amount!: number;
 
-  @IsString()
+  @ValidateIf((o) => o.quoteId !== undefined && o.quoteId !== '')
+  @IsUUID()
   @IsOptional()
   quoteId?: string;
 }

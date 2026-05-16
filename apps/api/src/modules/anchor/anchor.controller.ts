@@ -13,10 +13,10 @@ interface AuthRequest {
 export class AnchorController {
   constructor(private readonly anchorService: AnchorService) {}
 
-  /** GET /v1/anchor/kyc-url — returns Etherfuse onboarding URL for KYC */
-  @Get('kyc-url')
-  getKycUrl(@Req() req: AuthRequest) {
-    return this.anchorService.getKycUrl(req.user.userId);
+  /** GET /v1/anchor/onboarding-status — checks if customer has completed KYC; returns kycUrl if not */
+  @Get('onboarding-status')
+  getOnboardingStatus(@Req() req: AuthRequest) {
+    return this.anchorService.getOnboardingStatus(req.user.userId);
   }
 
   /** POST /v1/anchor/onramp/quote — SEP-38 quote: BRL → TESOURO */
