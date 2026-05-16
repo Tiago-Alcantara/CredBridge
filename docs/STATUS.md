@@ -24,6 +24,10 @@ status: em-desenvolvimento
 - **Token storage:** migrar `localStorage` → cookie httpOnly antes de produção.
 - **Deploy backend:** provider ainda **em aberto** (Railway / Fly / Render).
 - **Tela de configurações:** mesma página para PME e Investor — campos específicos por role ficam ocultos.
+- **Stellar Anchor:** Etherfuse selecionado para on/off-ramp BRL↔TESOURO via PIX.
+  Token: `TESOURO` (issuer `GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4`).
+  SEPs: SEP-38 (quotes), SEP-10 (auth), SEP-24 (interactive flows).
+  PIX/Brasil está em sandbox — não usar em produção ainda.
 
 ---
 
@@ -36,7 +40,7 @@ status: em-desenvolvimento
 | Backend (API) | 50% | auth + CRUD real; userId extraído do JWT; integrações externas em stub |
 | Frontend (UI) | 70% | login/register real, dashboard PME parcialmente real, sub-páginas por criar |
 | Integração Front↔Back | 75% | login, receivables, documents, error handling, route guards prontos |
-| Blockchain (Stellar) | 5% | só interface + stub |
+| Blockchain (Stellar) | 15% | tokenização Soroban funcional; anchor-client portado (SEP-38/10/24) |
 | Storage (S3) | 5% | só interface + stub |
 | Pagamentos (PIX/TED) | 5% | só interface + stub |
 | KYC/KYB | 5% | só interface + stub |
