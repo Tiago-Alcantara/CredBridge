@@ -57,6 +57,17 @@ export class AuthService {
         role: dto.role ?? 'pme',
       },
     });
+
+    try {
+      const stellarWalletId = await this.blockchain.createCustodialWallet(user.id);
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { stellarWalletId },
+      });
+    } catch (err) {
+      this.logger.warn(`Wallet creation failed for user ${user.id}: ${(err as Error).message}`);
+    }
+
     return this.issueToken(user.id, user.email, user.role);
   }
 
