@@ -249,11 +249,28 @@ export class FinancialAuthorizationsService {
     passkeyPublicKey: string | null,
     assertion: Record<string, unknown>,
   ): Promise<void> {
-    if (!passkeyPublicKey || Object.keys(assertion).length === 0) {
+    if (
+      !passkeyPublicKey ||
+      !this.isNonEmptyString(assertion.id) ||
+      !this.isNonEmptyString(assertion.rawId) ||
+      assertion.type !== 'public-key' ||
+      !this.isRecord(assertion.response) ||
+      !this.isNonEmptyString(assertion.response.clientDataJSON) ||
+      !this.isNonEmptyString(assertion.response.authenticatorData) ||
+      !this.isNonEmptyString(assertion.response.signature)
+    ) {
       throw new FinancialAuthorizationException(
         'authorization_invalid',
         'Passkey assertion is invalid',
       );
     }
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private isNonEmptyString(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0;
   }
 }

@@ -7,6 +7,7 @@ import { FinancialAuthorizationsService } from './financial-authorizations.servi
 
 const userId = 'user-1';
 const walletId = 'CCONTRACT123';
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 describe('FinancialAuthorizationsService', () => {
   let service: FinancialAuthorizationsService;
@@ -76,7 +77,7 @@ describe('FinancialAuthorizationsService', () => {
     expect(result.authorizationId).toBe('auth-1');
     expect(result.payload.operation).toBe('receivable.assignment');
     expect(result.payload.walletId).toBe(walletId);
-    expect(result.payload.nonce).toHaveLength(36);
+    expect(result.payload.nonce).toMatch(uuidPattern);
     expect(result.payloadHash).toHaveLength(64);
   });
 
@@ -106,6 +107,87 @@ describe('FinancialAuthorizationsService', () => {
 
     expect(firstResult.payload.nonce).not.toBe(secondResult.payload.nonce);
     expect(firstResult.payloadHash).not.toBe(secondResult.payloadHash);
+  });
+
+  it('rejects verify requests with mismatched payload hashes', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+      verifiedAt: null,
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+      user: { passkeyPublicKey: 'public-key' },
+    });
+
+    await expect(
+      service.verify(userId, {
+        authorizationId: '550e8400-e29b-41d4-a716-446655440000',
+        payloadHash: 'different-payload-hash',
+        assertion: {
+          id: 'credential-id',
+          rawId: 'credential-raw-id',
+          type: 'public-key',
+          response: {
+            clientDataJSON: 'client-data',
+            authenticatorData: 'authenticator-data',
+            signature: 'signature',
+          },
+        },
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'authorization_invalid' }),
+    });
+  });
+
+  it('rejects verify requests with malformed passkey assertions', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+      verifiedAt: null,
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+      user: { passkeyPublicKey: 'public-key' },
+    });
+    prismaMock.financialAuthorization.update.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+    });
+
+    await expect(
+      service.verify(userId, {
+        authorizationId: '550e8400-e29b-41d4-a716-446655440000',
+        payloadHash: 'stored-payload-hash',
+        assertion: {
+          id: 'credential-id',
+          rawId: 'credential-raw-id',
+          type: 'public-key',
+          response: {
+            clientDataJSON: 'client-data',
+            authenticatorData: 'authenticator-data',
+          },
+        },
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'authorization_invalid' }),
+    });
   });
 
   it('rejects consuming an expired authorization', async () => {
