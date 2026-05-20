@@ -41,4 +41,19 @@ export class ReceivablesController {
   activate(@Param('id') id: string) {
     return this.receivablesService.activate(id);
   }
+
+  @Patch(':id/tokenize')
+  tokenize(@Param('id') id: string) {
+    return this.receivablesService.tokenize(id);
+  }
+
+  @Patch(':id/request-assignment')
+  requestAssignment(@Param('id') id: string) {
+    return this.receivablesService.requestAssignment(id);
+  }
+
+  @Patch(':id/assign')
+  assign(@Param('id') id: string, @Body() body: { authorizationId: string }) {
+    return this.receivablesService.assign(id, body.authorizationId);
+  }
 }

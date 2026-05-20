@@ -48,6 +48,27 @@ export class ReceivablesRepository {
     });
   }
 
+  async setTokenized(id: string, txHash: string) {
+    return this.prisma.receivable.update({
+      where: { id },
+      data: { status: 'tokenized', txHash },
+    });
+  }
+
+  async setAssignmentPending(id: string) {
+    return this.prisma.receivable.update({
+      where: { id },
+      data: { status: 'assignment_pending' },
+    });
+  }
+
+  async setActive(id: string) {
+    return this.prisma.receivable.update({
+      where: { id },
+      data: { status: 'active' },
+    });
+  }
+
   async setPaymentTxHash(id: string, paymentTxHash: string) {
     return this.prisma.receivable.update({
       where: { id },
@@ -61,7 +82,10 @@ export class ReceivablesRepository {
         where: { status: 'active', investment: null },
       }),
       this.prisma.receivable.count({
-        where: { status: 'validated', investment: null },
+        where: {
+          status: { in: ['validated', 'tokenized', 'assignment_pending'] },
+          investment: null,
+        },
       }),
       this.prisma.receivable.aggregate({
         where: {

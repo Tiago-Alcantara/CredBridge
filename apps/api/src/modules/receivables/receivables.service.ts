@@ -1,8 +1,9 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { ReceivablesRepository } from './receivables.repository';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { toReceivableResponse } from './dto/receivable-response.dto';
 import { AuditService } from '../audit/audit.service';
+import { FinancialAuthorizationsService } from '../financial-authorizations/financial-authorizations.service';
 import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
 import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
@@ -12,6 +13,7 @@ export class ReceivablesService {
     private readonly repo: ReceivablesRepository,
     private readonly audit: AuditService,
     @Inject(BLOCKCHAIN_SERVICE) private readonly blockchain: BlockchainService,
+    private readonly financialAuthorizations: FinancialAuthorizationsService,
   ) {}
 
   async create(userId: string, data: CreateReceivableDto) {
@@ -60,8 +62,15 @@ export class ReceivablesService {
   }
 
   async activate(id: string) {
+    return this.tokenize(id);
+  }
+
+  async tokenize(id: string) {
     const receivable = await this.repo.findOne(id);
     if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
+    if (receivable.status !== 'validated') {
+      throw new ConflictException('Receivable must be validated before tokenization');
+    }
 
     await this.audit.log({
       event: 'receivable.ready_for_blockchain',
@@ -87,15 +96,15 @@ export class ReceivablesService {
       ownerUserId: receivable.userId,
     });
 
-    await this.repo.updateStatus(id, 'active', txHash);
+    const tokenized = await this.repo.setTokenized(id, txHash);
 
     await this.audit.log({
-      event: 'receivable.nft_minted',
+      event: 'receivable.tokenized_by_policy',
       entityId: receivable.id,
       entityType: 'receivable',
       userId: receivable.userId,
       txHash,
-      metadata: { network: 'stellar' },
+      metadata: { network: 'stellar', authorization: 'policy' },
     });
 
     await this.audit.log({
@@ -107,25 +116,44 @@ export class ReceivablesService {
       metadata: { network: 'stellar', status: 'success' },
     });
 
-    const paymentTxHash = await this.blockchain.payPme({
-      pmeUserId: receivable.userId,
-      amountBrl: receivable.value,
-      memo: receivable.id,
+    return toReceivableResponse(tokenized);
+  }
+
+  async requestAssignment(id: string) {
+    const receivable = await this.repo.findOne(id);
+    if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
+    if (receivable.status !== 'tokenized') {
+      throw new ConflictException('Receivable must be tokenized before assignment');
+    }
+
+    const updated = await this.repo.setAssignmentPending(id);
+    return toReceivableResponse(updated);
+  }
+
+  async assign(id: string, authorizationId: string) {
+    const receivable = await this.repo.findOne(id);
+    if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
+    if (receivable.status !== 'tokenized' && receivable.status !== 'assignment_pending') {
+      throw new ConflictException('Receivable must be tokenized before assignment');
+    }
+
+    await this.financialAuthorizations.consume({
+      authorizationId,
+      userId: receivable.userId,
+      operation: 'receivable.assignment',
+      resourceId: receivable.id,
+      amount: receivable.value.toFixed(2),
+      destination: 'credbridge-pool',
     });
 
-    const updated = await this.repo.setPaymentTxHash(id, paymentTxHash);
+    const updated = await this.repo.setActive(id);
 
     await this.audit.log({
-      event: 'receivable.pme_paid',
+      event: 'receivable.assignment_signed',
       entityId: receivable.id,
       entityType: 'receivable',
       userId: receivable.userId,
-      txHash: paymentTxHash,
-      metadata: {
-        network: 'stellar',
-        asset: 'TESOURO',
-        amount: receivable.value,
-      },
+      metadata: { authorizationId },
     });
 
     return toReceivableResponse(updated);
