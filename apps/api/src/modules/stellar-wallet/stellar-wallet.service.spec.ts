@@ -100,6 +100,38 @@ describe('StellarWalletService', () => {
       expect(result).toEqual({ contractId: 'CEXISTING456' });
     });
 
+    it('returns contractId when audit logging fails after wallet metadata is stored', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        stellarWalletId: 'CCONTRACT123',
+        passkeyId: 'key-abc',
+        passkeyPublicKey: 'public-key-abc',
+        walletType: 'smart_account',
+        walletStatus: 'ready',
+      });
+      auditMock.log.mockRejectedValueOnce(new Error('audit unavailable'));
+
+      await expect(
+        service.createWallet('user-1', {
+          contractId: 'CCONTRACT123',
+          keyId: 'key-abc',
+          publicKey: 'public-key-abc',
+        }),
+      ).resolves.toEqual({ contractId: 'CCONTRACT123' });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          stellarWalletId: 'CCONTRACT123',
+          passkeyId: 'key-abc',
+          passkeyPublicKey: 'public-key-abc',
+          walletType: 'smart_account',
+          walletStatus: 'ready',
+        },
+      });
+    });
+
     it('throws NotFoundException when user not found', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 

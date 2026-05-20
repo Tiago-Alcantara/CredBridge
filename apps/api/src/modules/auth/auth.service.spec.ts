@@ -35,10 +35,6 @@ const prismaMock = {
   },
 };
 
-const blockchainMock = {
-  createCustodialWallet: jest.fn().mockResolvedValue('GPUBLIC_KEY_TESTNET'),
-};
-
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -83,7 +79,6 @@ describe('AuthService', () => {
 
       const result = await service.googleLogin('fake-id-token');
 
-      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
       expect(prismaMock.user.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
       );
@@ -96,7 +91,7 @@ describe('AuthService', () => {
 
       const result = await service.googleLogin('fake-id-token');
 
-      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
       expect(result.user.stellarWalletId).toBe('GEXISTING_KEY');
     });
 
@@ -109,7 +104,9 @@ describe('AuthService', () => {
       const result = await service.googleLogin('fake-id-token');
 
       expect(result.accessToken).toBe('token');
-      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
+      );
       expect(result.user.stellarWalletId).toBeNull();
     });
   });
@@ -125,7 +122,6 @@ describe('AuthService', () => {
         role: 'pme',
       });
 
-      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
       expect(prismaMock.user.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
       );

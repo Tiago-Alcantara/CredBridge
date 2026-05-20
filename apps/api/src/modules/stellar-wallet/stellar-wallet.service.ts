@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 
 @Injectable()
 export class StellarWalletService {
+  private readonly logger = new Logger(StellarWalletService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -29,18 +31,22 @@ export class StellarWalletService {
       },
     });
 
-    await this.audit.log({
-      event: 'wallet.setup_completed',
-      entityId: userId,
-      entityType: 'user',
-      userId,
-      metadata: {
-        contractId: dto.contractId,
-        passkeyId: dto.keyId,
-        walletType: 'smart_account',
-        walletStatus: 'ready',
-      },
-    });
+    try {
+      await this.audit.log({
+        event: 'wallet.setup_completed',
+        entityId: userId,
+        entityType: 'user',
+        userId,
+        metadata: {
+          contractId: dto.contractId,
+          passkeyId: dto.keyId,
+          walletType: 'smart_account',
+          walletStatus: 'ready',
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`Wallet setup audit failed for user ${userId}: ${(err as Error).message}`);
+    }
 
     return { contractId: dto.contractId };
   }
