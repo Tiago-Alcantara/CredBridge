@@ -211,6 +211,7 @@ export async function registerAndDeployWallet(
     throw new Error('passkey-kit did not return a signed transaction');
   }
 
+  const publicKey = extractPublicKeyFromRegistrationResponse(createResult.rawResponse);
   const { keyIdBase64, contractId } = createResult;
   const rpc = account.rpc!;
 
@@ -236,8 +237,6 @@ export async function registerAndDeployWallet(
   if (!confirmed) {
     throw new Error('Stellar wallet deployment timed out after 30 seconds');
   }
-
-  const publicKey = extractPublicKeyFromRegistrationResponse(createResult.rawResponse);
 
   return { contractId, keyId: keyIdBase64, publicKey };
 }
