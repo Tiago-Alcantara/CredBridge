@@ -5,7 +5,7 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 export interface AuditLogInput {
   event: string;
   entityId: string;
-  entityType: 'receivable' | 'document' | 'settlement' | 'user';
+  entityType: 'receivable' | 'document' | 'settlement' | 'user' | 'financial_authorization';
   userId: string;
   txHash?: string;
   metadata?: Record<string, unknown>;

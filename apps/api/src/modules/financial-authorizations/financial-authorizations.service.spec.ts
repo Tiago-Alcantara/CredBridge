@@ -1,0 +1,186 @@
+import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaService } from '../../shared/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { FinancialAuthorizationException } from './financial-authorization.errors';
+import { FinancialAuthorizationsService } from './financial-authorizations.service';
+
+const userId = 'user-1';
+const walletId = 'CCONTRACT123';
+
+describe('FinancialAuthorizationsService', () => {
+  let service: FinancialAuthorizationsService;
+
+  const prismaMock = {
+    user: { findUnique: jest.fn() },
+    financialAuthorization: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        FinancialAuthorizationsService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: ConfigService, useValue: { get: jest.fn(() => 'testnet') } },
+        { provide: AuditService, useValue: { log: jest.fn() } },
+      ],
+    }).compile();
+
+    service = module.get(FinancialAuthorizationsService);
+  });
+
+  it('does not require direct authorization for receivable tokenization', () => {
+    expect(service.requiresDirectAuthorization('receivable.tokenize')).toBe(false);
+  });
+
+  it('requires direct authorization for receivable assignment and investor purchase', () => {
+    expect(service.requiresDirectAuthorization('receivable.assignment')).toBe(true);
+    expect(service.requiresDirectAuthorization('investment.purchase')).toBe(true);
+  });
+
+  it('throws wallet_required when the user has no ready smart account', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ stellarWalletId: null });
+
+    await expect(
+      service.createChallenge(userId, { operation: 'investment.purchase', resourceId: 'r-1' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'wallet_required' }),
+    });
+  });
+
+  it('creates a canonical challenge with a nonce and payload hash', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      stellarWalletId: walletId,
+      passkeyId: 'key-1',
+      passkeyPublicKey: 'public-key',
+      walletType: 'smart_account',
+      walletStatus: 'ready',
+    });
+    prismaMock.financialAuthorization.create.mockImplementation(({ data }) => ({
+      id: 'auth-1',
+      ...data,
+    }));
+
+    const result = await service.createChallenge(userId, {
+      operation: 'receivable.assignment',
+      resourceId: 'rec-1',
+      amount: '1000.00',
+      destination: 'credbridge-pool',
+    });
+
+    expect(result.authorizationId).toBe('auth-1');
+    expect(result.payload.operation).toBe('receivable.assignment');
+    expect(result.payload.walletId).toBe(walletId);
+    expect(result.payload.nonce).toHaveLength(36);
+    expect(result.payloadHash).toHaveLength(64);
+  });
+
+  it('creates unique payloads for repeated challenges', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      stellarWalletId: walletId,
+      passkeyId: 'key-1',
+      passkeyPublicKey: 'public-key',
+      walletType: 'smart_account',
+      walletStatus: 'ready',
+    });
+    prismaMock.financialAuthorization.create.mockImplementation(({ data }) => ({
+      id: `auth-${data.nonce}`,
+      ...data,
+    }));
+
+    const firstResult = await service.createChallenge(userId, {
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+    });
+    const secondResult = await service.createChallenge(userId, {
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+    });
+
+    expect(firstResult.payload.nonce).not.toBe(secondResult.payload.nonce);
+    expect(firstResult.payloadHash).not.toBe(secondResult.payloadHash);
+  });
+
+  it('rejects consuming an expired authorization', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      verifiedAt: new Date(),
+      consumedAt: null,
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    await expect(
+      service.consume({
+        authorizationId: 'auth-1',
+        userId,
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+      }),
+    ).rejects.toBeInstanceOf(FinancialAuthorizationException);
+  });
+
+  it('rejects operation mismatches during consumption', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'pme.withdrawal',
+      resourceId: null,
+      amount: '970.00',
+      destination: null,
+      verifiedAt: new Date(),
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+
+    await expect(
+      service.consume({
+        authorizationId: 'auth-1',
+        userId,
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'authorization_operation_mismatch' }),
+    });
+  });
+
+  it('rejects consuming an authorization that was already used', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      verifiedAt: new Date(),
+      consumedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60000),
+    });
+
+    await expect(
+      service.consume({
+        authorizationId: 'auth-1',
+        userId,
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'authorization_already_used' }),
+    });
+  });
+});
