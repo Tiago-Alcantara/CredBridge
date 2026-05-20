@@ -8,6 +8,16 @@ import { FinancialAuthorizationsService } from './financial-authorizations.servi
 const userId = 'user-1';
 const walletId = 'CCONTRACT123';
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const validAssertion = {
+  id: 'credential-id',
+  rawId: 'credential-raw-id',
+  type: 'public-key',
+  response: {
+    clientDataJSON: 'client-data',
+    authenticatorData: 'authenticator-data',
+    signature: 'signature',
+  },
+};
 
 describe('FinancialAuthorizationsService', () => {
   let service: FinancialAuthorizationsService;
@@ -18,8 +28,10 @@ describe('FinancialAuthorizationsService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
+  const auditMock = { log: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -28,7 +40,7 @@ describe('FinancialAuthorizationsService', () => {
         FinancialAuthorizationsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: ConfigService, useValue: { get: jest.fn(() => 'testnet') } },
-        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: AuditService, useValue: auditMock },
       ],
     }).compile();
 
@@ -129,16 +141,7 @@ describe('FinancialAuthorizationsService', () => {
       service.verify(userId, {
         authorizationId: '550e8400-e29b-41d4-a716-446655440000',
         payloadHash: 'different-payload-hash',
-        assertion: {
-          id: 'credential-id',
-          rawId: 'credential-raw-id',
-          type: 'public-key',
-          response: {
-            clientDataJSON: 'client-data',
-            authenticatorData: 'authenticator-data',
-            signature: 'signature',
-          },
-        },
+        assertion: validAssertion,
       }),
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'authorization_invalid' }),
@@ -187,6 +190,62 @@ describe('FinancialAuthorizationsService', () => {
       }),
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'authorization_invalid' }),
+    });
+  });
+
+  it('stores signature and audit log when verification succeeds', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+      verifiedAt: null,
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+      user: { passkeyPublicKey: 'public-key' },
+    });
+    prismaMock.financialAuthorization.update.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+    });
+
+    const result = await service.verify(userId, {
+      authorizationId: '550e8400-e29b-41d4-a716-446655440000',
+      payloadHash: 'stored-payload-hash',
+      assertion: validAssertion,
+    });
+
+    expect(result).toEqual({ authorizationId: 'auth-1', verified: true });
+    expect(prismaMock.financialAuthorization.update).toHaveBeenCalledWith({
+      where: { id: 'auth-1' },
+      data: {
+        signature: validAssertion,
+        verifiedAt: expect.any(Date),
+      },
+    });
+    expect(auditMock.log).toHaveBeenCalledWith({
+      event: 'financial_authorization.verified',
+      entityId: 'auth-1',
+      entityType: 'financial_authorization',
+      userId,
+      metadata: {
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+        destination: null,
+        walletId,
+        payloadHash: 'stored-payload-hash',
+      },
     });
   });
 
@@ -264,5 +323,91 @@ describe('FinancialAuthorizationsService', () => {
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'authorization_already_used' }),
     });
+  });
+
+  it('sets consumedAt atomically and emits audit log when consumption succeeds', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+      verifiedAt: new Date(),
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    prismaMock.financialAuthorization.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.consume({
+      authorizationId: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+    });
+
+    expect(prismaMock.financialAuthorization.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'auth-1',
+        userId,
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+        destination: null,
+        verifiedAt: { not: null },
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(auditMock.log).toHaveBeenCalledWith({
+      event: 'financial_authorization.consumed',
+      entityId: 'auth-1',
+      entityType: 'financial_authorization',
+      userId,
+      metadata: {
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+        destination: null,
+        walletId,
+        payloadHash: 'stored-payload-hash',
+      },
+    });
+  });
+
+  it('rejects consumption when the atomic update loses a race', async () => {
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+      verifiedAt: new Date(),
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    prismaMock.financialAuthorization.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.consume({
+        authorizationId: 'auth-1',
+        userId,
+        operation: 'investment.purchase',
+        resourceId: 'rec-1',
+        amount: '970.00',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'authorization_already_used' }),
+    });
+    expect(auditMock.log).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'financial_authorization.consumed' }),
+    );
   });
 });

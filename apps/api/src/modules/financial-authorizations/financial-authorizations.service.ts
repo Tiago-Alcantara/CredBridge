@@ -220,23 +220,40 @@ export class FinancialAuthorizationsService {
       );
     }
 
-    const updated = await this.prisma.financialAuthorization.update({
-      where: { id: authorization.id },
+    const consumeResult = await this.prisma.financialAuthorization.updateMany({
+      where: {
+        id: authorization.id,
+        userId: input.userId,
+        operation: input.operation,
+        resourceId: input.resourceId ?? null,
+        amount: input.amount ?? null,
+        destination: input.destination ?? null,
+        verifiedAt: { not: null },
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       data: { consumedAt: new Date() },
     });
 
+    if (consumeResult.count !== 1) {
+      throw new FinancialAuthorizationException(
+        'authorization_already_used',
+        'Authorization was already consumed',
+      );
+    }
+
     await this.audit.log({
       event: 'financial_authorization.consumed',
-      entityId: updated.id,
+      entityId: authorization.id,
       entityType: 'financial_authorization',
       userId: input.userId,
       metadata: {
-        operation: updated.operation,
-        resourceId: updated.resourceId,
-        amount: updated.amount,
-        destination: updated.destination,
-        walletId: updated.walletId,
-        payloadHash: updated.payloadHash,
+        operation: authorization.operation,
+        resourceId: authorization.resourceId,
+        amount: authorization.amount,
+        destination: authorization.destination,
+        walletId: authorization.walletId,
+        payloadHash: authorization.payloadHash,
       },
     });
   }
