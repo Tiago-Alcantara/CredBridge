@@ -74,8 +74,8 @@ export function KycFlow({ onDone }: KycFlowProps) {
 
     if (me?.email) {
       try {
-        const { contractId, keyId } = await registerAndDeployWallet(me.email);
-        await createWallet.mutateAsync({ contractId, keyId });
+        const { contractId, keyId, publicKey } = await registerAndDeployWallet(me.email);
+        await createWallet.mutateAsync({ contractId, keyId, publicKey });
       } catch (err) {
         if (!(err instanceof PasskeyAbortedError)) {
           setError("Erro ao criar carteira. Você pode configurar depois no painel.");

@@ -11,7 +11,7 @@ interface WalletInfo {
 interface CreateWalletInput {
   contractId: string;
   keyId: string;
-  publicKey?: string;
+  publicKey: string;
 }
 
 export function useCreateWallet() {

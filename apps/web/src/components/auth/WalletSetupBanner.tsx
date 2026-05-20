@@ -21,8 +21,8 @@ export function WalletSetupBanner() {
     setSetting(true);
     setError(null);
     try {
-      const { contractId, keyId } = await registerAndDeployWallet(me.email);
-      await createWallet.mutateAsync({ contractId, keyId });
+      const { contractId, keyId, publicKey } = await registerAndDeployWallet(me.email);
+      await createWallet.mutateAsync({ contractId, keyId, publicKey });
     } catch (err) {
       if (err instanceof PasskeyAbortedError) {
         setDismissed(true);
