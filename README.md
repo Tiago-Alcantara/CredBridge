@@ -269,7 +269,7 @@ A raiz documenta todas em `.env.example`. Categorias:
 - **Stellar**: `STELLAR_NETWORK`, `STELLAR_HORIZON_URL`, `STELLAR_SECRET_KEY`
 - **AWS S3**: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`
 - **KYC**: `KYC_PROVIDER_URL`, `KYC_API_KEY`
-- **Auth**: `JWT_SECRET`, `JWT_EXPIRES_IN`
+- **Auth**: `JWT_SECRET`, `JWT_EXPIRES_IN`, `WEB_ORIGIN`, `WEBAUTHN_RP_ID`
 - **API**: `PORT` (default 3001)
 
 O frontend mantém `apps/web/.env.local.example` separado para variáveis públicas (`NEXT_PUBLIC_*`).

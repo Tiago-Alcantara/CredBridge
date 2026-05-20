@@ -1867,7 +1867,7 @@ git commit -m "feat(web): require passkey consent for financial actions"
 - Modify: `.env.example`
 - Modify: `README.md`
 
-- [ ] **Step 1: Add env vars**
+- [x] **Step 1: Add env vars**
 
 In `.env.example`, add:
 
@@ -1876,7 +1876,7 @@ WEB_ORIGIN=http://localhost:3000
 WEBAUTHN_RP_ID=localhost
 ```
 
-- [ ] **Step 2: Run backend test suite**
+- [x] **Step 2: Run backend test suite**
 
 Run:
 
@@ -1886,7 +1886,7 @@ npm test -w apps/api -- --runInBand
 
 Expected: PASS.
 
-- [ ] **Step 3: Run backend build**
+- [x] **Step 3: Run backend build**
 
 Run:
 
@@ -1896,7 +1896,7 @@ npm run build -w apps/api
 
 Expected: PASS.
 
-- [ ] **Step 4: Run frontend build**
+- [x] **Step 4: Run frontend build**
 
 Run:
 
@@ -1925,7 +1925,7 @@ Manual checks:
 6. Investor purchase requests signature before purchase mutation.
 7. Reusing an authorization id returns `authorization_already_used`.
 
-- [ ] **Step 6: Commit verification docs/env changes**
+- [x] **Step 6: Commit verification docs/env changes**
 
 ```bash
 git add .env.example README.md
