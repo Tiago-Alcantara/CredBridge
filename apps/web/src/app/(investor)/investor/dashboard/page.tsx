@@ -16,6 +16,7 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { fmtBRL } from "@/lib/format";
 import { useInvestorPool, useInvestorStats } from "@/lib/api/receivables";
 import { useInvestorPositions, useInvestorPositionStats } from "@/lib/api/investments";
+import { useMe } from "@/lib/api/me";
 
 export default function InvestorDashboardPage() {
   const { t } = useTranslation("pt");
@@ -27,6 +28,7 @@ export default function InvestorDashboardPage() {
   const { data: poolStats, isLoading: loadingPoolStats } = useInvestorStats();
   const { data: positions = [], isLoading: loadingPositions } = useInvestorPositions();
   const { data: posStats, isLoading: loadingPosStats } = useInvestorPositionStats();
+  const { data: me } = useMe();
 
   const isMine = view === "mine";
 
@@ -193,6 +195,7 @@ export default function InvestorDashboardPage() {
 
       <BuyDrawer
         receivable={buyTarget}
+        userEmail={me?.email}
         onClose={() => setBuyTarget(null)}
         onSuccess={() => setView("mine")}
       />

@@ -14,7 +14,7 @@ import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import { useReceivables, useActivateReceivable } from "@/lib/api/receivables";
+import { useReceivables } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
 import { useAuditLog } from "@/lib/api/audit";
 import type { Receivable } from "@/types";
@@ -89,7 +89,6 @@ export default function PmeDashboardPage() {
   const { data: receivables, isLoading, isError } = useReceivables();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
-  const activate = useActivateReceivable();
   const [offrampOpen, setOfframpOpen] = useState(false);
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
@@ -293,11 +292,7 @@ export default function PmeDashboardPage() {
         )}
 
         {!isLoading && !isError && invoiceRows.length > 0 && (
-          <InvoiceTable
-            rows={invoiceRows}
-            onActivate={(id) => activate.mutate(id)}
-            activatingId={activate.isPending ? (activate.variables as string) : undefined}
-          />
+          <InvoiceTable rows={invoiceRows} userEmail={me?.email} />
         )}
       </div>
 

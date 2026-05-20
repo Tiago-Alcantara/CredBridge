@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { useGetWallet, useCreateWallet } from "@/lib/api/wallet";
 import { registerAndDeployWallet, PasskeyAbortedError } from "@/lib/wallet/passkey-client";
@@ -16,7 +16,7 @@ export function WalletSetupBanner() {
   const [setting, setSetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSetup = useCallback(async () => {
+  async function handleSetup() {
     if (!me?.email) return;
     setSetting(true);
     setError(null);
@@ -32,7 +32,7 @@ export function WalletSetupBanner() {
     } finally {
       setSetting(false);
     }
-  }, [me?.email, createWallet]);
+  }
 
   if (isLoading || wallet || dismissed) return null;
 

@@ -72,6 +72,8 @@
   "api_quick": "Quick start",
   "status_pending": "Pending",
   "status_validated": "Validated",
+  "status_tokenized": "Tokenized",
+  "status_assignment_pending": "Assignment pending",
   "status_active": "Active",
   "status_settled": "Settled",
   "status_defaulted": "Defaulted",

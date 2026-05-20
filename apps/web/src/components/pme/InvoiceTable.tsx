@@ -5,6 +5,9 @@ import { Icon } from "@/components/primitives/Icon";
 import { StatusBadge } from "@/components/primitives/StatusBadge";
 import { ReceivableTimeline } from "@/components/pme/ReceivableTimeline";
 import { fmtBRL } from "@/lib/format";
+import { extractApiErrorMessage } from "@/lib/api/client";
+import { useAssignReceivable, useTokenizeReceivable } from "@/lib/api/receivables";
+import { useFinancialAuthorization } from "@/lib/financial-actions/useFinancialAuthorization";
 import type { ReceivableStatus } from "@/types";
 
 export interface InvoiceRow {
@@ -23,17 +26,53 @@ export interface InvoiceRow {
 interface InvoiceTableProps {
   rows: InvoiceRow[];
   compact?: boolean;
-  onActivate?: (id: string) => void;
-  activatingId?: string;
+  userEmail?: string | null;
 }
 
-export function InvoiceTable({ rows, compact = false, onActivate, activatingId }: InvoiceTableProps) {
+export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableProps) {
   const visibleRows = compact ? rows.slice(0, 4) : rows;
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [actionRowId, setActionRowId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const tokenizeReceivable = useTokenizeReceivable();
+  const assignReceivable = useAssignReceivable();
+  const { authorize, isAuthorizing } = useFinancialAuthorization(userEmail);
   const colSpan = compact ? 8 : 9;
 
   function toggle(id: string) {
     setExpandedId((cur) => (cur === id ? null : id));
+  }
+
+  async function handleReceivableAction(row: InvoiceRow) {
+    setActionRowId(row.id);
+    setActionError(null);
+
+    try {
+      if (row.status === "validated") {
+        await tokenizeReceivable.mutateAsync(row.id);
+        return;
+      }
+
+      if (row.status === "tokenized" || row.status === "assignment_pending") {
+        const authorizationId = await authorize({
+          operation: "receivable.assignment",
+          resourceId: row.id,
+          amount: row.valor.toFixed(2),
+          destination: "credbridge-pool",
+        });
+        await assignReceivable.mutateAsync({ id: row.id, authorizationId });
+      }
+    } catch (err) {
+      setActionError(extractApiErrorMessage(err) || "Não foi possível concluir a ação.");
+    } finally {
+      setActionRowId(null);
+    }
+  }
+
+  function getActionLabel(status: ReceivableStatus): string | null {
+    if (status === "validated") return "Tokenizar";
+    if (status === "tokenized" || status === "assignment_pending") return "Assinar cessão";
+    return null;
   }
 
   return (
@@ -52,8 +91,19 @@ export function InvoiceTable({ rows, compact = false, onActivate, activatingId }
         </tr>
       </thead>
       <tbody>
+        {actionError && (
+          <tr>
+            <td colSpan={colSpan} style={{ color: "var(--red)", fontSize: 13 }}>
+              {actionError}
+            </td>
+          </tr>
+        )}
         {visibleRows.map((r) => {
           const isOpen = expandedId === r.id;
+          const actionLabel = getActionLabel(r.status);
+          const isActionPending =
+            actionRowId === r.id &&
+            (tokenizeReceivable.isPending || assignReceivable.isPending || isAuthorizing);
           return (
             <Fragment key={r.id}>
               <tr>
@@ -135,14 +185,14 @@ export function InvoiceTable({ rows, compact = false, onActivate, activatingId }
                   <StatusBadge status={r.status} lang="pt" />
                 </td>
                 <td style={{ textAlign: "right" }}>
-                  {r.status !== "active" && onActivate ? (
+                  {actionLabel ? (
                     <button
                       className="btn btn-primary btn-sm"
-                      aria-label="Ativar recebível"
-                      disabled={activatingId === r.id}
-                      onClick={() => onActivate(r.id)}
+                      aria-label={actionLabel}
+                      disabled={isActionPending}
+                      onClick={() => handleReceivableAction(r)}
                     >
-                      {activatingId === r.id ? "…" : "Ativar"}
+                      {isActionPending ? "…" : actionLabel}
                     </button>
                   ) : (
                     <button

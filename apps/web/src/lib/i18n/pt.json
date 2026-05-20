@@ -72,6 +72,8 @@
   "api_quick": "Guia rápido",
   "status_pending": "Pendente",
   "status_validated": "Validada",
+  "status_tokenized": "Tokenizada",
+  "status_assignment_pending": "Cessão pendente",
   "status_active": "Ativa",
   "status_settled": "Liquidada",
   "status_defaulted": "Inadimplente",

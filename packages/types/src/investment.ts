@@ -21,6 +21,7 @@ export interface Investment {
 
 export interface CreateInvestmentInput {
   receivableId: string;
+  authorizationId: string;
   pixTxId?: string;
 }
 

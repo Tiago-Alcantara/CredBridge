@@ -1750,7 +1750,7 @@ git commit -m "feat(wallet): verify financial passkey authorizations"
 - Modify: `apps/web/src/lib/api/receivables.ts`
 - Modify: `apps/web/src/lib/api/investments.ts`
 
-- [ ] **Step 1: Update receivables API**
+- [x] **Step 1: Update receivables API**
 
 In `apps/web/src/lib/api/receivables.ts`, add mutations:
 
@@ -1777,7 +1777,7 @@ export function useAssignReceivable() {
 }
 ```
 
-- [ ] **Step 2: Update investments API**
+- [x] **Step 2: Update investments API**
 
 In `apps/web/src/lib/api/investments.ts`, require authorization id in purchase input:
 
@@ -1791,7 +1791,7 @@ export interface CreateInvestmentInput {
 
 Ensure the mutation posts the full input body.
 
-- [ ] **Step 3: Update PME invoice action**
+- [x] **Step 3: Update PME invoice action**
 
 In `InvoiceTable.tsx`, for validated notes call `useTokenizeReceivable`. For tokenized or assignment-pending notes, call `useFinancialAuthorization(me.email)` with:
 
@@ -1816,7 +1816,7 @@ const actionLabel =
       : 'Ativa';
 ```
 
-- [ ] **Step 4: Update investor buy flow**
+- [x] **Step 4: Update investor buy flow**
 
 In `BuyDrawer.tsx`, before calling create investment:
 
@@ -1833,7 +1833,7 @@ await createInvestment.mutateAsync({
 });
 ```
 
-- [ ] **Step 5: Update wallet banner**
+- [x] **Step 5: Update wallet banner**
 
 Keep `WalletSetupBanner` as a manual setup option, but pass public key to `createWallet`:
 
@@ -1842,7 +1842,7 @@ const { contractId, keyId, publicKey } = await registerAndDeployWallet(me.email)
 await createWallet.mutateAsync({ contractId, keyId, publicKey });
 ```
 
-- [ ] **Step 6: Run frontend build**
+- [x] **Step 6: Run frontend build**
 
 Run:
 
@@ -1852,7 +1852,7 @@ npm run build -w apps/web
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit frontend action wiring**
+- [x] **Step 7: Commit frontend action wiring**
 
 ```bash
 git add apps/web/src/components/auth/WalletSetupBanner.tsx apps/web/src/components/pme/InvoiceTable.tsx apps/web/src/components/investor/BuyDrawer.tsx apps/web/src/lib/api/receivables.ts apps/web/src/lib/api/investments.ts
