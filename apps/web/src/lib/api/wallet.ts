@@ -4,11 +4,14 @@ import { apiFetch } from './client';
 interface WalletInfo {
   contractId: string;
   passkeyId: string | null;
+  walletType: 'smart_account' | string | null;
+  walletStatus: 'ready' | string | null;
 }
 
 interface CreateWalletInput {
   contractId: string;
   keyId: string;
+  publicKey?: string;
 }
 
 export function useCreateWallet() {

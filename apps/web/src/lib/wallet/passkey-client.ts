@@ -16,7 +16,7 @@ function getNetworkPassphrase(): string {
 
 export async function registerAndDeployWallet(
   userEmail: string,
-): Promise<{ contractId: string; keyId: string }> {
+): Promise<{ contractId: string; keyId: string; publicKey: string }> {
   const rpcUrl = process.env.NEXT_PUBLIC_STELLAR_RPC_URL;
   const walletWasmHash = process.env.NEXT_PUBLIC_STELLAR_WALLET_WASM_HASH;
 
@@ -75,5 +75,18 @@ export async function registerAndDeployWallet(
     throw new Error('Stellar wallet deployment timed out after 30 seconds');
   }
 
-  return { contractId, keyId: keyIdBase64 };
+  const rawResponse = createResult.rawResponse as unknown;
+  const publicKey = typeof rawResponse === 'object' && rawResponse !== null
+    && 'response' in rawResponse
+    && typeof rawResponse.response === 'object' && rawResponse.response !== null
+    && 'publicKey' in rawResponse.response
+    && typeof rawResponse.response.publicKey === 'string'
+    ? rawResponse.response.publicKey
+    : null;
+
+  if (!publicKey) {
+    throw new Error('passkey-kit did not return a public key');
+  }
+
+  return { contractId, keyId: keyIdBase64, publicKey };
 }

@@ -5,7 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
-import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
 const mockUser = {
   id: 'user-1',
@@ -50,7 +49,6 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: JwtService, useValue: { signAsync: jest.fn().mockResolvedValue('token') } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
-        { provide: BLOCKCHAIN_SERVICE, useValue: blockchainMock },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
@@ -77,20 +75,19 @@ describe('AuthService', () => {
       };
     });
 
-    it('creates wallet when user has no stellarWalletId', async () => {
+    it('does not create wallet when user has no stellarWalletId', async () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce(null) // findUnique by googleId
         .mockResolvedValueOnce(null); // findUnique by email
       prismaMock.user.create.mockResolvedValue(googleUser);
-      prismaMock.user.update.mockResolvedValue({ ...googleUser, stellarWalletId: 'GPUBLIC_KEY_TESTNET' });
 
       const result = await service.googleLogin('fake-id-token');
 
-      expect(blockchainMock.createCustodialWallet).toHaveBeenCalledWith('google-sub-123');
-      expect(prismaMock.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { stellarWalletId: 'GPUBLIC_KEY_TESTNET' } }),
+      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
       );
-      expect(result.user.stellarWalletId).toBe('GPUBLIC_KEY_TESTNET');
+      expect(result.user.stellarWalletId).toBeNull();
     });
 
     it('skips wallet creation when user already has stellarWalletId', async () => {
@@ -103,17 +100,35 @@ describe('AuthService', () => {
       expect(result.user.stellarWalletId).toBe('GEXISTING_KEY');
     });
 
-    it('still returns token even if wallet creation fails', async () => {
+    it('does not call wallet creation during Google login failures path', async () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
       prismaMock.user.create.mockResolvedValue(googleUser);
-      blockchainMock.createCustodialWallet.mockRejectedValueOnce(new Error('Friendbot down'));
 
       const result = await service.googleLogin('fake-id-token');
 
       expect(result.accessToken).toBe('token');
+      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
       expect(result.user.stellarWalletId).toBeNull();
+    });
+  });
+
+  describe('register', () => {
+    it('does not create a custodial wallet during registration', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.create.mockResolvedValue({ ...mockUser, passwordHash: 'hash' });
+
+      await service.register({
+        email: 'test@example.com',
+        password: 'password123',
+        role: 'pme',
+      });
+
+      expect(blockchainMock.createCustodialWallet).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
+      );
     });
   });
 

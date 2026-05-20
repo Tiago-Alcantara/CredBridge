@@ -11,8 +11,6 @@ import { useLogin, useRegister, type GoogleAuthResponse } from "@/lib/api/auth";
 import { clearAccessToken } from "@/lib/api/auth-storage";
 import { extractApiErrorMessage } from "@/lib/api/client";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-import { registerAndDeployWallet, PasskeyAbortedError } from "@/lib/wallet/passkey-client";
-import { useCreateWallet } from "@/lib/api/wallet";
 
 type RoleKey = "pme" | "investor";
 type Step = "role" | "credentials" | "kyc";
@@ -38,8 +36,6 @@ export default function LoginPage() {
 
   const loginMutation = useLogin();
   const registerMutation = useRegister();
-  const createWalletMutation = useCreateWallet();
-  const [walletSetting, setWalletSetting] = useState(false);
 
   const isPending = loginMutation.isPending || registerMutation.isPending;
 
@@ -63,21 +59,9 @@ export default function LoginPage() {
       const r = data.user.role as RoleKey;
       const dest = r === "pme" ? "/pme/dashboard" : r === "investor" ? "/investor/dashboard" : "/";
 
-      if (!data.user.stellarWalletId) {
-        setWalletSetting(true);
-        try {
-          const { contractId, keyId } = await registerAndDeployWallet(data.user.email);
-          await createWalletMutation.mutateAsync({ contractId, keyId });
-        } catch {
-          // Wallet setup is optional here — WalletSetupBanner handles retry on the dashboard
-        } finally {
-          setWalletSetting(false);
-        }
-      }
-
       router.push(dest);
     },
-    [router, createWalletMutation],
+    [router],
   );
 
   const handleGoogleError = useCallback((msg: string) => setError(msg), []);
@@ -272,18 +256,11 @@ export default function LoginPage() {
           {step === "role" && (
             <>
               <div style={{ marginBottom: 20 }}>
-                <div style={walletSetting ? { pointerEvents: "none", opacity: 0.5 } : undefined}>
-                  <GoogleSignInButton
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    text={mode === "login" ? "signin_with" : "signup_with"}
-                  />
-                </div>
-                {walletSetting && (
-                  <p style={{ textAlign: "center", fontSize: 13, color: "var(--fg-2)", marginTop: 8 }}>
-                    Configurando sua carteira Stellar…
-                  </p>
-                )}
+                <GoogleSignInButton
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  text={mode === "login" ? "signin_with" : "signup_with"}
+                />
               </div>
               {error && (
                 <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
@@ -390,11 +367,6 @@ export default function LoginPage() {
                   onError={handleGoogleError}
                   text={mode === "login" ? "signin_with" : "signup_with"}
                 />
-                {walletSetting && (
-                  <p style={{ textAlign: "center", fontSize: 13, color: "var(--fg-2)", marginTop: 8 }}>
-                    Configurando sua carteira Stellar…
-                  </p>
-                )}
               </div>
               <div
                 className="row"
