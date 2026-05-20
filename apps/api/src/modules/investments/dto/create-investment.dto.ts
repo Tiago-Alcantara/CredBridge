@@ -4,6 +4,9 @@ export class CreateInvestmentDto {
   @IsUUID()
   receivableId!: string;
 
+  @IsUUID()
+  authorizationId!: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(64)

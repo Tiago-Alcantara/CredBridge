@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { FinancialAuthorizationsService } from '../financial-authorizations/financial-authorizations.service';
 import { InvestmentsRepository } from './investments.repository';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import {
@@ -27,6 +28,7 @@ export class InvestmentsService {
     private readonly repo: InvestmentsRepository,
     @Inject(BLOCKCHAIN_SERVICE)
     private readonly blockchain: BlockchainService,
+    private readonly financialAuthorizations: FinancialAuthorizationsService,
   ) {}
 
   async create(investorUserId: string, dto: CreateInvestmentDto) {
@@ -83,6 +85,15 @@ export class InvestmentsService {
     this.logger.log(
       `Investment ${investment.id} reserved — charging investor + transferring NFT`,
     );
+    await this.financialAuthorizations.consume({
+      authorizationId: dto.authorizationId,
+      userId: investorUserId,
+      operation: 'investment.purchase',
+      resourceId: investment.receivableId,
+      amount: investment.amountPaid.toFixed(2),
+      destination: null,
+    });
+
     const paymentTxHash = await this.blockchain.chargeInvestor({
       investorUserId,
       amountBrl: investment.amountPaid,

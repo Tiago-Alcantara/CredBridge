@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { InvestmentsService } from './investments.service';
 import { InvestmentsRepository } from './investments.repository';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { FinancialAuthorizationsService } from '../financial-authorizations/financial-authorizations.service';
 import {
   BLOCKCHAIN_SERVICE,
   type BlockchainService,
@@ -12,6 +13,7 @@ import {
 const investorId = 'inv-1';
 const pmeId = 'pme-1';
 const receivableId = 'r-1';
+const authorizationId = '00000000-0000-4000-8000-000000000001';
 
 function baseReceivable(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -37,6 +39,7 @@ describe('InvestmentsService', () => {
   let service: InvestmentsService;
   let repo: jest.Mocked<InvestmentsRepository>;
   let blockchain: jest.Mocked<BlockchainService>;
+  let financialAuthorizations: jest.Mocked<Pick<FinancialAuthorizationsService, 'consume'>>;
 
   const txClient = {} as never;
 
@@ -56,6 +59,10 @@ describe('InvestmentsService', () => {
       transferNftToInvestor: jest.fn().mockResolvedValue('nft-tx-hash'),
     };
 
+    const financialAuthorizationsMock = {
+      consume: jest.fn().mockResolvedValue(undefined),
+    };
+
     const prismaMock = {
       $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(txClient)),
     };
@@ -66,12 +73,14 @@ describe('InvestmentsService', () => {
         { provide: InvestmentsRepository, useValue: repoMock },
         { provide: PrismaService, useValue: prismaMock },
         { provide: BLOCKCHAIN_SERVICE, useValue: blockchainMock },
+        { provide: FinancialAuthorizationsService, useValue: financialAuthorizationsMock },
       ],
     }).compile();
 
     service = module.get(InvestmentsService);
     repo = module.get(InvestmentsRepository) as jest.Mocked<InvestmentsRepository>;
     blockchain = module.get(BLOCKCHAIN_SERVICE) as jest.Mocked<BlockchainService>;
+    financialAuthorizations = module.get(FinancialAuthorizationsService);
   });
 
   describe('create', () => {
@@ -94,7 +103,7 @@ describe('InvestmentsService', () => {
       } as never);
       repo.setBlockchainTxHashes.mockResolvedValue({ id: 'inv-row-1' } as never);
 
-      await service.create(investorId, { receivableId });
+      await service.create(investorId, { receivableId, authorizationId });
 
       expect(repo.createInvestment).toHaveBeenCalledWith(
         expect.anything(),
@@ -108,6 +117,14 @@ describe('InvestmentsService', () => {
       );
       expect(repo.setReceivableActive).toHaveBeenCalledWith(expect.anything(), receivableId);
       expect(repo.recordAudit).toHaveBeenCalled();
+      expect(financialAuthorizations.consume).toHaveBeenCalledWith({
+        authorizationId,
+        userId: investorId,
+        operation: 'investment.purchase',
+        resourceId: receivableId,
+        amount: '97000.00',
+        destination: null,
+      });
       expect(blockchain.chargeInvestor).toHaveBeenCalledWith({
         investorUserId: investorId,
         amountBrl: 97000,
@@ -125,7 +142,7 @@ describe('InvestmentsService', () => {
 
     it('throws NotFoundException when receivable does not exist', async () => {
       repo.findReceivableForUpdate.mockResolvedValue(null);
-      await expect(service.create(investorId, { receivableId })).rejects.toBeInstanceOf(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
@@ -135,7 +152,7 @@ describe('InvestmentsService', () => {
       repo.findReceivableForUpdate.mockResolvedValue(
         baseReceivable({ investment: { id: 'existing' } }),
       );
-      await expect(service.create(investorId, { receivableId })).rejects.toBeInstanceOf(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
@@ -143,7 +160,7 @@ describe('InvestmentsService', () => {
 
     it('throws ConflictException when receivable status is not active (NFT not yet minted)', async () => {
       repo.findReceivableForUpdate.mockResolvedValue(baseReceivable({ status: 'validated' }));
-      await expect(service.create(investorId, { receivableId })).rejects.toBeInstanceOf(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
@@ -151,7 +168,7 @@ describe('InvestmentsService', () => {
 
     it('throws BadRequestException when investor is the receivable owner', async () => {
       repo.findReceivableForUpdate.mockResolvedValue(baseReceivable({ userId: investorId }));
-      await expect(service.create(investorId, { receivableId })).rejects.toBeInstanceOf(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
         BadRequestException,
       );
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
@@ -161,7 +178,7 @@ describe('InvestmentsService', () => {
       repo.findReceivableForUpdate.mockResolvedValue(baseReceivable());
       repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
       repo.setBlockchainTxHashes.mockResolvedValue({} as never);
-      await service.create(investorId, { receivableId, pixTxId: 'pix-abc' });
+      await service.create(investorId, { receivableId, authorizationId, pixTxId: 'pix-abc' });
       expect(repo.createInvestment).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ pixTxId: 'pix-abc' }),
@@ -173,7 +190,7 @@ describe('InvestmentsService', () => {
       repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
       repo.setReceivableActive.mockRejectedValue(new Error('db update failed'));
 
-      await expect(service.create(investorId, { receivableId })).rejects.toThrow(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toThrow(
         'db update failed',
       );
 
@@ -188,7 +205,7 @@ describe('InvestmentsService', () => {
       repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
       blockchain.chargeInvestor.mockRejectedValue(new Error('insufficient XLM'));
 
-      await expect(service.create(investorId, { receivableId })).rejects.toThrow(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toThrow(
         'insufficient XLM',
       );
       expect(blockchain.transferNftToInvestor).not.toHaveBeenCalled();
@@ -204,9 +221,36 @@ describe('InvestmentsService', () => {
         }),
       );
 
-      await expect(service.create(investorId, { receivableId })).rejects.toBeInstanceOf(
+      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
         ConflictException,
       );
+    });
+
+    it('does not charge investor when authorization consumption fails', async () => {
+      repo.findReceivableForUpdate.mockResolvedValue(baseReceivable());
+      repo.createInvestment.mockResolvedValue({
+        id: 'inv-row-1',
+        investorUserId: investorId,
+        receivableId,
+        faceValue: 100000,
+        amountPaid: 97000,
+        discountRate: 0.03,
+        status: 'active',
+        pixTxId: null,
+        paymentTxHash: null,
+        nftTransferTxHash: null,
+        paidAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as never);
+      financialAuthorizations.consume.mockRejectedValue(new Error('authorization_required'));
+
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toThrow('authorization_required');
+
+      expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
+      expect(blockchain.transferNftToInvestor).not.toHaveBeenCalled();
     });
   });
 
