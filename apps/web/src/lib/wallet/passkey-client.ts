@@ -1,3 +1,5 @@
+import { startAuthentication } from '@simplewebauthn/browser';
+
 const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
 const MAINNET_PASSPHRASE = 'Public Global Stellar Network ; September 2015';
 const UNCOMPRESSED_P256_PUBLIC_KEY_SIZE = 65;
@@ -23,6 +25,24 @@ function getNetworkPassphrase(): string {
   return process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
     ? MAINNET_PASSPHRASE
     : TESTNET_PASSPHRASE;
+}
+
+export async function signFinancialAuthorization(
+  payloadHash: string,
+  keyId?: string | null,
+): Promise<Record<string, unknown>> {
+  const assertion = await startAuthentication({
+    optionsJSON: {
+      challenge: payloadHash,
+      rpId: window.location.hostname,
+      allowCredentials: keyId
+        ? [{ id: keyId, type: 'public-key' }]
+        : undefined,
+      userVerification: 'preferred',
+    },
+  });
+
+  return assertion as unknown as Record<string, unknown>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

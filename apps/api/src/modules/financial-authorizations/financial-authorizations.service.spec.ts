@@ -5,6 +5,12 @@ import { AuditService } from '../audit/audit.service';
 import { FinancialAuthorizationException } from './financial-authorization.errors';
 import { FinancialAuthorizationsService } from './financial-authorizations.service';
 
+const mockVerifyAuthenticationResponse = jest.fn();
+
+jest.mock('@simplewebauthn/server', () => ({
+  verifyAuthenticationResponse: (...args: unknown[]) => mockVerifyAuthenticationResponse(...args),
+}));
+
 const userId = 'user-1';
 const walletId = 'CCONTRACT123';
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,6 +41,7 @@ describe('FinancialAuthorizationsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockVerifyAuthenticationResponse.mockResolvedValue({ verified: true });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FinancialAuthorizationsService,
@@ -134,7 +141,7 @@ describe('FinancialAuthorizationsService', () => {
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyPublicKey: 'public-key' },
+      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
     });
 
     await expect(
@@ -161,7 +168,7 @@ describe('FinancialAuthorizationsService', () => {
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyPublicKey: 'public-key' },
+      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
     });
     prismaMock.financialAuthorization.update.mockResolvedValue({
       id: 'auth-1',
@@ -206,7 +213,7 @@ describe('FinancialAuthorizationsService', () => {
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyPublicKey: 'public-key' },
+      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
     });
     prismaMock.financialAuthorization.update.mockResolvedValue({
       id: 'auth-1',
@@ -226,6 +233,18 @@ describe('FinancialAuthorizationsService', () => {
     });
 
     expect(result).toEqual({ authorizationId: 'auth-1', verified: true });
+    expect(mockVerifyAuthenticationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedChallenge: 'stored-payload-hash',
+        expectedOrigin: 'testnet',
+        expectedRPID: 'testnet',
+        credential: expect.objectContaining({
+          id: 'credential-id',
+          publicKey: expect.any(Buffer),
+          counter: 0,
+        }),
+      }),
+    );
     expect(prismaMock.financialAuthorization.update).toHaveBeenCalledWith({
       where: { id: 'auth-1' },
       data: {
@@ -247,6 +266,36 @@ describe('FinancialAuthorizationsService', () => {
         payloadHash: 'stored-payload-hash',
       },
     });
+  });
+
+  it('rejects verify requests when WebAuthn verification fails', async () => {
+    mockVerifyAuthenticationResponse.mockResolvedValue({ verified: false });
+    prismaMock.financialAuthorization.findUnique.mockResolvedValue({
+      id: 'auth-1',
+      userId,
+      operation: 'investment.purchase',
+      resourceId: 'rec-1',
+      amount: '970.00',
+      destination: null,
+      walletId,
+      payloadHash: 'stored-payload-hash',
+      verifiedAt: null,
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60000),
+      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
+    });
+
+    await expect(
+      service.verify(userId, {
+        authorizationId: '550e8400-e29b-41d4-a716-446655440000',
+        payloadHash: 'stored-payload-hash',
+        assertion: validAssertion,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'authorization_invalid' }),
+    });
+
+    expect(prismaMock.financialAuthorization.update).not.toHaveBeenCalled();
   });
 
   it('rejects consuming an expired authorization', async () => {

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import {
+  verifyAuthenticationResponse,
+  type AuthenticationResponseJSON,
+} from '@simplewebauthn/server';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -144,7 +148,12 @@ export class FinancialAuthorizationsService {
       );
     }
 
-    await this.verifyAssertionForStoredPasskey(authorization.user.passkeyPublicKey, dto.assertion);
+    await this.verifyAssertionForStoredPasskey(
+      authorization.user.passkeyPublicKey,
+      authorization.user.passkeyId,
+      dto.assertion,
+      authorization.payloadHash,
+    );
 
     const updated = await this.prisma.financialAuthorization.update({
       where: { id: authorization.id },
@@ -264,10 +273,43 @@ export class FinancialAuthorizationsService {
 
   private async verifyAssertionForStoredPasskey(
     passkeyPublicKey: string | null,
+    passkeyId: string | null,
     assertion: Record<string, unknown>,
+    expectedChallenge: string,
   ): Promise<void> {
+    if (!passkeyPublicKey || !passkeyId) {
+      throw new FinancialAuthorizationException(
+        'authorization_invalid',
+        'Passkey assertion is invalid',
+      );
+    }
+
+    const response = this.readAuthenticationResponse(assertion);
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: this.config.get<string>('WEB_ORIGIN') ?? 'http://localhost:3000',
+      expectedRPID: this.config.get<string>('WEBAUTHN_RP_ID') ?? 'localhost',
+      credential: {
+        id: passkeyId,
+        publicKey: Buffer.from(passkeyPublicKey, 'base64url'),
+        counter: 0,
+      },
+      requireUserVerification: false,
+    });
+
+    if (!verification.verified) {
+      throw new FinancialAuthorizationException(
+        'authorization_invalid',
+        'Passkey assertion verification failed',
+      );
+    }
+  }
+
+  private readAuthenticationResponse(
+    assertion: Record<string, unknown>,
+  ): AuthenticationResponseJSON {
     if (
-      !passkeyPublicKey ||
       !this.isNonEmptyString(assertion.id) ||
       !this.isNonEmptyString(assertion.rawId) ||
       assertion.type !== 'public-key' ||
@@ -281,6 +323,30 @@ export class FinancialAuthorizationsService {
         'Passkey assertion is invalid',
       );
     }
+
+    return {
+      id: assertion.id,
+      rawId: assertion.rawId,
+      type: 'public-key',
+      response: {
+        clientDataJSON: assertion.response.clientDataJSON,
+        authenticatorData: assertion.response.authenticatorData,
+        signature: assertion.response.signature,
+        userHandle: this.isNonEmptyString(assertion.response.userHandle)
+          ? assertion.response.userHandle
+          : undefined,
+      },
+      authenticatorAttachment: this.readAuthenticatorAttachment(
+        assertion.authenticatorAttachment,
+      ),
+      clientExtensionResults: this.isRecord(assertion.clientExtensionResults)
+        ? assertion.clientExtensionResults
+        : {},
+    };
+  }
+
+  private readAuthenticatorAttachment(value: unknown) {
+    return value === 'platform' || value === 'cross-platform' ? value : undefined;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {
