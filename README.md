@@ -56,7 +56,7 @@ CredBridge/
 │   │       │   ├── (auth)/               # rota agrupada — login + onboarding
 │   │       │   │   ├── layout.tsx
 │   │       │   │   ├── login/page.tsx
-│   │       │   │   └── onboarding/page.tsx
+│   │       │   │   └── onboarding/role/page.tsx
 │   │       │   ├── (pme)/                # rota agrupada — dashboard PME
 │   │       │   │   ├── layout.tsx
 │   │       │   │   └── pme/dashboard/page.tsx
@@ -69,18 +69,18 @@ CredBridge/
 │   │       ├── components/
 │   │       │   ├── primitives/           # átomos reutilizáveis (Icon, Logo, StatusBadge)
 │   │       │   ├── patterns/             # padrões compostos (Sidebar, TopNav, AppTopBar, Timeline, MiniKpi)
-│   │       │   ├── auth/                 # KycFlow, LoginBG, StellarAuth
+│   │       │   ├── auth/                 # PrivyLoginPanel, KycFlow, WalletSetupBanner
 │   │       │   ├── marketing/            # HeroNetwork, Audiences, HowItWorks, StatsBar, LandingFooter
 │   │       │   ├── pme/                  # InvoiceTable, PipelineCard, PipelineCol, UploadZone, YieldSpark
 │   │       │   ├── investor/             # NavChart, ShareCard
 │   │       │   └── partner/              # TrafficChart
-│   │       ├── hooks/                    # hooks reutilizáveis (useTheme, etc.)
+│   │       ├── hooks/                    # hooks reutilizáveis, incluindo bootstrap da sessão Privy
 │   │       ├── lib/
 │   │       │   ├── api/                  # clientes HTTP por domínio (receivables, documents, settlements, audit)
 │   │       │   ├── i18n/                 # traduções PT/EN + useTranslation
 │   │       │   ├── validations/          # schemas Zod por domínio
 │   │       │   └── format.ts             # helpers de formatação (moeda, datas)
-│   │       ├── providers/                # QueryProvider (TanStack Query)
+│   │       ├── providers/                # QueryProvider + PrivyAuthProvider
 │   │       └── types/
 │   │           ├── index.ts              # tipos locais do frontend
 │   │           └── shared.ts             # re-export dos tipos do @credbridge/types
@@ -109,7 +109,7 @@ CredBridge/
 │               ├── documents/            # registro metadado + DTO (CreateDocumentDto)
 │               ├── settlements/          # CRUD básico + DTO (CreateSettlementDto)
 │               ├── audit/                # AuditService polimórfico (entityType/entityId)
-│               └── auth/                 # SEP-10 stellar challenge/verify (stub)
+│               └── auth/                 # login Privy seguro, JWT interno e SEP-10 legado
 │
 └── packages/
     └── types/                            # @credbridge/types — tipos compartilhados
@@ -182,11 +182,12 @@ npm install
 ### 2. Configurar variáveis de ambiente
 
 ```bash
-cp .env.example .env
+cp .env.example apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-Os valores padrão do `.env` já funcionam com o banco Docker abaixo — não é necessário editar nada para rodar localmente.
+Os valores padrão de `apps/api/.env` já funcionam com o banco Docker abaixo.
+Preencha as variáveis Privy antes de testar o novo login.
 
 ### 3. Subir o banco de dados
 
@@ -206,7 +207,7 @@ Isso sobe um PostgreSQL 16 na porta `5432` com usuário `credbridge`, senha `cre
 npm run build:types
 
 cd apps/api
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 cd ../..
 ```
 
@@ -274,6 +275,91 @@ A raiz documenta todas em `.env.example`. Categorias:
 
 O frontend mantém `apps/web/.env.local.example` separado para variáveis públicas (`NEXT_PUBLIC_*`).
 
+### Login Privy seguro e wallet Stellar
+
+Configure uma aplicação Privy com login por `email` e `google` habilitado e
+ative identity tokens no Privy Dashboard. Defina estes valores em
+`apps/api/.env` e `apps/web/.env.local` antes de iniciar as aplicações:
+
+```env
+# API
+PRIVY_APP_ID=
+PRIVY_APP_SECRET=
+# Opcional: evita buscar a chave na Privy durante a validacao no backend.
+PRIVY_JWT_VERIFICATION_KEY=
+
+# Web
+NEXT_PUBLIC_PRIVY_APP_ID=
+# Opcional: omita se não houver um App Client configurado na Privy.
+NEXT_PUBLIC_PRIVY_CLIENT_ID=
+```
+
+`PRIVY_JWT_VERIFICATION_KEY` e opcional. Quando informada, ela pode ser
+copiada do Privy Dashboard em `Configuration > App settings` e evita que o SDK
+busque a chave ao verificar tokens.
+
+No dashboard da Privy:
+
+1. Habilite `email` e/ou `google` como métodos de autenticação.
+2. Em `User management > Authentication > Advanced`, habilite
+   `Return user data in an identity token`.
+3. Para Google com credenciais próprias, configure o Client ID e Client Secret
+   OAuth no provedor Google da Privy.
+4. Não coloque o segredo da aplicação Privy nem credenciais OAuth do Google em
+   variáveis `NEXT_PUBLIC_*`.
+
+#### Correção de segurança aplicada
+
+O fluxo anterior de login e criação de wallet tinha uma associação frágil:
+uma carteira criada no cliente poderia ser tratada como pertencente ao usuário
+sem uma comprovação forte dessa relação no backend. O fluxo Privy substitui
+essa confiança implícita por validação da sessão antes de persistir a wallet.
+
+Fluxo atual:
+
+1. A Privy autentica o usuário e mantém a sessão do provedor.
+2. O frontend aguarda o `identityToken` e cria uma embedded wallet `stellar`
+   somente quando o usuário ainda não possui uma.
+3. O frontend envia `accessToken` e `identityToken` para
+   `POST /v1/auth/privy/session`.
+4. A API valida os dois tokens assinados pela Privy e confirma que ambos
+   pertencem ao mesmo Privy DID.
+5. A API recupera o e-mail verificado e a embedded wallet Stellar da identidade
+   validada, sem confiar em endereço de wallet informado livremente pelo
+   navegador.
+6. O usuário local passa a armazenar `privyUserId`,
+   `privyStellarWalletAddress` e `privyWalletStatus`; os dois identificadores
+   de vínculo possuem restrição única no banco.
+7. Somente após essa validação a API emite o JWT interno usado pelas rotas da
+   CredBridge.
+
+Controles adicionais:
+
+- O bootstrap automático aguarda o identity token e não repete a troca de
+  sessão em remontagens autenticadas.
+- O logout limpa a sessão interna da CredBridge.
+- O fluxo de KYC não cria mais a smart wallet/passkey legada; essa autorização
+  financeira permanece separada da embedded wallet Privy.
+
+Após atualizar o código, aplique a migration das colunas Privy:
+
+```bash
+npm exec -w apps/api -- prisma migrate deploy --schema prisma/schema.prisma
+```
+
+Verificação manual:
+
+1. Inicie `npm run dev`.
+2. Abra `/login` e autentique pela Privy.
+3. Confirme que o primeiro login cria uma embedded wallet Stellar e direciona
+   um novo usuário para `/onboarding/role`.
+4. Conclua a escolha de perfil e confirme que o dashboard carrega usando o JWT
+   interno CredBridge.
+5. Saia e entre novamente; confirme que nenhuma wallet Stellar adicional é
+   criada.
+6. Confirme que o banner financeiro descreve assinatura avançada, sem afirmar
+   que o usuário não possui wallet.
+
 ---
 
 ## Endpoints da API (scaffold)
@@ -291,8 +377,12 @@ Prefix global: `/v1`
 | `GET` | `/v1/settlements/receivable/:receivableId` | settlements por recebível |
 | `POST` | `/v1/auth/stellar/challenge` | gera challenge SEP-10 |
 | `POST` | `/v1/auth/stellar/verify` | verifica challenge e emite JWT |
+| `POST` | `/v1/auth/privy/session` | valida tokens Privy e emite JWT interno |
+| `PATCH` | `/v1/auth/me/role` | define perfil após primeiro login Privy |
+| `GET` | `/v1/auth/me` | consulta o usuário autenticado |
 
-> Os endpoints estão em estado de **stub**: persistem dados via Prisma mas não validam regra de negócio, não emitem eventos de auditoria, não chamam SDKs reais. Implementação por módulo nos próximos planos.
+> Os endpoints SEP-10 permanecem legados/stub. O fluxo principal de login usa
+> Privy com validação server-side e JWT interno CredBridge.
 
 ---
 

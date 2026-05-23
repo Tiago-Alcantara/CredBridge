@@ -16,6 +16,7 @@ import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { SetRoleDto } from './dto/set-role.dto';
+import { PrivyAuthService } from './privy-auth.service';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -35,6 +36,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly privyAuth: PrivyAuthService,
   ) {
     this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
     this.googleClient = new OAuth2Client(this.googleClientId);
@@ -129,6 +131,57 @@ export class AuthService {
     };
   }
 
+  async privySession(accessToken: string, identityToken: string) {
+    const identity = await this.privyAuth.verifySession(accessToken, identityToken);
+    const privyUserData = {
+      provider: 'privy',
+      privyUserId: identity.privyUserId,
+      privyStellarWalletAddress: identity.stellarWalletAddress,
+      privyWalletStatus: 'ready',
+    };
+
+    let user = await this.prisma.user.findUnique({
+      where: { privyUserId: identity.privyUserId },
+    });
+
+    if (user) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: privyUserData,
+      });
+    } else {
+      const existingEmailUser = await this.prisma.user.findUnique({
+        where: { email: identity.email },
+      });
+
+      if (existingEmailUser) {
+        user = await this.prisma.user.update({
+          where: { id: existingEmailUser.id },
+          data: privyUserData,
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email: identity.email,
+            ...privyUserData,
+            role: null,
+          },
+        });
+      }
+    }
+
+    const tokenResult = await this.issueToken(user.id, user.email, user.role);
+    return {
+      ...tokenResult,
+      user: {
+        ...tokenResult.user,
+        privyStellarWalletAddress: user.privyStellarWalletAddress ?? null,
+        privyWalletStatus: user.privyWalletStatus ?? null,
+      },
+      needsRoleSelection: user.role === null,
+    };
+  }
+
   async setRole(userId: string, dto: SetRoleDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
@@ -167,6 +220,9 @@ export class AuthService {
     riskProfile: true,
     operationalLimit: true,
     stellarWalletId: true,
+    privyUserId: true,
+    privyStellarWalletAddress: true,
+    privyWalletStatus: true,
     createdAt: true,
     updatedAt: true,
   } as const;

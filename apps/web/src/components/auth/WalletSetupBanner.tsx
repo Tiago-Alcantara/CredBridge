@@ -42,7 +42,7 @@ export function WalletSetupBanner() {
         <Icon name="wallet" size={18} />
       </span>
       <span style={{ flex: 1, fontSize: 13.5 }}>
-        {error ?? "Carteira Stellar não configurada."}
+        {error ?? "Assinatura avançada para operações financeiras ainda não configurada."}
       </span>
       <button
         className="btn btn-ghost btn-sm"
@@ -50,7 +50,7 @@ export function WalletSetupBanner() {
         disabled={setting}
         style={{ flexShrink: 0 }}
       >
-        {setting ? "Configurando…" : "Configurar agora"}
+        {setting ? "Configurando…" : "Configurar assinatura"}
       </button>
       <button
         className="btn btn-ghost btn-sm"

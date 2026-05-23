@@ -5,6 +5,11 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { PrivyAuthService } from './privy-auth.service';
+
+jest.mock('./privy-auth.service', () => ({
+  PrivyAuthService: class PrivyAuthService {},
+}));
 
 const mockUser = {
   id: 'user-1',
@@ -14,6 +19,9 @@ const mockUser = {
   name: 'Test User',
   stellarWalletId: null,
   passkeyId: null,
+  privyUserId: null,
+  privyStellarWalletAddress: null,
+  privyWalletStatus: null,
   phone: null,
   address: null,
   companyName: null,
@@ -35,6 +43,10 @@ const prismaMock = {
   },
 };
 
+const privyAuthMock = {
+  verifySession: jest.fn(),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -45,10 +57,15 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: JwtService, useValue: { signAsync: jest.fn().mockResolvedValue('token') } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+        { provide: PrivyAuthService, useValue: privyAuthMock },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
     jest.clearAllMocks();
+    prismaMock.user.findUnique.mockReset();
+    prismaMock.user.create.mockReset();
+    prismaMock.user.update.mockReset();
+    privyAuthMock.verifySession.mockReset();
   });
 
   describe('googleLogin', () => {
@@ -128,12 +145,167 @@ describe('AuthService', () => {
     });
   });
 
+  describe('privySession', () => {
+    beforeEach(() => {
+      privyAuthMock.verifySession.mockResolvedValue({
+        privyUserId: 'did:privy:user-1',
+        email: 'test@example.com',
+        stellarWalletAddress: 'GPRIVYWALLET',
+      });
+    });
+
+    it('creates a new Privy user and issues the internal JWT', async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      prismaMock.user.create.mockResolvedValue({
+        ...mockUser,
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+        role: null,
+      });
+
+      const result = await service.privySession('access-token', 'identity-token');
+
+      expect(privyAuthMock.verifySession).toHaveBeenCalledWith(
+        'access-token',
+        'identity-token',
+      );
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: 'test@example.com',
+          provider: 'privy',
+          privyUserId: 'did:privy:user-1',
+          privyStellarWalletAddress: 'GPRIVYWALLET',
+          privyWalletStatus: 'ready',
+          role: null,
+        },
+      });
+      expect(result).toEqual({
+        accessToken: 'token',
+        user: {
+          id: 'user-1',
+          email: 'test@example.com',
+          role: null,
+          privyStellarWalletAddress: 'GPRIVYWALLET',
+          privyWalletStatus: 'ready',
+        },
+        needsRoleSelection: true,
+      });
+    });
+
+    it('links an existing email user to the verified Privy identity', async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockUser);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+      });
+
+      const result = await service.privySession('access-token', 'identity-token');
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          provider: 'privy',
+          privyUserId: 'did:privy:user-1',
+          privyStellarWalletAddress: 'GPRIVYWALLET',
+          privyWalletStatus: 'ready',
+        },
+      });
+      expect(result.needsRoleSelection).toBe(false);
+    });
+
+    it('refreshes wallet data for an already linked Privy user without changing the local email', async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        ...mockUser,
+        email: 'previous@example.com',
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GOLDWALLET',
+        privyWalletStatus: 'pending',
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        email: 'previous@example.com',
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+      });
+
+      const result = await service.privySession('access-token', 'identity-token');
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { privyUserId: 'did:privy:user-1' },
+      });
+      expect(prismaMock.user.findUnique).not.toHaveBeenCalledWith({
+        where: { email: 'test@example.com' },
+      });
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          provider: 'privy',
+          privyUserId: 'did:privy:user-1',
+          privyStellarWalletAddress: 'GPRIVYWALLET',
+          privyWalletStatus: 'ready',
+        },
+      });
+      expect(result.user.email).toBe('previous@example.com');
+      expect(result.user.privyStellarWalletAddress).toBe('GPRIVYWALLET');
+      expect(result.user.privyWalletStatus).toBe('ready');
+    });
+
+    it('never writes Privy wallet details into legacy smart-account fields', async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockUser);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+      });
+
+      await service.privySession('access-token', 'identity-token');
+
+      const updateData = prismaMock.user.update.mock.calls[0][0].data;
+      const forbiddenLegacyFields = [
+        'stellarWalletId',
+        'passkeyId',
+        'passkeyPublicKey',
+        'walletType',
+        'walletStatus',
+      ];
+
+      for (const field of forbiddenLegacyFields) {
+        expect(updateData).not.toHaveProperty(field);
+      }
+    });
+  });
+
   describe('findMe', () => {
     it('returns user without passwordHash', async () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
       const result = await service.findMe('user-1');
       expect(result).not.toHaveProperty('passwordHash');
       expect(result.email).toBe('test@example.com');
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        select: expect.objectContaining({
+          stellarWalletId: true,
+          privyUserId: true,
+          privyStellarWalletAddress: true,
+          privyWalletStatus: true,
+        }),
+      });
     });
 
     it('throws UnauthorizedException when user not found', async () => {

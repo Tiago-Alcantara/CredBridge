@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Patch, Body, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  Headers,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -33,6 +43,22 @@ export class AuthController {
   @Post('google')
   googleLogin(@Body() body: GoogleLoginDto) {
     return this.authService.googleLogin(body.idToken);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('privy/session')
+  privySession(
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('privy-id-token') identityToken: string | undefined,
+  ) {
+    const bearerTokenMatch = authorization?.match(/^Bearer (\S+)$/);
+    const accessToken = bearerTokenMatch?.[1];
+
+    if (!accessToken || !identityToken || !/^\S+$/.test(identityToken)) {
+      throw new UnauthorizedException('Privy session tokens are required');
+    }
+
+    return this.authService.privySession(accessToken, identityToken);
   }
 
   @Patch('me/role')
