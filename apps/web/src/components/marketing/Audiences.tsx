@@ -4,7 +4,11 @@ import Link from "next/link";
 import { Icon } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-export function Audiences() {
+interface AudiencesProps {
+  publicOnly?: boolean;
+}
+
+export function Audiences({ publicOnly = false }: AudiencesProps) {
   const { t } = useTranslation("pt");
 
   const cards = [
@@ -122,17 +126,19 @@ export function Audiences() {
                   </li>
                 ))}
               </ul>
-              <Link
-                className="btn btn-ghost"
-                href={c.href}
-                style={{
-                  marginTop: "auto",
-                  borderColor: `${c.color}50`,
-                  color: c.color,
-                }}
-              >
-                {c.cta} <Icon name="arrow_right" size={14} />
-              </Link>
+              {!publicOnly && (
+                <Link
+                  className="btn btn-ghost"
+                  href={c.href}
+                  style={{
+                    marginTop: "auto",
+                    borderColor: `${c.color}50`,
+                    color: c.color,
+                  }}
+                >
+                  {c.cta} <Icon name="arrow_right" size={14} />
+                </Link>
+              )}
             </div>
           ))}
         </div>

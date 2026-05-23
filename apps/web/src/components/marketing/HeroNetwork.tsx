@@ -4,7 +4,11 @@ import { Icon } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { HeroNetworkBG } from "./HeroNetworkBG";
 
-export function HeroNetwork() {
+interface HeroNetworkProps {
+  publicOnly?: boolean;
+}
+
+export function HeroNetwork({ publicOnly = false }: HeroNetworkProps) {
   const { t } = useTranslation("pt");
   const title = t("hero_title");
 
@@ -40,20 +44,22 @@ export function HeroNetwork() {
         >
           {t("hero_sub")}
         </p>
-        <div
-          className="row"
-          style={{ marginTop: 40, gap: 12, flexWrap: "wrap" }}
-        >
-          <a className="btn btn-primary btn-lg" href="/login">
-            {t("cta_antecipar")} <Icon name="arrow_right" size={16} />
-          </a>
-          <a className="btn btn-ghost btn-lg" href="/login">
-            {t("cta_investir")}
-          </a>
-          <a className="btn btn-ghost btn-lg" href="/partner/dashboard">
-            {t("cta_api")} <Icon name="code" size={16} />
-          </a>
-        </div>
+        {!publicOnly && (
+          <div
+            className="row"
+            style={{ marginTop: 40, gap: 12, flexWrap: "wrap" }}
+          >
+            <a className="btn btn-primary btn-lg" href="/login">
+              {t("cta_antecipar")} <Icon name="arrow_right" size={16} />
+            </a>
+            <a className="btn btn-ghost btn-lg" href="/login">
+              {t("cta_investir")}
+            </a>
+            <a className="btn btn-ghost btn-lg" href="/partner/dashboard">
+              {t("cta_api")} <Icon name="code" size={16} />
+            </a>
+          </div>
+        )}
         <div
           className="row"
           style={{

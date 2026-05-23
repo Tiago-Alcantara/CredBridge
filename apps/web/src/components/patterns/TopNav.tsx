@@ -10,15 +10,18 @@ type Lang = "pt" | "en";
 interface TopNavProps {
   lang?: Lang;
   activePath?: string;
+  publicOnly?: boolean;
 }
 
-export function TopNav({ lang = "pt", activePath }: TopNavProps) {
+export function TopNav({ lang = "pt", activePath, publicOnly = false }: TopNavProps) {
   const { t } = useTranslation(lang);
 
   const navLinks = [
     { href: "/",                       label: t("nav_product") },
     { href: "/#how",                   label: t("nav_howitworks") },
-    { href: "/login?role=investor",    label: t("nav_investors") },
+    ...(!publicOnly
+      ? [{ href: "/login?role=investor", label: t("nav_investors") }]
+      : []),
     { href: "/#api",                   label: t("nav_partners") },
     { href: "/#docs",                  label: t("nav_docs") },
   ];
@@ -39,12 +42,16 @@ export function TopNav({ lang = "pt", activePath }: TopNavProps) {
           ))}
         </div>
         <div style={{ flex: 1 }} />
-        <Link className="appnav-link" href="/login">
-          {t("nav_login")}
-        </Link>
-        <Link className="btn btn-primary btn-sm" href="/login">
-          {t("cta_antecipar")} <Icon name="arrow_right" size={14} />
-        </Link>
+        {!publicOnly && (
+          <>
+            <Link className="appnav-link" href="/login">
+              {t("nav_login")}
+            </Link>
+            <Link className="btn btn-primary btn-sm" href="/login">
+              {t("cta_antecipar")} <Icon name="arrow_right" size={14} />
+            </Link>
+          </>
+        )}
       </div>
     </nav>
   );
