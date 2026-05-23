@@ -1,14 +1,15 @@
 # Public Landing Subdomain Design
 
 **Date:** 2026-05-23
-**Scope:** Exclusive public landing page on `www.lane-credbridge.app`
+**Scope:** Exclusive public landing page on Vercel production and optional custom host
 **Status:** Approved for implementation planning
 
 ## Goal
 
-Serve `www.lane-credbridge.app` as a public presentation-only site. Visitors
-may view the existing CredBridge landing page, but cannot navigate from that
-host to login, onboarding, dashboards, auditing, or other application routes.
+Serve `cred-bridge.vercel.app` and, when configured, `www.lane-credbridge.app`
+as public presentation-only sites. Visitors may view the existing CredBridge
+landing page, but cannot navigate from those hosts to login, onboarding,
+dashboards, auditing, or other application routes.
 
 ## Current Context
 
@@ -25,7 +26,8 @@ host to login, onboarding, dashboards, auditing, or other application routes.
 
 ### Public host
 
-For requests whose hostname is `www.lane-credbridge.app`:
+For requests whose hostname is `cred-bridge.vercel.app` or
+`www.lane-credbridge.app`:
 
 - `/` renders the existing marketing landing visual design in public-only mode.
 - The public-only landing shows no login, registration, dashboard, or
@@ -52,8 +54,9 @@ of scope for this change.
 ### Host-based route restriction
 
 Add a Next.js 16 `proxy.ts` beside `src/app`, following the framework's current
-Proxy convention. The proxy detects `www.lane-credbridge.app` from the request
-hostname and applies public-host routing rules before page rendering:
+Proxy convention. The proxy detects the Vercel production host and optional
+custom public host from the request hostname, then applies public-host routing
+rules before page rendering:
 
 - allow the landing request and framework/static asset requests;
 - rewrite the public landing request to its public-only rendering variant;
@@ -101,8 +104,9 @@ Vercel is an operational step outside the source-code change.
   authentication and dashboard links are absent while informational content
   remains.
 - Run the web test suite, lint, and production build after implementation.
-- Manually smoke-test `www.lane-credbridge.app/` and a direct blocked URL such
-  as `www.lane-credbridge.app/login` once the domain is attached in Vercel.
+- Manually smoke-test `cred-bridge.vercel.app/` and a direct blocked URL such
+  as `cred-bridge.vercel.app/login`; repeat on `www.lane-credbridge.app`
+  if that custom host is attached later.
 
 ## Out Of Scope
 

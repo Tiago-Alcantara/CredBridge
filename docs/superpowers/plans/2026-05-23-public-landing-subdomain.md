@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `www.lane-credbridge.app` serve only the existing public landing page, without login or dashboard entry points.
+**Goal:** Make `cred-bridge.vercel.app` and the optional `www.lane-credbridge.app` host serve only the existing public landing page, without login or dashboard entry points.
 
-**Architecture:** A Next.js 16 `proxy.ts` detects the public hostname, redirects page routes other than `/` back to `/`, and marks the root request with an internal header. The marketing page reads that header and passes an explicit `publicOnly` mode into its existing navigation, hero, and audience components so other hosts keep their current behavior.
+**Architecture:** A Next.js 16 `proxy.ts` detects the public production hostnames, redirects page routes other than `/` back to `/`, and marks the root request with an internal header. The marketing page reads that header and passes an explicit `publicOnly` mode into its existing navigation, hero, and audience components so preview and development hosts keep their current behavior.
 
 **Tech Stack:** Next.js 16 App Router and Proxy, React 19, TypeScript, Vitest, Testing Library, Vercel deployment configuration.
 
@@ -175,7 +175,10 @@ Expected: FAIL because `proxy.ts` and `publicOnly` behavior do not exist yet.
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_LANDING_HOSTNAME = "www.lane-credbridge.app";
+const PUBLIC_LANDING_HOSTNAMES = new Set([
+  "www.lane-credbridge.app",
+  "cred-bridge.vercel.app",
+]);
 const PUBLIC_LANDING_HEADER = "x-credbridge-public-landing";
 
 function isStaticAssetPath(pathname: string): boolean {
@@ -190,7 +193,7 @@ function isStaticAssetPath(pathname: string): boolean {
 }
 
 export function proxy(request: NextRequest) {
-  if (request.nextUrl.hostname !== PUBLIC_LANDING_HOSTNAME) {
+  if (!PUBLIC_LANDING_HOSTNAMES.has(request.nextUrl.hostname)) {
     return NextResponse.next();
   }
 

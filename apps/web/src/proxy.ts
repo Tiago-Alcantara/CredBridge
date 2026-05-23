@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_LANDING_HOSTNAME = "www.lane-credbridge.app";
+const PUBLIC_LANDING_HOSTNAMES = new Set([
+  "www.lane-credbridge.app",
+  "cred-bridge.vercel.app",
+]);
 const PUBLIC_LANDING_HEADER = "x-credbridge-public-landing";
 
 function isStaticAssetPath(pathname: string): boolean {
@@ -16,7 +19,7 @@ function isStaticAssetPath(pathname: string): boolean {
 }
 
 export function proxy(request: NextRequest) {
-  if (request.nextUrl.hostname !== PUBLIC_LANDING_HOSTNAME) {
+  if (!PUBLIC_LANDING_HOSTNAMES.has(request.nextUrl.hostname)) {
     return NextResponse.next();
   }
 

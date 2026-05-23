@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { proxy } from "./proxy";
 
 const PUBLIC_HOST = "www.lane-credbridge.app";
+const VERCEL_PUBLIC_HOST = "cred-bridge.vercel.app";
 
 function createRequest(pathname: string, hostname = PUBLIC_HOST) {
   return new NextRequest(`https://${hostname}${pathname}`);
@@ -22,6 +23,13 @@ describe("public landing proxy", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(`https://${PUBLIC_HOST}/`);
+  });
+
+  it("redirects application routes on the Vercel production host to the landing", () => {
+    const response = proxy(createRequest("/login", VERCEL_PUBLIC_HOST));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(`https://${VERCEL_PUBLIC_HOST}/`);
   });
 
   it("does not redirect static assets needed by the landing", () => {
