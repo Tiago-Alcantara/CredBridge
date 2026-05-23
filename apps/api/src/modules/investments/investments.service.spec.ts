@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { InvestmentsService } from './investments.service';
 import { InvestmentsRepository } from './investments.repository';
@@ -39,7 +43,9 @@ describe('InvestmentsService', () => {
   let service: InvestmentsService;
   let repo: jest.Mocked<InvestmentsRepository>;
   let blockchain: jest.Mocked<BlockchainService>;
-  let financialAuthorizations: jest.Mocked<Pick<FinancialAuthorizationsService, 'consume'>>;
+  let financialAuthorizations: jest.Mocked<
+    Pick<FinancialAuthorizationsService, 'consume'>
+  >;
 
   const txClient = {} as never;
 
@@ -64,7 +70,9 @@ describe('InvestmentsService', () => {
     };
 
     const prismaMock = {
-      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(txClient)),
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(txClient),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -73,13 +81,16 @@ describe('InvestmentsService', () => {
         { provide: InvestmentsRepository, useValue: repoMock },
         { provide: PrismaService, useValue: prismaMock },
         { provide: BLOCKCHAIN_SERVICE, useValue: blockchainMock },
-        { provide: FinancialAuthorizationsService, useValue: financialAuthorizationsMock },
+        {
+          provide: FinancialAuthorizationsService,
+          useValue: financialAuthorizationsMock,
+        },
       ],
     }).compile();
 
     service = module.get(InvestmentsService);
-    repo = module.get(InvestmentsRepository) as jest.Mocked<InvestmentsRepository>;
-    blockchain = module.get(BLOCKCHAIN_SERVICE) as jest.Mocked<BlockchainService>;
+    repo = module.get(InvestmentsRepository);
+    blockchain = module.get(BLOCKCHAIN_SERVICE);
     financialAuthorizations = module.get(FinancialAuthorizationsService);
   });
 
@@ -100,8 +111,10 @@ describe('InvestmentsService', () => {
         paidAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
+      });
+      repo.setBlockchainTxHashes.mockResolvedValue({
+        id: 'inv-row-1',
       } as never);
-      repo.setBlockchainTxHashes.mockResolvedValue({ id: 'inv-row-1' } as never);
 
       await service.create(investorId, { receivableId, authorizationId });
 
@@ -115,7 +128,10 @@ describe('InvestmentsService', () => {
           discountRate: 0.03,
         }),
       );
-      expect(repo.setReceivableActive).toHaveBeenCalledWith(expect.anything(), receivableId);
+      expect(repo.setReceivableActive).toHaveBeenCalledWith(
+        expect.anything(),
+        receivableId,
+      );
       expect(repo.recordAudit).toHaveBeenCalled();
       expect(financialAuthorizations.consume).toHaveBeenCalledWith({
         authorizationId,
@@ -142,9 +158,9 @@ describe('InvestmentsService', () => {
 
     it('throws NotFoundException when receivable does not exist', async () => {
       repo.findReceivableForUpdate.mockResolvedValue(null);
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
     });
 
@@ -152,25 +168,29 @@ describe('InvestmentsService', () => {
       repo.findReceivableForUpdate.mockResolvedValue(
         baseReceivable({ investment: { id: 'existing' } }),
       );
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException when receivable status is not active (NFT not yet minted)', async () => {
-      repo.findReceivableForUpdate.mockResolvedValue(baseReceivable({ status: 'validated' }));
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
-        ConflictException,
+      repo.findReceivableForUpdate.mockResolvedValue(
+        baseReceivable({ status: 'validated' }),
       );
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when investor is the receivable owner', async () => {
-      repo.findReceivableForUpdate.mockResolvedValue(baseReceivable({ userId: investorId }));
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
-        BadRequestException,
+      repo.findReceivableForUpdate.mockResolvedValue(
+        baseReceivable({ userId: investorId }),
       );
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(blockchain.chargeInvestor).not.toHaveBeenCalled();
     });
 
@@ -178,7 +198,11 @@ describe('InvestmentsService', () => {
       repo.findReceivableForUpdate.mockResolvedValue(baseReceivable());
       repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
       repo.setBlockchainTxHashes.mockResolvedValue({} as never);
-      await service.create(investorId, { receivableId, authorizationId, pixTxId: 'pix-abc' });
+      await service.create(investorId, {
+        receivableId,
+        authorizationId,
+        pixTxId: 'pix-abc',
+      });
       expect(repo.createInvestment).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ pixTxId: 'pix-abc' }),
@@ -190,9 +214,9 @@ describe('InvestmentsService', () => {
       repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
       repo.setReceivableActive.mockRejectedValue(new Error('db update failed'));
 
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toThrow(
-        'db update failed',
-      );
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toThrow('db update failed');
 
       expect(repo.createInvestment).toHaveBeenCalled();
       expect(repo.setReceivableActive).toHaveBeenCalled();
@@ -203,11 +227,13 @@ describe('InvestmentsService', () => {
     it('propagates errors from chargeInvestor and skips NFT transfer', async () => {
       repo.findReceivableForUpdate.mockResolvedValue(baseReceivable());
       repo.createInvestment.mockResolvedValue({ id: 'inv-row-1' } as never);
-      blockchain.chargeInvestor.mockRejectedValue(new Error('insufficient XLM'));
-
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toThrow(
-        'insufficient XLM',
+      blockchain.chargeInvestor.mockRejectedValue(
+        new Error('insufficient XLM'),
       );
+
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toThrow('insufficient XLM');
       expect(blockchain.transferNftToInvestor).not.toHaveBeenCalled();
       expect(repo.setBlockchainTxHashes).not.toHaveBeenCalled();
     });
@@ -221,9 +247,9 @@ describe('InvestmentsService', () => {
         }),
       );
 
-      await expect(service.create(investorId, { receivableId, authorizationId })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.create(investorId, { receivableId, authorizationId }),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('does not charge investor when authorization consumption fails', async () => {
@@ -242,8 +268,10 @@ describe('InvestmentsService', () => {
         paidAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as never);
-      financialAuthorizations.consume.mockRejectedValue(new Error('authorization_required'));
+      });
+      financialAuthorizations.consume.mockRejectedValue(
+        new Error('authorization_required'),
+      );
 
       await expect(
         service.create(investorId, { receivableId, authorizationId }),
@@ -257,7 +285,13 @@ describe('InvestmentsService', () => {
   describe('findMine', () => {
     it('returns positions for the given investor', async () => {
       const positions = [
-        { id: 'a', investorUserId: investorId, receivableId, faceValue: 100, amountPaid: 97 },
+        {
+          id: 'a',
+          investorUserId: investorId,
+          receivableId,
+          faceValue: 100,
+          amountPaid: 97,
+        },
       ] as never;
       repo.findManyByInvestor.mockResolvedValue(positions);
       const result = await service.findMine(investorId);
@@ -275,7 +309,11 @@ describe('InvestmentsService', () => {
       });
       const result = await service.getMyStats(investorId);
       expect(repo.getStatsByInvestor).toHaveBeenCalledWith(investorId);
-      expect(result).toEqual({ totalInvested: 9700, expectedReturn: 300, activePositions: 1 });
+      expect(result).toEqual({
+        totalInvested: 9700,
+        expectedReturn: 300,
+        activePositions: 1,
+      });
     });
   });
 });

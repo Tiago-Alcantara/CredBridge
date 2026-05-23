@@ -29,8 +29,14 @@ export interface BlockchainService {
   payPme(data: PayPmeInput): Promise<string>;
   transferNftToInvestor(data: TransferNftToInvestorInput): Promise<string>;
   chargeInvestor(data: ChargeInvestorInput): Promise<string>;
-  settlePayment(data: { receivableId: string; amount: number; destination: string }): Promise<string>;
-  getTransactionStatus(txHash: string): Promise<'pending' | 'success' | 'failed'>;
+  settlePayment(data: {
+    receivableId: string;
+    amount: number;
+    destination: string;
+  }): Promise<string>;
+  getTransactionStatus(
+    txHash: string,
+  ): Promise<'pending' | 'success' | 'failed'>;
   createCustodialWallet(googleId: string): Promise<string>;
 }
 

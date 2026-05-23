@@ -28,7 +28,11 @@ export class AnchorController {
   /** POST /v1/anchor/onramp/start — SEP-24 interactive deposit; returns interactiveUrl */
   @Post('onramp/start')
   startOnramp(@Body() dto: StartRampDto, @Req() req: AuthRequest) {
-    return this.anchorService.startOnramp(req.user.userId, dto.amount, dto.quoteId);
+    return this.anchorService.startOnramp(
+      req.user.userId,
+      dto.amount,
+      dto.quoteId,
+    );
   }
 
   /** POST /v1/anchor/offramp/quote — SEP-38 quote: TESOURO → BRL */
@@ -40,6 +44,10 @@ export class AnchorController {
   /** POST /v1/anchor/offramp/start — SEP-24 interactive withdrawal; returns interactiveUrl */
   @Post('offramp/start')
   startOfframp(@Body() dto: StartRampDto, @Req() req: AuthRequest) {
-    return this.anchorService.startOfframp(req.user.userId, dto.amount, dto.quoteId);
+    return this.anchorService.startOfframp(
+      req.user.userId,
+      dto.amount,
+      dto.quoteId,
+    );
   }
 }

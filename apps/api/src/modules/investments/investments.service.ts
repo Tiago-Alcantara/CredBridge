@@ -35,7 +35,10 @@ export class InvestmentsService {
     let investment: { id: string; receivableId: string; amountPaid: number };
     try {
       investment = await this.prisma.$transaction(async (tx) => {
-        const receivable = await this.repo.findReceivableForUpdate(tx, dto.receivableId);
+        const receivable = await this.repo.findReceivableForUpdate(
+          tx,
+          dto.receivableId,
+        );
         if (!receivable) {
           throw new NotFoundException('Recebível não encontrado');
         }
@@ -75,7 +78,10 @@ export class InvestmentsService {
         return { id: created.id, receivableId: receivable.id, amountPaid };
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('Recebível indisponível');
       }
       throw e;

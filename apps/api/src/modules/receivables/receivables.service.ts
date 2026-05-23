@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Inject, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Inject,
+  NotFoundException,
+} from '@nestjs/common';
 import { ReceivablesRepository } from './receivables.repository';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { toReceivableResponse } from './dto/receivable-response.dto';
@@ -69,7 +74,9 @@ export class ReceivablesService {
     const receivable = await this.repo.findOne(id);
     if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
     if (receivable.status !== 'validated') {
-      throw new ConflictException('Receivable must be validated before tokenization');
+      throw new ConflictException(
+        'Receivable must be validated before tokenization',
+      );
     }
 
     await this.audit.log({
@@ -85,7 +92,10 @@ export class ReceivablesService {
       entityId: receivable.id,
       entityType: 'receivable',
       userId: receivable.userId,
-      metadata: { value: receivable.value, xmlHash: receivable.documentHash ?? null },
+      metadata: {
+        value: receivable.value,
+        xmlHash: receivable.documentHash ?? null,
+      },
     });
 
     const txHash = await this.blockchain.tokenizeNfe({
@@ -123,7 +133,9 @@ export class ReceivablesService {
     const receivable = await this.repo.findOne(id);
     if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
     if (receivable.status !== 'tokenized') {
-      throw new ConflictException('Receivable must be tokenized before assignment');
+      throw new ConflictException(
+        'Receivable must be tokenized before assignment',
+      );
     }
 
     const updated = await this.repo.setAssignmentPending(id);
@@ -133,8 +145,13 @@ export class ReceivablesService {
   async assign(id: string, authorizationId: string) {
     const receivable = await this.repo.findOne(id);
     if (!receivable) throw new NotFoundException(`Receivable ${id} not found`);
-    if (receivable.status !== 'tokenized' && receivable.status !== 'assignment_pending') {
-      throw new ConflictException('Receivable must be tokenized before assignment');
+    if (
+      receivable.status !== 'tokenized' &&
+      receivable.status !== 'assignment_pending'
+    ) {
+      throw new ConflictException(
+        'Receivable must be tokenized before assignment',
+      );
     }
 
     await this.financialAuthorizations.consume({

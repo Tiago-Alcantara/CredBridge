@@ -1,4 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { InvestmentsService } from './investments.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -9,7 +17,9 @@ interface AuthRequest {
 
 function assertInvestor(req: AuthRequest) {
   if (req.user.role !== 'investor') {
-    throw new ForbiddenException('Apenas investidores podem acessar este recurso');
+    throw new ForbiddenException(
+      'Apenas investidores podem acessar este recurso',
+    );
   }
 }
 

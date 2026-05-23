@@ -74,7 +74,10 @@ describe('ReceivablesService', () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditService, useValue: auditMock },
         { provide: BLOCKCHAIN_SERVICE, useValue: blockchainMock },
-        { provide: FinancialAuthorizationsService, useValue: financialAuthorizationsMock },
+        {
+          provide: FinancialAuthorizationsService,
+          useValue: financialAuthorizationsMock,
+        },
       ],
     }).compile();
 
@@ -119,7 +122,9 @@ describe('ReceivablesService', () => {
     it('tokenizes a validated receivable without direct financial authorization', async () => {
       findUniqueMock.mockResolvedValue(baseReceivable());
       blockchainMock.tokenizeNfe.mockResolvedValue('tokenize-hash');
-      updateMock.mockResolvedValue(baseReceivable({ status: 'tokenized', txHash: 'tokenize-hash' }));
+      updateMock.mockResolvedValue(
+        baseReceivable({ status: 'tokenized', txHash: 'tokenize-hash' }),
+      );
 
       await service.tokenize(receivableId);
 
@@ -147,7 +152,9 @@ describe('ReceivablesService', () => {
     it('rejects tokenization unless the receivable is validated', async () => {
       findUniqueMock.mockResolvedValue(baseReceivable({ status: 'pending' }));
 
-      await expect(service.tokenize(receivableId)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.tokenize(receivableId)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
 
       expect(blockchainMock.tokenizeNfe).not.toHaveBeenCalled();
       expect(updateMock).not.toHaveBeenCalled();
@@ -157,7 +164,9 @@ describe('ReceivablesService', () => {
   describe('requestAssignment', () => {
     it('moves a tokenized receivable to assignment_pending', async () => {
       findUniqueMock.mockResolvedValue(baseReceivable({ status: 'tokenized' }));
-      updateMock.mockResolvedValue(baseReceivable({ status: 'assignment_pending' }));
+      updateMock.mockResolvedValue(
+        baseReceivable({ status: 'assignment_pending' }),
+      );
 
       await service.requestAssignment(receivableId);
 
@@ -170,7 +179,9 @@ describe('ReceivablesService', () => {
 
   describe('assign', () => {
     it('requires a consumed receivable.assignment authorization before assigning', async () => {
-      findUniqueMock.mockResolvedValue(baseReceivable({ status: 'tokenized', value: 1000 }));
+      findUniqueMock.mockResolvedValue(
+        baseReceivable({ status: 'tokenized', value: 1000 }),
+      );
       updateMock.mockResolvedValue(baseReceivable({ status: 'active' }));
 
       await service.assign(receivableId, 'auth-1');
@@ -197,7 +208,9 @@ describe('ReceivablesService', () => {
 
     it('does not activate when authorization consumption fails', async () => {
       findUniqueMock.mockResolvedValue(baseReceivable({ status: 'tokenized' }));
-      financialAuthorizationsMock.consume.mockRejectedValue(new Error('authorization_required'));
+      financialAuthorizationsMock.consume.mockRejectedValue(
+        new Error('authorization_required'),
+      );
 
       await expect(service.assign(receivableId, 'auth-1')).rejects.toThrow(
         'authorization_required',

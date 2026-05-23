@@ -8,7 +8,12 @@ import { ReceivablesService } from './receivables.service';
 import { ReceivablesRepository } from './receivables.repository';
 
 @Module({
-  imports: [AuthModule, AuditModule, BlockchainModule, FinancialAuthorizationsModule],
+  imports: [
+    AuthModule,
+    AuditModule,
+    BlockchainModule,
+    FinancialAuthorizationsModule,
+  ],
   controllers: [ReceivablesController],
   providers: [ReceivablesService, ReceivablesRepository],
   exports: [ReceivablesService],

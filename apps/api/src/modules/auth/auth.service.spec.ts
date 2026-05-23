@@ -19,6 +19,9 @@ const mockUser = {
   name: 'Test User',
   stellarWalletId: null,
   passkeyId: null,
+  passkeyPublicKey: null,
+  walletType: null,
+  walletStatus: null,
   privyUserId: null,
   privyStellarWalletAddress: null,
   privyWalletStatus: null,
@@ -55,8 +58,14 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prismaMock },
-        { provide: JwtService, useValue: { signAsync: jest.fn().mockResolvedValue('token') } },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+        {
+          provide: JwtService,
+          useValue: { signAsync: jest.fn().mockResolvedValue('token') },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('') },
+        },
         { provide: PrivyAuthService, useValue: privyAuthMock },
       ],
     }).compile();
@@ -69,13 +78,18 @@ describe('AuthService', () => {
   });
 
   describe('googleLogin', () => {
-    const googleUser = { ...mockUser, googleId: 'google-sub-123', provider: 'google', role: null };
+    const googleUser = {
+      ...mockUser,
+      googleId: 'google-sub-123',
+      provider: 'google',
+      role: null,
+    };
 
     beforeEach(() => {
       // Mock Google token verification internals via the private client
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (service as any).googleClientId = 'test-client-id';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (service as any).googleClient = {
         verifyIdToken: jest.fn().mockResolvedValue({
           getPayload: () => ({
@@ -97,7 +111,11 @@ describe('AuthService', () => {
       const result = await service.googleLogin('fake-id-token');
 
       expect(prismaMock.user.update).not.toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            stellarWalletId: expect.any(String),
+          }),
+        }),
       );
       expect(result.user.stellarWalletId).toBeNull();
     });
@@ -122,7 +140,11 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBe('token');
       expect(prismaMock.user.update).not.toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            stellarWalletId: expect.any(String),
+          }),
+        }),
       );
       expect(result.user.stellarWalletId).toBeNull();
     });
@@ -131,7 +153,10 @@ describe('AuthService', () => {
   describe('register', () => {
     it('does not create a custodial wallet during registration', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
-      prismaMock.user.create.mockResolvedValue({ ...mockUser, passwordHash: 'hash' });
+      prismaMock.user.create.mockResolvedValue({
+        ...mockUser,
+        passwordHash: 'hash',
+      });
 
       await service.register({
         email: 'test@example.com',
@@ -140,7 +165,11 @@ describe('AuthService', () => {
       });
 
       expect(prismaMock.user.update).not.toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ stellarWalletId: expect.any(String) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            stellarWalletId: expect.any(String),
+          }),
+        }),
       );
     });
   });
@@ -167,7 +196,10 @@ describe('AuthService', () => {
         role: null,
       });
 
-      const result = await service.privySession('access-token', 'identity-token');
+      const result = await service.privySession(
+        'access-token',
+        'identity-token',
+      );
 
       expect(privyAuthMock.verifySession).toHaveBeenCalledWith(
         'access-token',
@@ -208,7 +240,10 @@ describe('AuthService', () => {
         privyWalletStatus: 'ready',
       });
 
-      const result = await service.privySession('access-token', 'identity-token');
+      const result = await service.privySession(
+        'access-token',
+        'identity-token',
+      );
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
@@ -240,7 +275,10 @@ describe('AuthService', () => {
         privyWalletStatus: 'ready',
       });
 
-      const result = await service.privySession('access-token', 'identity-token');
+      const result = await service.privySession(
+        'access-token',
+        'identity-token',
+      );
 
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { privyUserId: 'did:privy:user-1' },
@@ -310,7 +348,9 @@ describe('AuthService', () => {
 
     it('throws UnauthorizedException when user not found', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
-      await expect(service.findMe('bad-id')).rejects.toThrow(UnauthorizedException);
+      await expect(service.findMe('bad-id')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
@@ -318,7 +358,9 @@ describe('AuthService', () => {
     it('updates and returns user without passwordHash', async () => {
       const updated = { ...mockUser, name: 'New Name' };
       prismaMock.user.update.mockResolvedValue(updated);
-      const result = await service.updateProfile('user-1', { name: 'New Name' });
+      const result = await service.updateProfile('user-1', {
+        name: 'New Name',
+      });
       expect(result.name).toBe('New Name');
       expect(result).not.toHaveProperty('passwordHash');
     });
@@ -327,17 +369,29 @@ describe('AuthService', () => {
   describe('changePassword', () => {
     it('throws BadRequestException when current password is wrong', async () => {
       const hash = await bcrypt.hash('correct', 10);
-      prismaMock.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: hash });
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      });
       await expect(
-        service.changePassword('user-1', { currentPassword: 'wrong', newPassword: 'newpass123' }),
+        service.changePassword('user-1', {
+          currentPassword: 'wrong',
+          newPassword: 'newpass123',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('updates password when current password is correct', async () => {
       const hash = await bcrypt.hash('correct', 10);
-      prismaMock.user.findUnique.mockResolvedValue({ ...mockUser, passwordHash: hash });
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      });
       prismaMock.user.update.mockResolvedValue({ ...mockUser });
-      const result = await service.changePassword('user-1', { currentPassword: 'correct', newPassword: 'newpass123' });
+      const result = await service.changePassword('user-1', {
+        currentPassword: 'correct',
+        newPassword: 'newpass123',
+      });
       expect(result).toEqual({ message: 'ok' });
     });
   });

@@ -12,6 +12,8 @@ export class DocumentsService {
   }
 
   async findByReceivable(receivableId: string) {
-    return (await this.repo.findByReceivable(receivableId)).map(toDocumentResponse);
+    return (await this.repo.findByReceivable(receivableId)).map(
+      toDocumentResponse,
+    );
   }
 }

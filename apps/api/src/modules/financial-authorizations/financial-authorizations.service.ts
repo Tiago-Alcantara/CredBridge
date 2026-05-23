@@ -34,7 +34,10 @@ export class FinancialAuthorizationsService {
     return DIRECT_AUTH_OPERATIONS.has(operation);
   }
 
-  async createChallenge(userId: string, dto: CreateFinancialAuthorizationChallengeDto) {
+  async createChallenge(
+    userId: string,
+    dto: CreateFinancialAuthorizationChallengeDto,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -130,7 +133,10 @@ export class FinancialAuthorizationsService {
     });
 
     if (!authorization || authorization.userId !== userId) {
-      throw new FinancialAuthorizationException('authorization_invalid', 'Authorization not found');
+      throw new FinancialAuthorizationException(
+        'authorization_invalid',
+        'Authorization not found',
+      );
     }
     if (authorization.consumedAt) {
       throw new FinancialAuthorizationException(
@@ -139,7 +145,10 @@ export class FinancialAuthorizationsService {
       );
     }
     if (authorization.expiresAt.getTime() < Date.now()) {
-      throw new FinancialAuthorizationException('authorization_expired', 'Authorization expired');
+      throw new FinancialAuthorizationException(
+        'authorization_expired',
+        'Authorization expired',
+      );
     }
     if (authorization.payloadHash !== dto.payloadHash) {
       throw new FinancialAuthorizationException(
@@ -187,7 +196,10 @@ export class FinancialAuthorizationsService {
     });
 
     if (!authorization || authorization.userId !== input.userId) {
-      throw new FinancialAuthorizationException('authorization_required', 'Authorization required');
+      throw new FinancialAuthorizationException(
+        'authorization_required',
+        'Authorization required',
+      );
     }
     if (!authorization.verifiedAt) {
       throw new FinancialAuthorizationException(
@@ -202,7 +214,10 @@ export class FinancialAuthorizationsService {
       );
     }
     if (authorization.expiresAt.getTime() < Date.now()) {
-      throw new FinancialAuthorizationException('authorization_expired', 'Authorization expired');
+      throw new FinancialAuthorizationException(
+        'authorization_expired',
+        'Authorization expired',
+      );
     }
     if (authorization.operation !== input.operation) {
       throw new FinancialAuthorizationException(
@@ -288,7 +303,8 @@ export class FinancialAuthorizationsService {
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge,
-      expectedOrigin: this.config.get<string>('WEB_ORIGIN') ?? 'http://localhost:3000',
+      expectedOrigin:
+        this.config.get<string>('WEB_ORIGIN') ?? 'http://localhost:3000',
       expectedRPID: this.config.get<string>('WEBAUTHN_RP_ID') ?? 'localhost',
       credential: {
         id: passkeyId,
@@ -346,7 +362,9 @@ export class FinancialAuthorizationsService {
   }
 
   private readAuthenticatorAttachment(value: unknown) {
-    return value === 'platform' || value === 'cross-platform' ? value : undefined;
+    return value === 'platform' || value === 'cross-platform'
+      ? value
+      : undefined;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {

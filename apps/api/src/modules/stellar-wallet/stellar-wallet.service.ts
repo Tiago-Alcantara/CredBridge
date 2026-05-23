@@ -12,7 +12,10 @@ export class StellarWalletService {
     private readonly audit: AuditService,
   ) {}
 
-  async createWallet(userId: string, dto: CreateWalletDto): Promise<{ contractId: string }> {
+  async createWallet(
+    userId: string,
+    dto: CreateWalletDto,
+  ): Promise<{ contractId: string }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -45,7 +48,9 @@ export class StellarWalletService {
         },
       });
     } catch (err) {
-      this.logger.warn(`Wallet setup audit failed for user ${userId}: ${(err as Error).message}`);
+      this.logger.warn(
+        `Wallet setup audit failed for user ${userId}: ${(err as Error).message}`,
+      );
     }
 
     return { contractId: dto.contractId };

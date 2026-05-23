@@ -1,4 +1,12 @@
-import { IsDateString, IsIn, IsNumber, IsPositive, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsNumber,
+  IsPositive,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import type { ReceivableType } from '@credbridge/types';
 
 const RECEIVABLE_TYPES: ReceivableType[] = ['invoice', 'duplicate', 'contract'];

@@ -22,7 +22,10 @@ export class FinancialAuthorizationsController {
   }
 
   @Post('verify')
-  verify(@Req() req: AuthRequest, @Body() body: VerifyFinancialAuthorizationDto) {
+  verify(
+    @Req() req: AuthRequest,
+    @Body() body: VerifyFinancialAuthorizationDto,
+  ) {
     return this.service.verify(req.user.userId, body);
   }
 }
