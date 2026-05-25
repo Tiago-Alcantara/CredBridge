@@ -1,4 +1,5 @@
-import { headers } from "next/headers";
+"use client";
+
 import { TopNav } from "@/components/patterns/TopNav";
 import { HeroNetwork } from "@/components/marketing/HeroNetwork";
 import { StatsBar } from "@/components/marketing/StatsBar";
@@ -6,20 +7,15 @@ import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { Audiences } from "@/components/marketing/Audiences";
 import { LandingFooter } from "@/components/marketing/LandingFooter";
 
-const PUBLIC_LANDING_HEADER = "x-credbridge-public-landing";
-
-export default async function MarketingLandingPage() {
-  const requestHeaders = await headers();
-  const publicOnly = requestHeaders.get(PUBLIC_LANDING_HEADER) === "true";
-
+export default function MarketingLandingPage() {
   return (
     <>
-      <TopNav publicOnly={publicOnly} />
+      <TopNav />
       <main>
-        <HeroNetwork publicOnly={publicOnly} />
+        <HeroNetwork />
         <StatsBar />
         <HowItWorks />
-        <Audiences publicOnly={publicOnly} />
+        <Audiences />
       </main>
       <LandingFooter />
     </>
