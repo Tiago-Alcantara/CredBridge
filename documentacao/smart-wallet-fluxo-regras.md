@@ -7,10 +7,18 @@ tags:
   - auth
   - financial-authorization
 date: 2026-05-21
-status: atual
+status: legado
 ---
 
 # Fluxo e regras da smart wallet
+
+> Atualizacao 2026-05-25: a implementacao viva nao cria mais smart
+> account/passkey manual com `passkey-kit`. A wallet Stellar provisionada pela
+> Privy e a fonte unica para wallet do usuario, e autorizacoes financeiras sao
+> assinadas com `useSignRawHash` da Privy e verificadas contra
+> `privyStellarWalletAddress`. As secoes historicas abaixo descrevem o fluxo
+> anterior e devem ser tratadas como referencia legada ate este documento ser
+> reescrito.
 
 Este documento explica como a smart wallet do usuario funciona hoje no
 CredBridge, quando ela e criada, quais regras existem, quais arquivos controlam

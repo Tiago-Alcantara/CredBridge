@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   Asset,
@@ -81,17 +81,18 @@ export class StellarService implements BlockchainService {
     const { server, platformKeypair, contractId } =
       this.requireContractConfig();
 
-    // Look up PME's custodial wallet
+    // Look up PME's Privy wallet, with legacy wallet fallback.
     const user = await this.prisma.user.findUnique({
       where: { id: data.ownerUserId },
-      select: { stellarWalletId: true, googleId: true },
+      select: { stellarWalletId: true, privyStellarWalletAddress: true },
     });
-    if (!user?.stellarWalletId || !user?.googleId) {
-      throw new Error(
+    const pmeAddress =
+      user?.privyStellarWalletAddress ?? user?.stellarWalletId ?? null;
+    if (!pmeAddress) {
+      throw new ConflictException(
         `PME ${data.ownerUserId} has no Stellar wallet — cannot tokenize`,
       );
     }
-    const pmeAddress = user.stellarWalletId;
 
     const xmlHashBytes = this.toBytes32(data.xmlHash);
     const valueInCentavos = BigInt(Math.round(data.value * 100));
@@ -207,6 +208,11 @@ export class StellarService implements BlockchainService {
 
     const { publicKey: investorAddress, keypair: investorKeypair } =
       await this.ensureCustodialWalletForUser(data.investorUserId);
+    if (!investorKeypair) {
+      throw new Error(
+        `Investor ${data.investorUserId} uses a Privy wallet; payment must be signed by Privy`,
+      );
+    }
 
     const platformAddress = platformKeypair.publicKey();
     const amount = data.amountBrl.toFixed(7);
@@ -396,17 +402,26 @@ export class StellarService implements BlockchainService {
 
   private async ensureCustodialWalletForUser(
     userId: string,
-  ): Promise<{ publicKey: string; keypair: Keypair }> {
+  ): Promise<{ publicKey: string; keypair: Keypair | null }> {
     if (!this.walletSecret) {
       throw new Error('STELLAR_WALLET_SECRET not configured');
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, googleId: true, stellarWalletId: true },
+      select: {
+        id: true,
+        googleId: true,
+        stellarWalletId: true,
+        privyStellarWalletAddress: true,
+      },
     });
     if (!user) {
       throw new Error(`User ${userId} not found`);
+    }
+
+    if (user.privyStellarWalletAddress) {
+      return { publicKey: user.privyStellarWalletAddress, keypair: null };
     }
 
     const seedSource = user.googleId ?? user.id;

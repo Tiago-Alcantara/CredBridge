@@ -13,7 +13,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["passkey-kit", "passkey-kit-sdk", "sac-sdk"],
   serverExternalPackages: ["@stellar/stellar-sdk"],
   async headers() {
     return [

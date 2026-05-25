@@ -53,6 +53,7 @@ describe("PrivyLoginPanel", () => {
         email: "owner@empresa.com",
         role: "pme",
         privyStellarWalletAddress: "GPRIVYWALLET",
+        privyWalletStatus: "ready",
       },
     });
   });

@@ -1,98 +1,116 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# CredBridge API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend NestJS 11 da CredBridge. A API roda como modular monolith, expõe rotas com prefixo global `/v1`, usa Prisma 7/PostgreSQL e concentra auth, recebíveis, documentos, investimentos, auditoria, wallet, autorização financeira e integração Anchor/Etherfuse.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Como rodar
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+Na raiz do monorepo:
 
 ```bash
-$ npm install
+npm install
+cp .env.example apps/api/.env
+docker compose up -d
+npm exec -w apps/api -- prisma migrate deploy --schema prisma/schema.prisma
+npm run dev:api
 ```
 
-## Compile and run the project
+Health check:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+curl http://localhost:3001/v1/health/ping
 ```
 
-## Run tests
+## Scripts
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run dev -w apps/api          # nest start --watch
+npm run build -w apps/api        # prisma generate && nest build
+npm run start -w apps/api        # nest start
+npm run start:prod -w apps/api   # node dist/main
+npm run lint -w apps/api         # eslint --fix
+npm run test -w apps/api         # jest unit
+npm run test:e2e -w apps/api     # jest e2e
+npm run seed -w apps/api         # prisma/seed.ts
 ```
 
-## Deployment
+## Módulos
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+| Módulo | Responsabilidade |
+|---|---|
+| `auth` | Privy session, JWT interno, login/senha legado, Google legado, SEP-10 legado, perfil do usuário |
+| `receivables` | criação, listagem, pool, tokenização e cessão de recebíveis |
+| `documents` | documentos ligados a recebíveis em rota nested |
+| `settlements` | liquidações |
+| `audit` | trilha de auditoria por usuário ou entidade |
+| `investments` | compra de recebíveis e posições do investidor |
+| `stellar-wallet` | consulta da wallet Stellar provisionada pela Privy |
+| `financial-authorizations` | desafio e verificação de assinatura Privy Stellar para ações sensíveis |
+| `anchor` | on/off-ramp Etherfuse/TESOURO |
+| `health` | health check |
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Variáveis importantes
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```env
+DATABASE_URL=
+JWT_SECRET=
+JWT_EXPIRES_IN=
+PORT=3001
+WEB_URL=http://localhost:3000
+
+PRIVY_APP_ID=
+PRIVY_APP_SECRET=
+PRIVY_JWT_VERIFICATION_KEY=
+GOOGLE_CLIENT_ID=
+
+STELLAR_NETWORK=testnet
+STELLAR_RPC_URL=https://soroban-testnet.stellar.org
+STELLAR_SECRET_KEY=
+STELLAR_CONTRACT_ID=
+STELLAR_WALLET_SECRET=
+
+ETHERFUSE_API_KEY=
+ETHERFUSE_BASE_URL=https://api.sand.etherfuse.com
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+`WEB_URL` é usado pelo CORS. A wallet Stellar usada pela API vem da sessão Privy validada server-side.
 
-## Resources
+## Rotas
 
-Check out a few resources that may come in handy when working with NestJS:
+Todas usam prefixo `/v1`.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Método | Rota |
+|---|---|
+| `GET` | `/health/ping` |
+| `POST` | `/auth/privy/session` |
+| `GET` | `/auth/me` |
+| `PATCH` | `/auth/me` |
+| `PATCH` | `/auth/me/role` |
+| `PATCH` | `/auth/me/password` |
+| `POST` | `/auth/register` |
+| `POST` | `/auth/login` |
+| `POST` | `/auth/google` |
+| `POST` | `/auth/stellar/challenge` |
+| `POST` | `/auth/stellar/verify` |
+| `GET` / `POST` | `/receivables` |
+| `GET` | `/receivables/pool` |
+| `GET` | `/receivables/pool/stats` |
+| `GET` | `/receivables/:id` |
+| `PATCH` | `/receivables/:id/activate` |
+| `PATCH` | `/receivables/:id/tokenize` |
+| `PATCH` | `/receivables/:id/request-assignment` |
+| `PATCH` | `/receivables/:id/assign` |
+| `GET` / `POST` | `/receivables/:receivableId/documents` |
+| `GET` / `POST` | `/settlements` |
+| `GET` | `/settlements/receivable/:receivableId` |
+| `GET` | `/audit` |
+| `GET` / `POST` | `/wallet` e `/wallet/create` |
+| `POST` | `/financial-authorizations/challenge` |
+| `POST` | `/financial-authorizations/verify` |
+| `GET` | `/investments/me` |
+| `GET` | `/investments/me/stats` |
+| `POST` | `/investments` |
+| `GET` | `/anchor/onboarding-status` |
+| `POST` | `/anchor/onramp/quote` |
+| `POST` | `/anchor/onramp/start` |
+| `POST` | `/anchor/offramp/quote` |
+| `POST` | `/anchor/offramp/start` |

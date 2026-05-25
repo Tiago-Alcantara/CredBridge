@@ -6,7 +6,6 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "node -e \"const fs=require('fs');const p='node_modules/passkey-kit/node_modules/@stellar/stellar-sdk/lib';fs.mkdirSync(p,{recursive:true});fs.writeFileSync(p+'/package.json','{\\\"version\\\":\\\"14.6.1\\\"}');\"",
     "dev": "concurrently \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run dev -w apps/api",

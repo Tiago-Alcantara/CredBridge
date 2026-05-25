@@ -25,6 +25,7 @@ describe("exchangePrivySession", () => {
         email: "owner@empresa.com",
         role: null,
         privyStellarWalletAddress: "GPRIVYWALLET",
+        privyWalletStatus: "ready",
       },
     };
     vi.mocked(apiFetch).mockResolvedValue(session);

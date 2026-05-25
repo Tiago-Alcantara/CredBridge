@@ -14,7 +14,7 @@ export function StellarWalletAddress() {
   const { data: me } = useMe();
   const [copied, setCopied] = useState(false);
 
-  const walletId = me?.stellarWalletId;
+  const walletId = me?.privyStellarWalletAddress ?? me?.stellarWalletId;
   if (!walletId) return null;
 
   function handleCopy() {

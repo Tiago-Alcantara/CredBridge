@@ -6,6 +6,7 @@ export interface PrivySessionUser {
   email: string;
   role: "pme" | "investor" | null;
   privyStellarWalletAddress: string | null;
+  privyWalletStatus: string | null;
 }
 
 export interface PrivySessionResponse {

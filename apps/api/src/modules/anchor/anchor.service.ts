@@ -369,13 +369,15 @@ export class AnchorService implements OnModuleInit {
   private async requireStellarWallet(userId: string): Promise<string> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { stellarWalletId: true },
+      select: { stellarWalletId: true, privyStellarWalletAddress: true },
     });
-    if (!user.stellarWalletId) {
+    const walletAddress =
+      user.privyStellarWalletAddress ?? user.stellarWalletId ?? null;
+    if (!walletAddress) {
       throw new Error(
         `User ${userId} has no Stellar wallet — cannot use anchor`,
       );
     }
-    return user.stellarWalletId;
+    return walletAddress;
   }
 }

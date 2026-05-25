@@ -46,7 +46,7 @@ usado nas APIs CredBridge.
 - `apps/web/src/app/(auth)/onboarding/role/page.tsx`
   - escolha de perfil para usuarios que ainda nao possuem `role`.
 - `apps/web/src/components/auth/KycFlow.tsx`
-  - atualiza o perfil PME sem criar smart account/passkey.
+  - atualiza o perfil PME sem criar wallet manual.
 
 ### Backend
 
@@ -59,8 +59,8 @@ usado nas APIs CredBridge.
 - `apps/api/src/modules/auth/jwt.strategy.ts`
   - valida o JWT interno recebido no header `Authorization`.
 - `apps/api/src/modules/stellar-wallet/*`
-  - persiste a smart account/passkey usada em autorizacoes financeiras, nao a
-    embedded wallet Privy.
+  - expõe a wallet Stellar provisionada pela Privy para telas e fluxos
+    financeiros.
 
 ## Modelo de sessao
 
@@ -123,8 +123,8 @@ A resposta inclui o JWT interno e os dados vinculados:
 4. Um investidor segue para `/investor/dashboard`.
 5. Uma PME conclui o `KycFlow`, que chama `PATCH /v1/auth/me` e segue para
    `/pme/dashboard`.
-6. O KYC nao cria smart account/passkey: a configuracao de assinatura avancada
-   continua separada e so e necessaria em fluxos financeiros compatíveis.
+6. O KYC nao cria wallet manual: a wallet Stellar ja vem da Privy e e exigida
+   nos fluxos financeiros compativeis.
 
 ## Protecao e expiracao
 
@@ -161,8 +161,8 @@ interno tambem sao limpos.
 - A sessao Privy exige access token e identity token validos para o mesmo DID.
 - A API usa somente e-mail verificado e wallet Stellar obtidos da Privy.
 - Um usuario novo criado pelo fluxo Privy nasce com `role: null`.
-- A embedded wallet Privy e separada dos campos da smart account/passkey
-  exigida pela autorizacao financeira existente.
+- A embedded wallet Stellar da Privy e a fonte usada para autorizacao
+  financeira por assinatura.
 - O JWT interno continua validado no backend com `passport-jwt`.
 
 ## Configuracao local

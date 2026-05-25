@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import {
-  verifyAuthenticationResponse,
-  type AuthenticationResponseJSON,
-} from '@simplewebauthn/server';
+import { Keypair } from '@stellar/stellar-sdk';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -41,20 +38,14 @@ export class FinancialAuthorizationsService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        stellarWalletId: true,
-        passkeyId: true,
-        passkeyPublicKey: true,
-        walletType: true,
-        walletStatus: true,
+        privyStellarWalletAddress: true,
+        privyWalletStatus: true,
       },
     });
 
     if (
-      !user?.stellarWalletId ||
-      !user.passkeyId ||
-      !user.passkeyPublicKey ||
-      user.walletType !== 'smart_account' ||
-      user.walletStatus !== 'ready'
+      !user?.privyStellarWalletAddress ||
+      user.privyWalletStatus !== 'ready'
     ) {
       await this.audit.log({
         event: 'wallet.setup_required',
@@ -68,10 +59,11 @@ export class FinancialAuthorizationsService {
       });
       throw new FinancialAuthorizationException(
         'wallet_required',
-        'Smart account setup is required before this financial action',
+        'Privy Stellar wallet is required before this financial action',
       );
     }
 
+    const walletId = user.privyStellarWalletAddress;
     const expiresAt = new Date(Date.now() + AUTH_TTL_MS);
     const payload: FinancialAuthorizationPayload = {
       domain: FINANCIAL_AUTH_DOMAIN,
@@ -79,7 +71,7 @@ export class FinancialAuthorizationsService {
       network: this.config.get<string>('STELLAR_NETWORK') ?? 'testnet',
       operation: dto.operation,
       userId,
-      walletId: user.stellarWalletId,
+      walletId,
       resourceId: dto.resourceId ?? null,
       amount: dto.amount ?? null,
       destination: dto.destination ?? null,
@@ -157,9 +149,9 @@ export class FinancialAuthorizationsService {
       );
     }
 
-    await this.verifyAssertionForStoredPasskey(
-      authorization.user.passkeyPublicKey,
-      authorization.user.passkeyId,
+    this.verifyPrivyRawHashSignature(
+      authorization.user.privyStellarWalletAddress,
+      authorization.walletId,
       dto.assertion,
       authorization.payloadHash,
     );
@@ -286,89 +278,67 @@ export class FinancialAuthorizationsService {
     return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   }
 
-  private async verifyAssertionForStoredPasskey(
-    passkeyPublicKey: string | null,
-    passkeyId: string | null,
+  private verifyPrivyRawHashSignature(
+    privyStellarWalletAddress: string | null,
+    walletId: string,
     assertion: Record<string, unknown>,
-    expectedChallenge: string,
-  ): Promise<void> {
-    if (!passkeyPublicKey || !passkeyId) {
+    expectedPayloadHash: string,
+  ): void {
+    if (!privyStellarWalletAddress || privyStellarWalletAddress !== walletId) {
       throw new FinancialAuthorizationException(
         'authorization_invalid',
-        'Passkey assertion is invalid',
+        'Privy signature is invalid',
       );
     }
 
-    const response = this.readAuthenticationResponse(assertion);
-    const verification = await verifyAuthenticationResponse({
-      response,
-      expectedChallenge,
-      expectedOrigin:
-        this.config.get<string>('WEB_ORIGIN') ?? 'http://localhost:3000',
-      expectedRPID: this.config.get<string>('WEBAUTHN_RP_ID') ?? 'localhost',
-      credential: {
-        id: passkeyId,
-        publicKey: Buffer.from(passkeyPublicKey, 'base64url'),
-        counter: 0,
-      },
-      requireUserVerification: false,
-    });
+    const signature = this.readPrivyRawHashSignature(assertion, walletId);
+    const payloadHashBytes = this.readHexBytes(expectedPayloadHash, 32);
+    const signatureBytes = this.readHexBytes(signature, 64);
 
-    if (!verification.verified) {
-      throw new FinancialAuthorizationException(
-        'authorization_invalid',
-        'Passkey assertion verification failed',
-      );
+    try {
+      const keypair = Keypair.fromPublicKey(walletId);
+      if (keypair.verify(payloadHashBytes, signatureBytes)) {
+        return;
+      }
+    } catch {
+      // Fall through to the uniform authorization error below.
     }
+
+    throw new FinancialAuthorizationException(
+      'authorization_invalid',
+      'Privy signature verification failed',
+    );
   }
 
-  private readAuthenticationResponse(
+  private readPrivyRawHashSignature(
     assertion: Record<string, unknown>,
-  ): AuthenticationResponseJSON {
+    walletId: string,
+  ): string {
     if (
-      !this.isNonEmptyString(assertion.id) ||
-      !this.isNonEmptyString(assertion.rawId) ||
-      assertion.type !== 'public-key' ||
-      !this.isRecord(assertion.response) ||
-      !this.isNonEmptyString(assertion.response.clientDataJSON) ||
-      !this.isNonEmptyString(assertion.response.authenticatorData) ||
-      !this.isNonEmptyString(assertion.response.signature)
+      assertion.type !== 'privy_raw_hash' ||
+      assertion.address !== walletId ||
+      !this.isNonEmptyString(assertion.signature)
     ) {
       throw new FinancialAuthorizationException(
         'authorization_invalid',
-        'Passkey assertion is invalid',
+        'Privy signature is invalid',
       );
     }
 
-    return {
-      id: assertion.id,
-      rawId: assertion.rawId,
-      type: 'public-key',
-      response: {
-        clientDataJSON: assertion.response.clientDataJSON,
-        authenticatorData: assertion.response.authenticatorData,
-        signature: assertion.response.signature,
-        userHandle: this.isNonEmptyString(assertion.response.userHandle)
-          ? assertion.response.userHandle
-          : undefined,
-      },
-      authenticatorAttachment: this.readAuthenticatorAttachment(
-        assertion.authenticatorAttachment,
-      ),
-      clientExtensionResults: this.isRecord(assertion.clientExtensionResults)
-        ? assertion.clientExtensionResults
-        : {},
-    };
+    return assertion.signature.startsWith('0x')
+      ? assertion.signature.slice(2)
+      : assertion.signature;
   }
 
-  private readAuthenticatorAttachment(value: unknown) {
-    return value === 'platform' || value === 'cross-platform'
-      ? value
-      : undefined;
-  }
+  private readHexBytes(value: string, byteLength: number): Buffer {
+    if (!/^[0-9a-fA-F]+$/.test(value) || value.length !== byteLength * 2) {
+      throw new FinancialAuthorizationException(
+        'authorization_invalid',
+        'Privy signature is invalid',
+      );
+    }
 
-  private isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+    return Buffer.from(value, 'hex');
   }
 
   private isNonEmptyString(value: unknown): value is string {

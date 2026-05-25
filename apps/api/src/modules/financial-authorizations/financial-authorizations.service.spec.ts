@@ -1,28 +1,23 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Keypair } from '@stellar/stellar-sdk';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FinancialAuthorizationException } from './financial-authorization.errors';
 import { FinancialAuthorizationsService } from './financial-authorizations.service';
 
-const mockVerifyAuthenticationResponse = jest.fn();
-
-jest.mock('@simplewebauthn/server', () => ({
-  verifyAuthenticationResponse: (...args: unknown[]) => mockVerifyAuthenticationResponse(...args),
-}));
-
 const userId = 'user-1';
-const walletId = 'CCONTRACT123';
+const walletKeypair = Keypair.random();
+const walletId = walletKeypair.publicKey();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const storedPayloadHash = 'a'.repeat(64);
+const validSignature = walletKeypair
+  .sign(Buffer.from(storedPayloadHash, 'hex'))
+  .toString('hex');
 const validAssertion = {
-  id: 'credential-id',
-  rawId: 'credential-raw-id',
-  type: 'public-key',
-  response: {
-    clientDataJSON: 'client-data',
-    authenticatorData: 'authenticator-data',
-    signature: 'signature',
-  },
+  type: 'privy_raw_hash',
+  address: walletId,
+  signature: `0x${validSignature}`,
 };
 
 describe('FinancialAuthorizationsService', () => {
@@ -41,7 +36,6 @@ describe('FinancialAuthorizationsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockVerifyAuthenticationResponse.mockResolvedValue({ verified: true });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FinancialAuthorizationsService,
@@ -63,8 +57,11 @@ describe('FinancialAuthorizationsService', () => {
     expect(service.requiresDirectAuthorization('investment.purchase')).toBe(true);
   });
 
-  it('throws wallet_required when the user has no ready smart account', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({ stellarWalletId: null });
+  it('throws wallet_required when the user has no ready Privy wallet', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      privyStellarWalletAddress: null,
+      privyWalletStatus: null,
+    });
 
     await expect(
       service.createChallenge(userId, { operation: 'investment.purchase', resourceId: 'r-1' }),
@@ -73,13 +70,10 @@ describe('FinancialAuthorizationsService', () => {
     });
   });
 
-  it('creates a canonical challenge with a nonce and payload hash', async () => {
+  it('creates a canonical challenge for the ready Privy wallet', async () => {
     prismaMock.user.findUnique.mockResolvedValue({
-      stellarWalletId: walletId,
-      passkeyId: 'key-1',
-      passkeyPublicKey: 'public-key',
-      walletType: 'smart_account',
-      walletStatus: 'ready',
+      privyStellarWalletAddress: walletId,
+      privyWalletStatus: 'ready',
     });
     prismaMock.financialAuthorization.create.mockImplementation(({ data }) => ({
       id: 'auth-1',
@@ -102,11 +96,8 @@ describe('FinancialAuthorizationsService', () => {
 
   it('creates unique payloads for repeated challenges', async () => {
     prismaMock.user.findUnique.mockResolvedValue({
-      stellarWalletId: walletId,
-      passkeyId: 'key-1',
-      passkeyPublicKey: 'public-key',
-      walletType: 'smart_account',
-      walletStatus: 'ready',
+      privyStellarWalletAddress: walletId,
+      privyWalletStatus: 'ready',
     });
     prismaMock.financialAuthorization.create.mockImplementation(({ data }) => ({
       id: `auth-${data.nonce}`,
@@ -137,11 +128,11 @@ describe('FinancialAuthorizationsService', () => {
       amount: '970.00',
       destination: null,
       walletId,
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
+      user: { privyStellarWalletAddress: walletId },
     });
 
     await expect(
@@ -155,7 +146,7 @@ describe('FinancialAuthorizationsService', () => {
     });
   });
 
-  it('rejects verify requests with malformed passkey assertions', async () => {
+  it('rejects verify requests with malformed Privy signatures', async () => {
     prismaMock.financialAuthorization.findUnique.mockResolvedValue({
       id: 'auth-1',
       userId,
@@ -164,11 +155,11 @@ describe('FinancialAuthorizationsService', () => {
       amount: '970.00',
       destination: null,
       walletId,
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
+      user: { privyStellarWalletAddress: walletId },
     });
     prismaMock.financialAuthorization.update.mockResolvedValue({
       id: 'auth-1',
@@ -178,21 +169,16 @@ describe('FinancialAuthorizationsService', () => {
       amount: '970.00',
       destination: null,
       walletId,
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
     });
 
     await expect(
       service.verify(userId, {
         authorizationId: '550e8400-e29b-41d4-a716-446655440000',
-        payloadHash: 'stored-payload-hash',
+        payloadHash: storedPayloadHash,
         assertion: {
-          id: 'credential-id',
-          rawId: 'credential-raw-id',
-          type: 'public-key',
-          response: {
-            clientDataJSON: 'client-data',
-            authenticatorData: 'authenticator-data',
-          },
+          type: 'privy_raw_hash',
+          address: walletId,
         },
       }),
     ).rejects.toMatchObject({
@@ -209,11 +195,11 @@ describe('FinancialAuthorizationsService', () => {
       amount: '970.00',
       destination: null,
       walletId,
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
+      user: { privyStellarWalletAddress: walletId },
     });
     prismaMock.financialAuthorization.update.mockResolvedValue({
       id: 'auth-1',
@@ -223,28 +209,16 @@ describe('FinancialAuthorizationsService', () => {
       amount: '970.00',
       destination: null,
       walletId,
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
     });
 
     const result = await service.verify(userId, {
       authorizationId: '550e8400-e29b-41d4-a716-446655440000',
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
       assertion: validAssertion,
     });
 
     expect(result).toEqual({ authorizationId: 'auth-1', verified: true });
-    expect(mockVerifyAuthenticationResponse).toHaveBeenCalledWith(
-      expect.objectContaining({
-        expectedChallenge: 'stored-payload-hash',
-        expectedOrigin: 'testnet',
-        expectedRPID: 'testnet',
-        credential: expect.objectContaining({
-          id: 'credential-id',
-          publicKey: expect.any(Buffer),
-          counter: 0,
-        }),
-      }),
-    );
     expect(prismaMock.financialAuthorization.update).toHaveBeenCalledWith({
       where: { id: 'auth-1' },
       data: {
@@ -263,13 +237,12 @@ describe('FinancialAuthorizationsService', () => {
         amount: '970.00',
         destination: null,
         walletId,
-        payloadHash: 'stored-payload-hash',
+        payloadHash: storedPayloadHash,
       },
     });
   });
 
-  it('rejects verify requests when WebAuthn verification fails', async () => {
-    mockVerifyAuthenticationResponse.mockResolvedValue({ verified: false });
+  it('rejects verify requests when Privy signature verification fails', async () => {
     prismaMock.financialAuthorization.findUnique.mockResolvedValue({
       id: 'auth-1',
       userId,
@@ -278,18 +251,21 @@ describe('FinancialAuthorizationsService', () => {
       amount: '970.00',
       destination: null,
       walletId,
-      payloadHash: 'stored-payload-hash',
+      payloadHash: storedPayloadHash,
       verifiedAt: null,
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
-      user: { passkeyId: 'credential-id', passkeyPublicKey: 'public-key' },
+      user: { privyStellarWalletAddress: walletId },
     });
 
     await expect(
       service.verify(userId, {
         authorizationId: '550e8400-e29b-41d4-a716-446655440000',
-        payloadHash: 'stored-payload-hash',
-        assertion: validAssertion,
+        payloadHash: storedPayloadHash,
+        assertion: {
+          ...validAssertion,
+          signature: `0x${'b'.repeat(128)}`,
+        },
       }),
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'authorization_invalid' }),

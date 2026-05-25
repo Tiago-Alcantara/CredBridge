@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
@@ -19,41 +24,21 @@ export class StellarWalletService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
+    if (
+      user.privyStellarWalletAddress &&
+      user.privyWalletStatus === 'ready'
+    ) {
+      return { contractId: user.privyStellarWalletAddress };
+    }
+
     if (user.stellarWalletId) {
       return { contractId: user.stellarWalletId };
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        stellarWalletId: dto.contractId,
-        passkeyId: dto.keyId,
-        passkeyPublicKey: dto.publicKey,
-        walletType: 'smart_account',
-        walletStatus: 'ready',
-      },
-    });
-
-    try {
-      await this.audit.log({
-        event: 'wallet.setup_completed',
-        entityId: userId,
-        entityType: 'user',
-        userId,
-        metadata: {
-          contractId: dto.contractId,
-          passkeyId: dto.keyId,
-          walletType: 'smart_account',
-          walletStatus: 'ready',
-        },
-      });
-    } catch (err) {
-      this.logger.warn(
-        `Wallet setup audit failed for user ${userId}: ${(err as Error).message}`,
-      );
-    }
-
-    return { contractId: dto.contractId };
+    this.logger.warn(
+      `Manual wallet creation rejected for user ${userId}; Privy wallet is required`,
+    );
+    throw new BadRequestException('Privy Stellar wallet is required');
   }
 
   async getWallet(userId: string): Promise<{
@@ -69,9 +54,25 @@ export class StellarWalletService {
         passkeyId: true,
         walletType: true,
         walletStatus: true,
+        privyStellarWalletAddress: true,
+        privyWalletStatus: true,
       },
     });
-    if (!user?.stellarWalletId) return null;
+    if (!user) return null;
+
+    if (
+      user.privyStellarWalletAddress &&
+      user.privyWalletStatus === 'ready'
+    ) {
+      return {
+        contractId: user.privyStellarWalletAddress,
+        passkeyId: null,
+        walletType: 'privy_stellar',
+        walletStatus: user.privyWalletStatus,
+      };
+    }
+
+    if (!user.stellarWalletId) return null;
     return {
       contractId: user.stellarWalletId,
       passkeyId: user.passkeyId,

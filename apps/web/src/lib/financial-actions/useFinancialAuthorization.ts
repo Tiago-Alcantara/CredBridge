@@ -1,18 +1,38 @@
 import { useCallback, useState } from 'react';
-import { useGetWallet, useCreateWallet } from '@/lib/api/wallet';
+import { useUser } from '@privy-io/react-auth';
+import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
+import { useGetWallet } from '@/lib/api/wallet';
 import {
   type CreateFinancialAuthorizationInput,
   useCreateFinancialAuthorizationChallenge,
   useVerifyFinancialAuthorization,
 } from '@/lib/api/financial-authorizations';
-import {
-  registerAndDeployWallet,
-  signFinancialAuthorization,
-} from '@/lib/wallet/passkey-client';
 
-export function useFinancialAuthorization(userEmail?: string | null) {
-  const { data: wallet, refetch } = useGetWallet();
-  const createWallet = useCreateWallet();
+interface LinkedAccount {
+  type?: string;
+  address?: string;
+  chainType?: string;
+  chain_type?: string;
+}
+
+function findPrivyStellarWalletAddress(
+  linkedAccounts: LinkedAccount[] | undefined,
+): string | null {
+  const stellarWallet = linkedAccounts?.find(
+    (linkedAccount) =>
+      linkedAccount.type === 'wallet' &&
+      (linkedAccount.chainType === 'stellar' ||
+        linkedAccount.chain_type === 'stellar') &&
+      typeof linkedAccount.address === 'string',
+  );
+
+  return stellarWallet?.address ?? null;
+}
+
+export function useFinancialAuthorization(_userEmail?: string | null) {
+  const { data: wallet } = useGetWallet();
+  const { user } = useUser();
+  const { signRawHash } = useSignRawHash();
   const createChallenge = useCreateFinancialAuthorizationChallenge();
   const verifyAuthorization = useVerifyFinancialAuthorization();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
@@ -21,31 +41,31 @@ export function useFinancialAuthorization(userEmail?: string | null) {
     async (input: CreateFinancialAuthorizationInput): Promise<string> => {
       setIsAuthorizing(true);
       try {
-        let currentWallet = wallet;
-        let currentPasskeyId = currentWallet?.passkeyId;
-        if (!currentWallet || currentWallet.walletType !== 'smart_account') {
-          if (!userEmail) {
-            throw new Error('User email is required for wallet setup');
-          }
+        const privyWalletAddress =
+          wallet?.walletType === 'privy_stellar'
+            ? wallet.contractId
+            : findPrivyStellarWalletAddress(
+                user?.linkedAccounts as LinkedAccount[] | undefined,
+              );
 
-          const createdWallet = await registerAndDeployWallet(userEmail);
-          currentPasskeyId = createdWallet.keyId;
-          await createWallet.mutateAsync(createdWallet);
-          const refreshedWallet = await refetch();
-          currentWallet = refreshedWallet.data;
-          currentPasskeyId = currentWallet?.passkeyId ?? currentPasskeyId;
-        }
-
-        if (!currentPasskeyId) {
-          throw new Error('Passkey credential is required for financial authorization');
+        if (!privyWalletAddress) {
+          throw new Error('Privy Stellar wallet is required for financial authorization');
         }
 
         const challenge = await createChallenge.mutateAsync(input);
-        const assertion = await signFinancialAuthorization(challenge.payloadHash, currentPasskeyId);
+        const signature = await signRawHash({
+          address: privyWalletAddress,
+          chainType: 'stellar',
+          hash: `0x${challenge.payloadHash}`,
+        });
         const verifiedAuthorization = await verifyAuthorization.mutateAsync({
           authorizationId: challenge.authorizationId,
           payloadHash: challenge.payloadHash,
-          assertion,
+          assertion: {
+            type: 'privy_raw_hash',
+            address: privyWalletAddress,
+            signature: signature.signature,
+          },
         });
 
         return verifiedAuthorization.authorizationId;
@@ -53,7 +73,7 @@ export function useFinancialAuthorization(userEmail?: string | null) {
         setIsAuthorizing(false);
       }
     },
-    [createChallenge, createWallet, refetch, userEmail, verifyAuthorization, wallet],
+    [createChallenge, signRawHash, user, verifyAuthorization, wallet],
   );
 
   return { authorize, isAuthorizing };
