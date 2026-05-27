@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { StellarService } from '../../shared/blockchain/stellar.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { CreateDepositDto } from './dto/create-deposit.dto';
 import { ReceivablesService } from '../receivables/receivables.service';
 
 @Injectable()
@@ -155,7 +156,11 @@ export class AdminService {
 
   async listPendingTransactions() {
     return this.prisma.transaction.findMany({
-      where: { status: 'PENDING' },
+      where: {
+        status: {
+          in: ['PENDING', 'PAYMENT_SUBMITTED'],
+        },
+      },
       include: {
         user: {
           select: {
@@ -167,6 +172,37 @@ export class AdminService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async createDeposit(dto: CreateDepositDto, operatorId: string) {
+    const investor = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+    });
+
+    if (!investor) {
+      throw new NotFoundException('Investidor não encontrado');
+    }
+
+    const transaction = await this.prisma.transaction.create({
+      data: {
+        userId: dto.userId,
+        type: 'DEPOSIT',
+        amount: dto.amount,
+        status: 'PENDING_PAYMENT',
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        event: 'pool.deposit_order_created',
+        entityId: transaction.id,
+        entityType: 'transaction',
+        userId: operatorId,
+        metadata: { amount: dto.amount, investorId: dto.userId },
+      },
+    });
+
+    return transaction;
   }
 
   async approveTransaction(
@@ -182,8 +218,8 @@ export class AdminService {
       throw new NotFoundException('Transação não encontrada');
     }
 
-    if (transaction.status !== 'PENDING') {
-      throw new BadRequestException('Esta transação já foi processada');
+    if (transaction.status !== 'PENDING' && transaction.status !== 'PAYMENT_SUBMITTED') {
+      throw new BadRequestException('Esta transação não está pendente de aprovação');
     }
 
     if (status === 'REJECTED') {
@@ -203,8 +239,22 @@ export class AdminService {
 
     let txHash = '';
     if (transaction.type === 'DEPOSIT') {
-      txHash = await this.stellar.depositToPool(
-        transaction.userId,
+      // O Admin aprova o recebimento do Pix e faz o MINT do BRLT on-chain para a carteira do investidor.
+      // O investidor assinará o depósito real na Pool posteriormente.
+      const user = await this.prisma.user.findUnique({
+        where: { id: transaction.userId },
+      });
+      if (!user) {
+        throw new NotFoundException('Usuário investidor não encontrado');
+      }
+      const walletAddress = user.privyStellarWalletAddress || user.stellarWalletId;
+      if (!walletAddress) {
+        throw new BadRequestException('Investidor não possui uma carteira Stellar configurada');
+      }
+
+      this.logger.log(`Minting BRLT for approved deposit to: ${walletAddress}`);
+      txHash = await this.stellar.mintBrlt(
+        walletAddress,
         transaction.amount,
       );
     } else if (transaction.type === 'WITHDRAWAL') {

@@ -3,6 +3,8 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -44,5 +46,27 @@ export class InvestmentsController {
   getMyStats(@Req() req: AuthRequest) {
     assertInvestor(req);
     return this.service.getMyStats(req.user.userId);
+  }
+
+  @Get('me/transactions')
+  findMyTransactions(@Req() req: AuthRequest) {
+    assertInvestor(req);
+    return this.service.findMyTransactions(req.user.userId);
+  }
+
+  @Patch('deposit/:id/pay')
+  markAsPaid(@Req() req: AuthRequest, @Param('id') id: string) {
+    assertInvestor(req);
+    return this.service.markAsPaid(id, req.user.userId);
+  }
+
+  @Post('deposit/:id/finalize')
+  finalizeDeposit(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body('txHash') txHash: string,
+  ) {
+    assertInvestor(req);
+    return this.service.finalizeDeposit(id, req.user.userId, txHash);
   }
 }

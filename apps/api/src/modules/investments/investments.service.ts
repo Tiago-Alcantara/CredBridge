@@ -123,4 +123,79 @@ export class InvestmentsService {
   getMyStats(investorUserId: string) {
     return this.repo.getStatsByInvestor(investorUserId);
   }
+
+  async findMyTransactions(investorUserId: string) {
+    return this.prisma.transaction.findMany({
+      where: {
+        userId: investorUserId,
+        status: {
+          in: ['PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'APPROVED'],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async markAsPaid(transactionId: string, investorUserId: string) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        userId: investorUserId,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
+
+    if (transaction.status !== 'PENDING_PAYMENT') {
+      throw new BadRequestException('Esta transação não está pendente de pagamento');
+    }
+
+    return this.prisma.transaction.update({
+      where: { id: transactionId },
+      data: {
+        status: 'PAYMENT_SUBMITTED',
+      },
+    });
+  }
+
+  async finalizeDeposit(transactionId: string, investorUserId: string, txHash: string) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        userId: investorUserId,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
+
+    if (transaction.status !== 'APPROVED') {
+      throw new BadRequestException('Esta transação ainda não foi aprovada pelo admin');
+    }
+
+    // Atualiza a transação original para COMPLETED e salva o hash da transação Soroban do depósito real
+    const updated = await this.prisma.transaction.update({
+      where: { id: transactionId },
+      data: {
+        status: 'COMPLETED',
+        txHash: txHash,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        event: 'pool.deposit_completed',
+        entityId: transactionId,
+        entityType: 'transaction',
+        userId: investorUserId,
+        txHash: txHash,
+        metadata: { amount: transaction.amount },
+      },
+    });
+
+    return updated;
+  }
 }

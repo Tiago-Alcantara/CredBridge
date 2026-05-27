@@ -12,6 +12,8 @@ import {
   useRejectReceivable,
   usePendingTransactions,
   useApproveTransaction,
+  useAdminUsers,
+  useCreateDeposit,
 } from "@/lib/api/admin";
 import { useToast } from "@/providers/ToastProvider";
 
@@ -32,13 +34,19 @@ export default function OperatorDashboardPage() {
   const { data: rawReceivables = [], isLoading: loadingReceivables } = usePendingReceivables();
   const receivables = rawReceivables as AdminReceivable[];
   const { data: transactions = [], isLoading: loadingTransactions } = usePendingTransactions();
+  const { data: users = [] } = useAdminUsers();
 
   const approveReceivableMut = useApproveReceivable();
   const rejectReceivableMut = useRejectReceivable();
   const approveTransactionMut = useApproveTransaction();
+  const createDepositMut = useCreateDeposit();
 
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [viewingReceivable, setViewingReceivable] = useState<AdminReceivable | null>(null);
+  const [createDepositOpen, setCreateDepositOpen] = useState(false);
+  const [selectedInvestorId, setSelectedInvestorId] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [creatingDeposit, setCreatingDeposit] = useState(false);
 
   const handleApproveReceivable = async (id: string) => {
     try {
@@ -79,6 +87,32 @@ export default function OperatorDashboardPage() {
       showToast("Falha ao processar ação de pool.", "error");
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleCreateDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvestorId || !depositAmount) {
+      showToast("Selecione um investidor e defina o valor.", "error");
+      return;
+    }
+    const amount = parseFloat(depositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      showToast("Insira um valor numérico válido maior que zero.", "error");
+      return;
+    }
+
+    try {
+      setCreatingDeposit(true);
+      await createDepositMut.mutateAsync({ userId: selectedInvestorId, amount });
+      showToast("Ordem de depósito criada com sucesso para o investidor!", "success");
+      setCreateDepositOpen(false);
+      setSelectedInvestorId("");
+      setDepositAmount("");
+    } catch (err) {
+      showToast("Falha ao criar ordem de depósito.", "error");
+    } finally {
+      setCreatingDeposit(false);
     }
   };
 
@@ -225,11 +259,29 @@ export default function OperatorDashboardPage() {
       {/* Transactions Tab */}
       {activeTab === "transactions" && (
         <div className="card" style={{ padding: 0 }}>
-          <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
-            <h3>Conciliação e Aprovações de Pool (On-Chain)</h3>
-            <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-              {loadingTransactions ? "Carregando…" : `${transactions.length} transações aguardando assinatura e envio on-chain`}
-            </p>
+          <div
+            style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid var(--line)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div>
+              <h3>Conciliação e Aprovações de Pool (On-Chain)</h3>
+              <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
+                {loadingTransactions ? "Carregando…" : `${transactions.length} transações aguardando assinatura e envio on-chain`}
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => setCreateDepositOpen(true)}
+            >
+              <Icon name="plus" size={14} /> Novo Depósito
+            </button>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -495,6 +547,130 @@ export default function OperatorDashboardPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal - Criar Ordem de Depósito */}
+      {createDepositOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.8)",
+            backdropFilter: "blur(12px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: 24,
+            animation: "fadeIn 0.2s ease",
+          }}
+        >
+          <form
+            onSubmit={handleCreateDeposit}
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              padding: 0,
+              background: "var(--bg-2)",
+              border: "1px solid var(--line)",
+              borderRadius: 16,
+              overflow: "hidden",
+              boxShadow: "0 24px 48px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "24px 32px",
+                borderBottom: "1px solid var(--line)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <span className="eyebrow" style={{ color: "var(--accent)", marginBottom: 4 }}>
+                  Tesouraria CredBridge
+                </span>
+                <h3 style={{ fontSize: 20 }}>Nova Ordem de Depósito</h3>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setCreateDepositOpen(false)}
+                style={{ padding: 4 }}
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: 32, display: "flex", flexDirection: "column", gap: 20 }}>
+              <div className="col" style={{ gap: 6 }}>
+                <label className="eyebrow">Investidor Destinatário</label>
+                <select
+                  className="input"
+                  style={{ width: "100%" }}
+                  value={selectedInvestorId}
+                  onChange={(e) => setSelectedInvestorId(e.target.value)}
+                  required
+                >
+                  <option value="">Selecione um investidor...</option>
+                  {users.filter((u) => u.role === "investor").map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.name} ({inv.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col" style={{ gap: 6 }}>
+                <label className="eyebrow">Valor da Ordem (BRL)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  className="input"
+                  placeholder="0,00"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: "24px 32px",
+                background: "var(--bg)",
+                borderTop: "1px solid var(--line)",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 12,
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setCreateDepositOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={creatingDeposit || !selectedInvestorId || !depositAmount}
+              >
+                {creatingDeposit ? "Criando..." : "Criar Ordem"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </>

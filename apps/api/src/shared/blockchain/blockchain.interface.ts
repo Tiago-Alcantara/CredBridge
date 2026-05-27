@@ -60,6 +60,7 @@ export interface BlockchainService {
     pmeAddress: string,
   ): Promise<string>;
   buyTokenizedInvoiceInPool(data: BuyTokenizedInvoiceInput): Promise<string>;
+  mintBrlt(toAddress: string, amount: number): Promise<string>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');

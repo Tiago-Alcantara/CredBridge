@@ -844,4 +844,27 @@ export class StellarService implements BlockchainService {
       ],
     );
   }
+
+  async mintBrlt(toAddress: string, amount: number): Promise<string> {
+    this.logger.log(`mintBrlt — to: ${toAddress}, amount: ${amount}`);
+    const { server, platformKeypair } = this.requireContractConfig();
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!brltContractId) {
+      throw new Error('STELLAR_BRLT_TOKEN_ID not configured');
+    }
+
+    // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
+    const amountInStroops = BigInt(Math.round(amount * 10_000_000));
+
+    return this.invokeContract(
+      server,
+      platformKeypair,
+      brltContractId,
+      'mint',
+      [
+        nativeToScVal(toAddress, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+  }
 }

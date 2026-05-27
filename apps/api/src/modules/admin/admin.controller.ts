@@ -12,6 +12,7 @@ import {
 import { AdminService } from './admin.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ApproveTransactionDto } from './dto/approve-transaction.dto';
+import { CreateDepositDto } from './dto/create-deposit.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 interface AuthRequest {
@@ -65,6 +66,12 @@ export class AdminController {
   listPendingTransactions(@Req() req: AuthRequest) {
     assertOperator(req);
     return this.service.listPendingTransactions();
+  }
+
+  @Post('transactions/deposit')
+  createDeposit(@Req() req: AuthRequest, @Body() body: CreateDepositDto) {
+    assertOperator(req);
+    return this.service.createDeposit(body, req.user.userId);
   }
 
   @Post('transactions/:id/approve')

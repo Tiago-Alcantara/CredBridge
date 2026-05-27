@@ -77,3 +77,37 @@ export function useApproveTransaction() {
     },
   });
 }
+
+export function useCreateDeposit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { userId: string; amount: number }) =>
+      apiFetch<PendingTransaction>("/admin/transactions/deposit", {
+        method: "POST",
+        body: input,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.transactions });
+    },
+  });
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: "pme" | "investor" | "operator" | null;
+  cnpj: string | null;
+  companyName: string | null;
+  operationalLimit: number | null;
+  stellarWalletId: string | null;
+  privyStellarWalletAddress: string | null;
+  createdAt: string;
+}
+
+export function useAdminUsers() {
+  return useQuery<AdminUser[]>({
+    queryKey: adminQueryKeys.users,
+    queryFn: () => apiFetch<AdminUser[]>("/admin/users"),
+  });
+}

@@ -38,3 +38,51 @@ export function useBuyReceivable() {
     },
   });
 }
+
+export interface InvestorTransaction {
+  id: string;
+  userId: string;
+  type: "DEPOSIT" | "WITHDRAWAL";
+  amount: number;
+  status: "PENDING_PAYMENT" | "PAYMENT_SUBMITTED" | "APPROVED" | "COMPLETED" | "REJECTED";
+  txHash: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function useInvestorTransactions() {
+  return useQuery<InvestorTransaction[]>({
+    queryKey: ["investments", "me", "transactions"],
+    queryFn: () => apiFetch<InvestorTransaction[]>("/investments/me/transactions"),
+  });
+}
+
+export function useNotifyDepositPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<InvestorTransaction>(`/investments/deposit/${id}/pay`, {
+        method: "PATCH",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments", "me", "transactions"] });
+    },
+  });
+}
+
+export function useFinalizeDeposit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; txHash: string }) =>
+      apiFetch<InvestorTransaction>(`/investments/deposit/${input.id}/finalize`, {
+        method: "POST",
+        body: { txHash: input.txHash },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments", "me", "transactions"] });
+      qc.invalidateQueries({ queryKey: investmentQueryKeys.mine });
+      qc.invalidateQueries({ queryKey: investmentQueryKeys.myStats });
+      qc.invalidateQueries({ queryKey: ["receivables", "pool", "stats"] });
+    },
+  });
+}
