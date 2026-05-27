@@ -138,3 +138,31 @@ fn test_transfer_from_insufficient_allowance() {
     client.approve(&owner, &spender, &1_000);
     client.transfer_from(&spender, &owner, &recipient, &5_000);
 }
+
+#[test]
+fn test_burn() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin) = setup_token(&env);
+    let user = Address::generate(&env);
+
+    client.mint(&admin, &user, &10_000);
+    assert_eq!(client.balance(&user), 10_000);
+
+    client.burn(&user, &3_000);
+    assert_eq!(client.balance(&user), 7_000);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #4)")]
+fn test_burn_insufficient_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin) = setup_token(&env);
+    let user = Address::generate(&env);
+
+    client.mint(&admin, &user, &100);
+    client.burn(&user, &200);
+}

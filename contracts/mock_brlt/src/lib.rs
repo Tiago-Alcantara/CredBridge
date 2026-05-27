@@ -102,6 +102,23 @@ impl MockBrltToken {
         );
     }
 
+    /// Burn tokens from a holder's balance. The holder must authenticate.
+    pub fn burn(env: Env, from: Address, amount: i128) {
+        from.require_auth();
+        Self::require_initialized(&env);
+
+        if amount <= 0 {
+            panic_with_error!(&env, TokenError::InvalidAmount);
+        }
+
+        Self::spend_balance(&env, &from, amount);
+
+        env.events().publish(
+            (Symbol::new(&env, "burn"), from),
+            amount,
+        );
+    }
+
     /// Transfer tokens from sender to recipient. Sender must authenticate.
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
         from.require_auth();

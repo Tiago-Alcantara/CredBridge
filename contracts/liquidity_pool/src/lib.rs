@@ -8,10 +8,7 @@ use soroban_sdk::{
 // ===========================================================================
 // Constants — Scales for integer-only arithmetic
 // ===========================================================================
-const BPS_SCALE: i128 = 10_000;
-const SECONDS_PER_DAY: i128 = 86_400;
 const PRICE_SCALE: i128 = 1_000_000_000;
-const MAX_RATE_BPS: i128 = 5_000; // 50% per day — generous for testing
 
 // ===========================================================================
 // TTL management
@@ -32,11 +29,8 @@ pub enum PoolError {
     Unauthorized = 3,
     Paused = 4,
     InvalidAmount = 5,
-    InvalidRate = 6,
     InvoiceAlreadyProcessed = 7,
-    InvalidSharePrice = 8,
     InvalidNav = 9,
-    TimestampWentBackwards = 10,
     InsufficientPoolBalance = 11,
 }
 
@@ -48,15 +42,11 @@ pub enum PoolError {
 pub struct PoolState {
     pub admin: Address,
     pub operator: Address,
-    pub asset_address: Address,            // BRLT token contract
-    pub share_token_address: Address,      // Share/quota token contract
+    pub asset_address: Address,            // BRLT token contract (represents Credit)
+    pub share_token_address: Address,      // Share/quota token contract (CBPOOL)
 
-    pub total_principal: i128,             // Outstanding principal from purchased invoices
-    pub accrued_interest: i128,            // Accumulated interest since last accrual
-    pub total_shares: i128,                // Total shares minted (scaled by SHARE_SCALE)
-
-    pub average_daily_rate_bps: i128,      // Weighted average daily rate in BPS
-    pub last_accrual_timestamp: u64,       // Last time interest was accrued
+    pub total_principal: i128,             // Outstanding principal deployed in active invoices
+    pub total_shares: i128,                // Total shares/quota tokens minted
 
     pub paused: bool,
 }
@@ -84,27 +74,6 @@ pub struct DepositEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AccruedEvent {
-    pub elapsed_seconds: u64,
-    pub interest_accrued: i128,
-    pub total_accrued_interest: i128,
-    pub new_nav: i128,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AnticipationEvent {
-    pub invoice_hash: BytesN<32>,
-    pub anticipation_amount: i128,
-    pub rate_bps: i128,
-    pub maturity_timestamp: u64,
-    pub total_principal: i128,
-    pub average_daily_rate_bps: i128,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InvoicePurchasedEvent {
     pub invoice_hash: BytesN<32>,
     pub seller: Address,
@@ -113,7 +82,6 @@ pub struct InvoicePurchasedEvent {
     pub rate_bps: i128,
     pub maturity_timestamp: u64,
     pub total_principal: i128,
-    pub average_daily_rate_bps: i128,
 }
 
 // ===========================================================================
@@ -144,10 +112,7 @@ impl LiquidityPool {
             asset_address,
             share_token_address,
             total_principal: 0,
-            accrued_interest: 0,
             total_shares: 0,
-            average_daily_rate_bps: 0,
-            last_accrual_timestamp: env.ledger().timestamp(),
             paused: false,
         };
 
@@ -159,7 +124,7 @@ impl LiquidityPool {
     }
 
     // -----------------------------------------------------------------------
-    // Deposit & Mint shares
+    // Deposit BRLT & Mint CBPOOL shares
     // -----------------------------------------------------------------------
     pub fn deposit(env: Env, investor: Address, amount: i128) {
         investor.require_auth();
@@ -170,42 +135,36 @@ impl LiquidityPool {
             panic_with_error!(&env, PoolError::InvalidAmount);
         }
 
-        // Accrue interest before calculating NAV
-        Self::accrue_interest_internal(&env, &mut state);
-
-        // Calculate NAV before deposit
+        // Calculate NAV before deposit: NAV = BRLT balance + deployed principal
         let cash_balance = Self::get_token_balance(&env, &state.asset_address);
-        let nav_before = cash_balance + state.total_principal + state.accrued_interest;
+        let nav_before = cash_balance + state.total_principal;
 
-        // Transfer BRLT from investor to pool
+        // Transfer BRLT from investor to pool contract
         Self::transfer_token_to_pool(&env, &state.asset_address, &investor, amount);
 
         // Calculate shares to mint
-        // Shares are 1:1 with token units — PRICE_SCALE handles display precision
+        // First deposit: 1 BRLT = 1 Share. Subsequent: shares = amount * total_shares / nav_before
         let shares_to_mint = if state.total_shares == 0 {
-            // First deposit: 1 token unit = 1 share unit
             amount
         } else {
             if nav_before <= 0 {
                 panic_with_error!(&env, PoolError::InvalidNav);
             }
-            // shares = amount * total_shares / nav_before
             amount * state.total_shares / nav_before
         };
 
-        // Mint share tokens to investor
+        // Mint share tokens (CBPOOL) to investor
         Self::mint_shares(&env, &state.share_token_address, &investor, shares_to_mint);
 
         state.total_shares += shares_to_mint;
+        Self::save_state(&env, &state);
 
-        let nav_after = (cash_balance + amount) + state.total_principal + state.accrued_interest;
+        let nav_after = (cash_balance + amount) + state.total_principal;
         let share_price = if state.total_shares > 0 {
             nav_after * PRICE_SCALE / state.total_shares
         } else {
             PRICE_SCALE
         };
-
-        Self::save_state(&env, &state);
 
         // Emit Deposit event
         env.events().publish(
@@ -222,70 +181,53 @@ impl LiquidityPool {
     }
 
     // -----------------------------------------------------------------------
-    // Register anticipation (simple — contábil only, no BRLT transfer)
+    // Withdraw (Burn CBPOOL shares & return BRLT)
     // -----------------------------------------------------------------------
-    pub fn register_anticipation(
-        env: Env,
-        operator: Address,
-        invoice_hash: BytesN<32>,
-        anticipation_amount: i128,
-        rate_bps: i128,
-        maturity_timestamp: u64,
-    ) {
-        operator.require_auth();
+    pub fn withdraw(env: Env, investor: Address, shares_to_burn: i128) {
+        investor.require_auth();
         let mut state = Self::load_state(&env);
         Self::require_not_paused(&env, &state);
-        Self::require_operator(&env, &state, &operator);
 
-        if anticipation_amount <= 0 {
+        if shares_to_burn <= 0 {
             panic_with_error!(&env, PoolError::InvalidAmount);
         }
-        if rate_bps <= 0 || rate_bps > MAX_RATE_BPS {
-            panic_with_error!(&env, PoolError::InvalidRate);
+        if shares_to_burn > state.total_shares {
+            panic_with_error!(&env, PoolError::InvalidAmount);
         }
 
-        // Check idempotency
-        let invoice_key = DataKey::ProcessedInvoice(invoice_hash.clone());
-        if env.storage().persistent().has(&invoice_key) {
-            panic_with_error!(&env, PoolError::InvoiceAlreadyProcessed);
+        // Calculate NAV
+        let cash_balance = Self::get_token_balance(&env, &state.asset_address);
+        let nav = cash_balance + state.total_principal;
+
+        if nav <= 0 || state.total_shares <= 0 {
+            panic_with_error!(&env, PoolError::InvalidNav);
         }
 
-        // Accrue interest before modifying state
-        Self::accrue_interest_internal(&env, &mut state);
+        // brlt_to_return = shares_to_burn * NAV / total_shares (reflects cota appreciation)
+        let brlt_to_return = shares_to_burn * nav / state.total_shares;
 
-        // Update weighted average rate
-        state.average_daily_rate_bps = Self::calculate_new_average_rate(
-            state.total_principal,
-            state.average_daily_rate_bps,
-            anticipation_amount,
-            rate_bps,
-        );
+        if brlt_to_return > cash_balance {
+            panic_with_error!(&env, PoolError::InsufficientPoolBalance);
+        }
 
-        state.total_principal += anticipation_amount;
+        // Burn share tokens (CBPOOL) from investor
+        Self::burn_shares(&env, &state.share_token_address, &investor, shares_to_burn);
 
-        // Mark invoice as processed
-        env.storage().persistent().set(&invoice_key, &true);
-        env.storage()
-            .persistent()
-            .extend_ttl(&invoice_key, TTL_THRESHOLD, TTL_EXTEND);
+        // Transfer BRLT from pool contract to investor
+        Self::transfer_token_from_pool(&env, &state.asset_address, &investor, brlt_to_return);
 
+        state.total_shares -= shares_to_burn;
         Self::save_state(&env, &state);
 
+        // Emit Withdraw event
         env.events().publish(
-            (Symbol::new(&env, "AnticipationRegistered"),),
-            AnticipationEvent {
-                invoice_hash,
-                anticipation_amount,
-                rate_bps,
-                maturity_timestamp,
-                total_principal: state.total_principal,
-                average_daily_rate_bps: state.average_daily_rate_bps,
-            },
+            (Symbol::new(&env, "Withdraw"), investor),
+            brlt_to_return,
         );
     }
 
     // -----------------------------------------------------------------------
-    // Buy tokenized invoice (full flow: pay seller + register)
+    // Buy tokenized invoice (Pool disbursements)
     // -----------------------------------------------------------------------
     pub fn buy_tokenized_invoice(
         env: Env,
@@ -309,9 +251,6 @@ impl LiquidityPool {
         if advance_amount > face_value {
             panic_with_error!(&env, PoolError::InvalidAmount);
         }
-        if rate_bps <= 0 || rate_bps > MAX_RATE_BPS {
-            panic_with_error!(&env, PoolError::InvalidRate);
-        }
 
         // Check idempotency
         let invoice_key = DataKey::ProcessedInvoice(invoice_hash.clone());
@@ -319,29 +258,19 @@ impl LiquidityPool {
             panic_with_error!(&env, PoolError::InvoiceAlreadyProcessed);
         }
 
-        // Accrue interest first
-        Self::accrue_interest_internal(&env, &mut state);
-
         // Check pool has sufficient BRLT
         let pool_balance = Self::get_token_balance(&env, &state.asset_address);
         if pool_balance < advance_amount {
             panic_with_error!(&env, PoolError::InsufficientPoolBalance);
         }
 
-        // Pay seller
+        // Pay seller (PME)
         Self::transfer_token_from_pool(&env, &state.asset_address, &seller, advance_amount);
 
-        // Update weighted average rate
-        state.average_daily_rate_bps = Self::calculate_new_average_rate(
-            state.total_principal,
-            state.average_daily_rate_bps,
-            advance_amount,
-            rate_bps,
-        );
-
+        // Increase outstanding principal deployed
         state.total_principal += advance_amount;
 
-        // Mark invoice as processed
+        // Mark invoice as processed in pool
         env.storage().persistent().set(&invoice_key, &true);
         env.storage()
             .persistent()
@@ -359,8 +288,39 @@ impl LiquidityPool {
                 rate_bps,
                 maturity_timestamp,
                 total_principal: state.total_principal,
-                average_daily_rate_bps: state.average_daily_rate_bps,
             },
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Settle invoice in pool (reduces outstanding principal)
+    // -----------------------------------------------------------------------
+    pub fn settle_invoice_in_pool(
+        env: Env,
+        operator: Address,
+        invoice_hash: BytesN<32>,
+        principal_to_reduce: i128,
+    ) {
+        operator.require_auth();
+        let mut state = Self::load_state(&env);
+        Self::require_not_paused(&env, &state);
+        Self::require_operator(&env, &state, &operator);
+
+        if principal_to_reduce <= 0 {
+            panic_with_error!(&env, PoolError::InvalidAmount);
+        }
+
+        if principal_to_reduce > state.total_principal {
+            state.total_principal = 0;
+        } else {
+            state.total_principal -= principal_to_reduce;
+        }
+
+        Self::save_state(&env, &state);
+
+        env.events().publish(
+            (Symbol::new(&env, "InvoiceSettledInPool"), invoice_hash),
+            principal_to_reduce,
         );
     }
 
@@ -370,15 +330,7 @@ impl LiquidityPool {
     pub fn get_nav(env: Env) -> i128 {
         let state = Self::load_state(&env);
         let cash_balance = Self::get_token_balance(&env, &state.asset_address);
-
-        // Estimate accrued interest up to now
-        let now = env.ledger().timestamp();
-        let estimated_interest = Self::estimate_interest(
-            &state,
-            now,
-        );
-
-        cash_balance + state.total_principal + state.accrued_interest + estimated_interest
+        cash_balance + state.total_principal
     }
 
     pub fn get_share_price(env: Env) -> i128 {
@@ -440,81 +392,6 @@ impl LiquidityPool {
     // Internal helpers
     // =======================================================================
 
-    /// Accrue interest pro-rata based on elapsed time.
-    fn accrue_interest_internal(env: &Env, state: &mut PoolState) {
-        let now = env.ledger().timestamp();
-
-        if now < state.last_accrual_timestamp {
-            panic_with_error!(env, PoolError::TimestampWentBackwards);
-        }
-
-        let elapsed = now - state.last_accrual_timestamp;
-
-        if elapsed == 0 || state.total_principal == 0 {
-            state.last_accrual_timestamp = now;
-            return;
-        }
-
-        // interest = total_principal * average_daily_rate_bps * elapsed_seconds
-        //            / (BPS_SCALE * SECONDS_PER_DAY)
-        let interest = state.total_principal
-            * state.average_daily_rate_bps
-            * (elapsed as i128)
-            / (BPS_SCALE * SECONDS_PER_DAY);
-
-        state.accrued_interest += interest;
-        state.last_accrual_timestamp = now;
-
-        if interest > 0 {
-            let cash_balance = Self::get_token_balance(env, &state.asset_address);
-            let new_nav = cash_balance + state.total_principal + state.accrued_interest;
-
-            env.events().publish(
-                (Symbol::new(env, "Accrued"),),
-                AccruedEvent {
-                    elapsed_seconds: elapsed,
-                    interest_accrued: interest,
-                    total_accrued_interest: state.accrued_interest,
-                    new_nav,
-                    timestamp: now,
-                },
-            );
-        }
-    }
-
-    /// Estimate interest without modifying state (for read-only NAV).
-    fn estimate_interest(state: &PoolState, now: u64) -> i128 {
-        if now <= state.last_accrual_timestamp || state.total_principal == 0 {
-            return 0;
-        }
-
-        let elapsed = now - state.last_accrual_timestamp;
-        state.total_principal
-            * state.average_daily_rate_bps
-            * (elapsed as i128)
-            / (BPS_SCALE * SECONDS_PER_DAY)
-    }
-
-    /// Calculate weighted average rate after adding a new anticipation.
-    fn calculate_new_average_rate(
-        current_principal: i128,
-        current_rate: i128,
-        new_amount: i128,
-        new_rate: i128,
-    ) -> i128 {
-        if current_principal == 0 {
-            return new_rate;
-        }
-        let total = current_principal + new_amount;
-        if total == 0 {
-            return 0;
-        }
-        (current_principal * current_rate + new_amount * new_rate) / total
-    }
-
-    // -----------------------------------------------------------------------
-    // State management
-    // -----------------------------------------------------------------------
     fn load_state(env: &Env) -> PoolState {
         if !env.storage().instance().has(&DataKey::Initialized) {
             panic_with_error!(env, PoolError::NotInitialized);
@@ -554,37 +431,35 @@ impl LiquidityPool {
     // Cross-contract token interaction via client interface
     // -----------------------------------------------------------------------
 
-    /// Get BRLT balance of this contract
     fn get_token_balance(env: &Env, token: &Address) -> i128 {
         let client = TokenClient::new(env, token);
         client.balance(&env.current_contract_address())
     }
 
-    /// Transfer BRLT from investor to pool (investor must have approved or authed)
     fn transfer_token_to_pool(env: &Env, token: &Address, from: &Address, amount: i128) {
         let client = TokenClient::new(env, token);
         client.transfer(from, &env.current_contract_address(), &amount);
     }
 
-    /// Transfer BRLT from pool to recipient (for buy_tokenized_invoice)
     fn transfer_token_from_pool(env: &Env, token: &Address, to: &Address, amount: i128) {
         let client = TokenClient::new(env, token);
         client.transfer(&env.current_contract_address(), to, &amount);
     }
 
-    /// Mint share tokens to investor
     fn mint_shares(env: &Env, share_token: &Address, to: &Address, amount: i128) {
         let client = ShareTokenClient::new(env, share_token);
         client.mint(&env.current_contract_address(), to, &amount);
+    }
+
+    fn burn_shares(env: &Env, share_token: &Address, from: &Address, amount: i128) {
+        let client = ShareTokenClient::new(env, share_token);
+        client.burn(from, &amount);
     }
 }
 
 // ===========================================================================
 // Cross-contract interfaces for token interactions
 // ===========================================================================
-
-// We define minimal client traits instead of importing WASM at compile time.
-// These match the mock_brlt interface and work with any compatible token contract.
 
 use soroban_sdk::contractclient;
 
@@ -598,6 +473,7 @@ pub trait TokenInterface {
 #[contractclient(name = "ShareTokenClient")]
 pub trait ShareTokenInterface {
     fn mint(env: Env, admin: Address, to: Address, amount: i128);
+    fn burn(env: Env, from: Address, amount: i128);
     fn balance(env: Env, account: Address) -> i128;
 }
 
