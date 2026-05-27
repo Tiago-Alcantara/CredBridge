@@ -4,11 +4,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   Asset,
   Contract,
+  FeeBumpTransaction,
   Horizon,
   Keypair,
   Memo,
   Networks,
   Operation,
+  Transaction,
   TransactionBuilder,
   nativeToScVal,
   rpc,
@@ -27,7 +29,15 @@ const NETWORK_PASSPHRASE =
     ? Networks.PUBLIC
     : Networks.TESTNET;
 
-const BASE_FEE = '1000000'; // 0.1 XLM — generous for Soroban ops
+// Fee para operações Soroban — simulação retorna o mínimo necessário, mas um
+// valor generoso aqui evita rejeições por fee insuficiente antes da simulação.
+const SOROBAN_FEE = '100000'; // 0.01 XLM
+
+// Fee para operações clássicas Horizon (payment, changeTrust, createAccount).
+// 1 000 stroops = 0.0001 XLM — muito acima do mínimo (100 stroops) e suficiente
+// para prioridade mesmo em períodos de carga elevada na rede.
+const CLASSIC_FEE = '1000';
+
 const TESOURO_ISSUER =
   'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4';
 const TESOURO = new Asset('TESOURO', TESOURO_ISSUER);
@@ -38,10 +48,20 @@ const POLL_DEADLINE_MS = 60_000;
 @Injectable()
 export class StellarService implements BlockchainService {
   private readonly logger = new Logger(StellarService.name);
+
+  // RPC é usado para chamadas Soroban; Horizon é usado para contas,
+  // payments clássicos, trustlines e submit de transações Stellar comuns.
   private readonly server: rpc.Server | undefined;
   private readonly horizon: Horizon.Server;
+
+  // platformKeypair representa a conta operacional da CredBridge.
+  // Tudo que for patrocínio, fee bump ou autorização da plataforma tende
+  // a passar por esta keypair.
   private readonly platformKeypair: Keypair | undefined;
   private readonly contractId: string | undefined;
+
+  // walletSecret deriva carteiras custodiais de forma determinística por usuário.
+  // Quem usa Privy não tem keypair local e precisa assinar fora deste serviço.
   private readonly walletSecret: string;
   private readonly isMainnet: boolean;
 
@@ -57,6 +77,8 @@ export class StellarService implements BlockchainService {
     this.walletSecret = process.env.STELLAR_WALLET_SECRET ?? '';
     this.horizon = new Horizon.Server(horizonUrl);
 
+    // Sem estas variáveis, o serviço ainda instancia, mas bloqueia operações
+    // on-chain reais via requireContractConfig().
     if (rpcUrl && secretKey && contractId) {
       this.server = new rpc.Server(rpcUrl, { allowHttp: true });
       this.platformKeypair = Keypair.fromSecret(secretKey);
@@ -74,6 +96,10 @@ export class StellarService implements BlockchainService {
   }
 
   async tokenizeNfe(data: TokenizeNfeInput): Promise<string> {
+    // Fluxo principal de tokenização:
+    // 1. localiza a carteira Stellar da PME;
+    // 2. chama o contrato para criar o registro da NF-e;
+    // 3. transfere a propriedade para a plataforma.
     this.logger.log(
       `tokenizeNfe — key: ${data.key}, value: ${data.value}, owner: ${data.ownerUserId}`,
     );
@@ -99,7 +125,8 @@ export class StellarService implements BlockchainService {
     const dueDateUnix = BigInt(Math.floor(data.dueDate.getTime() / 1000));
     const platformAddress = platformKeypair.publicKey();
 
-    // Step 1: tokenize with PME as owner, platform authorizes
+    // Step 1: tokenize with PME as owner, platform authorizes.
+    // A plataforma assina porque o contrato espera esta autorização.
     this.logger.log(`Tokenizing NF ${data.key} — owner: ${pmeAddress}`);
     const mintHash = await this.invokeContract(
       server,
@@ -117,7 +144,8 @@ export class StellarService implements BlockchainService {
     );
     this.logger.log(`NF tokenized — txHash: ${mintHash}`);
 
-    // Step 2: transfer ownership to platform (CredBridge receives the receivable)
+    // Step 2: transfer ownership to platform (CredBridge receives the receivable).
+    // Depois disso, a plataforma consegue vender/transferir o recebível.
     this.logger.log(
       `Transferring NF ${data.key} ownership to platform: ${platformAddress}`,
     );
@@ -138,6 +166,8 @@ export class StellarService implements BlockchainService {
   }
 
   async payPme(data: PayPmeInput): Promise<string> {
+    // Pagamento clássico via Horizon: plataforma envia TESOURO para a PME.
+    // A plataforma é a source e tem XLM para pagar a fee — sem Fee Bump necessário.
     const { platformKeypair } = this.requireContractConfig();
 
     const { publicKey: pmeAddress } = await this.ensureCustodialWalletForUser(
@@ -154,7 +184,7 @@ export class StellarService implements BlockchainService {
     );
 
     const tx = new TransactionBuilder(sourceAccount, {
-      fee: BASE_FEE,
+      fee: CLASSIC_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
@@ -177,6 +207,8 @@ export class StellarService implements BlockchainService {
   async transferNftToInvestor(
     data: TransferNftToInvestorInput,
   ): Promise<string> {
+    // Transferência Soroban do NFT/recebível para o investidor.
+    // A propriedade sai da plataforma e passa para a carteira do investidor.
     const { server, platformKeypair, contractId } =
       this.requireContractConfig();
 
@@ -204,13 +236,20 @@ export class StellarService implements BlockchainService {
   }
 
   async chargeInvestor(data: ChargeInvestorInput): Promise<string> {
+    // Cobra o investidor: carteira custodial do investidor envia TESOURO para
+    // a plataforma. Como a carteira é patrocinada e não tem XLM próprio para
+    // fees, a plataforma cobre via Fee Bump.
+    //
+    // Carteiras Privy não possuem keypair neste backend e não podem assinar
+    // este payment diretamente — o chamador deve tratar esse caso via Privy.
     const { platformKeypair } = this.requireContractConfig();
 
     const { publicKey: investorAddress, keypair: investorKeypair } =
       await this.ensureCustodialWalletForUser(data.investorUserId);
+
     if (!investorKeypair) {
       throw new Error(
-        `Investor ${data.investorUserId} uses a Privy wallet; payment must be signed by Privy`,
+        `Investor ${data.investorUserId} uses a Privy wallet — payment must be signed by Privy`,
       );
     }
 
@@ -220,10 +259,13 @@ export class StellarService implements BlockchainService {
       `chargeInvestor — ${amount} TESOURO from ${investorAddress} → platform memo=${data.memo}`,
     );
 
-    const sourceAccount = await this.horizon.loadAccount(investorAddress);
+    // Inner tx: investidor é o source e assina o envio de TESOURO.
+    // A fee declarada aqui é sobreposta pelo Fee Bump; o valor não importa
+    // para o custo real, mas precisa ser um número válido.
+    const investorAccount = await this.horizon.loadAccount(investorAddress);
 
-    const tx = new TransactionBuilder(sourceAccount, {
-      fee: BASE_FEE,
+    const innerTx = new TransactionBuilder(investorAccount, {
+      fee: CLASSIC_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
@@ -237,16 +279,28 @@ export class StellarService implements BlockchainService {
       .setTimeout(TX_TIMEOUT_SECONDS)
       .build();
 
-    tx.sign(investorKeypair);
-    const res = await this.submitWithDetail(tx, 'chargeInvestor');
+    innerTx.sign(investorKeypair);
+
+    // Fee Bump: plataforma paga a fee em XLM pelo investidor.
+    const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+      platformKeypair,
+      CLASSIC_FEE,
+      innerTx,
+      NETWORK_PASSPHRASE,
+    );
+    feeBumpTx.sign(platformKeypair);
+
+    const res = await this.submitWithDetail(feeBumpTx, 'chargeInvestor');
     this.logger.log(`chargeInvestor confirmed — txHash: ${res.hash}`);
     return res.hash;
   }
 
   private async submitWithDetail(
-    tx: import('@stellar/stellar-sdk').Transaction,
+    tx: Transaction | FeeBumpTransaction,
     label: string,
   ): Promise<{ hash: string }> {
+    // Centraliza submit via Horizon e preserva detalhes úteis de erro.
+    // Aceita tanto transações clássicas quanto Fee Bump.
     try {
       return await this.horizon.submitTransaction(tx);
     } catch (err: unknown) {
@@ -296,39 +350,96 @@ export class StellarService implements BlockchainService {
   }
 
   async createCustodialWallet(googleId: string): Promise<string> {
+    // Cria ou encontra a carteira custodial derivada do Google ID.
+    // Testnet usa Friendbot; mainnet usa sponsorship da plataforma.
     if (!this.walletSecret) {
       throw new Error('STELLAR_WALLET_SECRET not configured');
     }
 
     const keypair = this.deriveKeypair(googleId);
     const publicKey = keypair.publicKey();
+    const { platformKeypair } = this.requireContractConfig();
 
-    let isNew = false;
-    try {
-      await this.horizon.loadAccount(publicKey);
+    const accountExists = await this.horizon
+      .loadAccount(publicKey)
+      .then(() => true)
+      .catch(() => false);
+
+    if (accountExists) {
       this.logger.log(`Custodial wallet already exists: ${publicKey}`);
-    } catch {
-      if (this.isMainnet) {
-        throw new Error('Mainnet custodial wallet requires manual funding');
-      }
+      return publicKey;
+    }
+
+    if (!this.isMainnet) {
+      // ── TESTNET: usa Friendbot ──────────────────────────────────────────
       this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
       const res = await fetch(
         `https://friendbot.stellar.org?addr=${publicKey}`,
       );
       if (!res.ok) {
-        this.logger.warn(
-          `Friendbot failed (${res.status}) for ${publicKey} — wallet unfunded`,
-        );
-      } else {
-        isNew = true;
+        throw new Error(`Friendbot failed (${res.status}) for ${publicKey}`);
       }
-    }
-
-    if (isNew) {
       await this.establishTesourTrustline(keypair);
+    } else {
+      // ── MAINNET: plataforma patrocina criação + trustline ───────────────
+      this.logger.log(`Creating sponsored mainnet wallet: ${publicKey}`);
+      await this.createSponsoredAccount(platformKeypair, keypair);
     }
 
     return publicKey;
+  }
+
+  private async createSponsoredAccount(
+    sponsorKeypair: Keypair,
+    newKeypair: Keypair,
+  ): Promise<void> {
+    // Sponsoring permanente: a plataforma assume as reservas mínimas da conta
+    // e da trustline TESOURO. A nova conta fica utilizável sem precisar de
+    // XLM próprio para reserva inicial ou fees.
+    //
+    // Operações e assinantes:
+    //   beginSponsoringFutureReserves → sponsor assina (source implícita)
+    //   createAccount                 → sponsor assina (source implícita)
+    //   changeTrust                   → nova conta assina (source explícita)
+    //   endSponsoringFutureReserves   → nova conta assina (source explícita)
+    const sponsorAccount = await this.horizon.loadAccount(
+      sponsorKeypair.publicKey(),
+    );
+
+    const tx = new TransactionBuilder(sponsorAccount, {
+      fee: CLASSIC_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        Operation.beginSponsoringFutureReserves({
+          sponsoredId: newKeypair.publicKey(),
+        }),
+      )
+      .addOperation(
+        Operation.createAccount({
+          destination: newKeypair.publicKey(),
+          // Zero é válido porque o base reserve é coberto pelo sponsor ativo.
+          startingBalance: '0',
+        }),
+      )
+      .addOperation(
+        Operation.changeTrust({
+          asset: TESOURO,
+          source: newKeypair.publicKey(),
+        }),
+      )
+      .addOperation(
+        Operation.endSponsoringFutureReserves({
+          source: newKeypair.publicKey(),
+        }),
+      )
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    tx.sign(sponsorKeypair, newKeypair);
+
+    await this.submitWithDetail(tx, 'createSponsoredAccount');
+    this.logger.log(`Sponsored account created: ${newKeypair.publicKey()}`);
   }
 
   private async invokeContract(
@@ -338,13 +449,16 @@ export class StellarService implements BlockchainService {
     method: string,
     args: xdr.ScVal[],
   ): Promise<string> {
+    // Caminho único para chamadas Soroban:
+    // monta a tx, simula para calcular recursos, monta a tx final,
+    // assina, envia via RPC e espera confirmação.
     const contract = new Contract(contractId);
     const sourceAccount = await this.horizon.loadAccount(
       signerKeypair.publicKey(),
     );
 
     const tx = new TransactionBuilder(sourceAccount, {
-      fee: BASE_FEE,
+      fee: SOROBAN_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(contract.call(method, ...args))
@@ -373,11 +487,14 @@ export class StellarService implements BlockchainService {
   }
 
   private async establishTesourTrustline(keypair: Keypair): Promise<void> {
+    // Trustline é obrigatória para receber TESOURO.
+    // Chamada apenas em testnet pós-Friendbot, onde a conta tem XLM próprio.
+    // Em mainnet patrocinada, a trustline já é criada em createSponsoredAccount().
     const publicKey = keypair.publicKey();
     try {
       const account = await this.horizon.loadAccount(publicKey);
       const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
+        fee: CLASSIC_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
       })
         .addOperation(Operation.changeTrust({ asset: TESOURO }))
@@ -394,6 +511,8 @@ export class StellarService implements BlockchainService {
   }
 
   private deriveKeypair(seedSource: string): Keypair {
+    // Derivação determinística: o mesmo usuário gera sempre a mesma carteira.
+    // A segurança depende diretamente do STELLAR_WALLET_SECRET.
     const seed = createHmac('sha256', this.walletSecret)
       .update(seedSource)
       .digest();
@@ -403,6 +522,9 @@ export class StellarService implements BlockchainService {
   private async ensureCustodialWalletForUser(
     userId: string,
   ): Promise<{ publicKey: string; keypair: Keypair | null }> {
+    // Garante uma carteira utilizável para fluxos internos.
+    // Retorna keypair apenas quando a carteira é custodial; para Privy,
+    // retorna somente o endereço público (keypair: null).
     if (!this.walletSecret) {
       throw new Error('STELLAR_WALLET_SECRET not configured');
     }
@@ -420,6 +542,7 @@ export class StellarService implements BlockchainService {
       throw new Error(`User ${userId} not found`);
     }
 
+    // Carteira externa (Privy) — não custodial, sem keypair local.
     if (user.privyStellarWalletAddress) {
       return { publicKey: user.privyStellarWalletAddress, keypair: null };
     }
@@ -428,31 +551,40 @@ export class StellarService implements BlockchainService {
     const keypair = this.deriveKeypair(seedSource);
     const publicKey = keypair.publicKey();
 
+    // Sanity check: chave derivada deve bater com o que está no banco.
     if (user.stellarWalletId && user.stellarWalletId !== publicKey) {
       throw new Error(
         `Wallet mismatch for user ${userId} — stored ${user.stellarWalletId} vs derived ${publicKey}`,
       );
     }
 
-    try {
-      await this.horizon.loadAccount(publicKey);
-    } catch {
+    const accountExists = await this.horizon
+      .loadAccount(publicKey)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!accountExists) {
       if (this.isMainnet) {
-        throw new Error(
-          `Mainnet wallet for user ${userId} requires manual funding`,
+        // Mainnet: plataforma patrocina criação + trustline.
+        this.logger.log(
+          `Creating sponsored mainnet wallet for user ${userId}: ${publicKey}`,
         );
-      }
-      this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
-      const res = await fetch(
-        `https://friendbot.stellar.org?addr=${publicKey}`,
-      );
-      if (!res.ok) {
-        throw new Error(
-          `Friendbot funding failed (${res.status}) for ${publicKey}`,
+        const { platformKeypair } = this.requireContractConfig();
+        await this.createSponsoredAccount(platformKeypair, keypair);
+      } else {
+        // Testnet: Friendbot financia a conta com XLM de teste.
+        this.logger.log(`Funding testnet wallet via Friendbot: ${publicKey}`);
+        const res = await fetch(
+          `https://friendbot.stellar.org?addr=${publicKey}`,
         );
+        if (!res.ok) {
+          throw new Error(`Friendbot failed (${res.status}) for ${publicKey}`);
+        }
+        await this.establishTesourTrustline(keypair);
       }
     }
 
+    // Persiste no banco se ainda não estava salvo.
     if (!user.stellarWalletId) {
       await this.prisma.user.update({
         where: { id: userId },
@@ -471,6 +603,8 @@ export class StellarService implements BlockchainService {
     platformKeypair: Keypair;
     contractId: string;
   } {
+    // Guard rail para impedir chamadas on-chain sem RPC, contrato ou chave
+    // operacional configurados.
     if (!this.server || !this.platformKeypair || !this.contractId) {
       throw new Error(
         'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_CONTRACT_ID',
@@ -487,6 +621,8 @@ export class StellarService implements BlockchainService {
     hash: string,
     server?: rpc.Server,
   ): Promise<void> {
+    // Soroban RPC pode retornar a hash antes da confirmação final.
+    // Este polling transforma "enviado" em "confirmado ou falhou".
     const s = server ?? this.requireContractConfig().server;
     const deadline = Date.now() + POLL_DEADLINE_MS;
     while (Date.now() < deadline) {
@@ -503,6 +639,8 @@ export class StellarService implements BlockchainService {
   }
 
   private toBytes32(hexHash: string | null): Buffer {
+    // O contrato espera um bytes32. Quando não há hash de XML,
+    // usamos zero bytes para manter o formato do argumento.
     if (!hexHash) return Buffer.alloc(32);
     const clean = hexHash.replace(/^0x/, '').padEnd(64, '0').slice(0, 64);
     return Buffer.from(clean, 'hex');
