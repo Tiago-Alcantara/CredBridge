@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { Icon } from "@/components/primitives/Icon";
@@ -33,10 +33,15 @@ function clearAutomaticBootstrapAttempt(): void {
   }
 }
 
-export function PrivyLoginPanel() {
+interface PrivyLoginPanelProps {
+  targetRole?: "pme" | "investor" | "operator";
+}
+
+export function PrivyLoginPanel({ targetRole = "pme" }: PrivyLoginPanelProps) {
   const router = useRouter();
   const { ready, authenticated, logout } = usePrivy();
   const { login } = useLogin();
+  const [roleError, setRoleError] = useState<string | null>(null);
   const {
     bootstrapSession,
     canBootstrapSession,
@@ -44,8 +49,14 @@ export function PrivyLoginPanel() {
     error,
   } = usePrivySessionBootstrap();
   const didBootstrapRef = useRef(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const continueWithPrivy = useCallback(async () => {
+    setRoleError(null);
     if (!authenticated) {
       login();
       return;
@@ -53,18 +64,28 @@ export function PrivyLoginPanel() {
 
     try {
       const session = await bootstrapSession();
-      if (session.needsRoleSelection || !session.user.role) {
-        router.push("/onboarding/role");
+
+      if (session.user.role !== targetRole) {
+        await logout();
+        clearAutomaticBootstrapAttempt();
+        clearInternalSession();
+        setRoleError(
+          `Esta conta está registrada como ${session.user.role ? session.user.role.toUpperCase() : "desconhecido"}. Por favor, use o portal de login correto.`
+        );
         return;
       }
 
       router.push(
-        session.user.role === "pme" ? "/pme/dashboard" : "/investor/dashboard",
+        targetRole === "operator"
+          ? "/operator/dashboard"
+          : targetRole === "pme"
+            ? "/pme/dashboard"
+            : "/investor/dashboard",
       );
     } catch {
       return;
     }
-  }, [authenticated, bootstrapSession, login, router]);
+  }, [authenticated, bootstrapSession, login, logout, router, targetRole]);
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -91,18 +112,27 @@ export function PrivyLoginPanel() {
     await logout();
     clearAutomaticBootstrapAttempt();
     clearInternalSession();
+    setRoleError(null);
   }, [logout]);
+
+  const getRoleName = () => {
+    switch (targetRole) {
+      case "pme": return "Empresas (PME)";
+      case "investor": return "Investidores";
+      case "operator": return "Operadores";
+    }
+  };
 
   return (
     <div style={{ margin: "auto 0", width: "100%", maxWidth: 440 }}>
-      <h2 style={{ fontSize: 32, marginBottom: 8 }}>Entrar na CredBridge</h2>
+      <h2 style={{ fontSize: 32, marginBottom: 8 }}>Entrar como {getRoleName()}</h2>
       <p className="t-2" style={{ marginBottom: 32, fontSize: 14 }}>
         Entre com Privy para criar sua sessão e sua carteira Stellar com segurança.
       </p>
 
-      {error && (
+      {(error || roleError) && (
         <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 16 }}>
-          {error}
+          {error || roleError}
         </p>
       )}
 
@@ -110,7 +140,7 @@ export function PrivyLoginPanel() {
         className="btn btn-primary btn-lg"
         style={{ width: "100%" }}
         onClick={continueWithPrivy}
-        disabled={!ready || isBootstrapping}
+        disabled={!mounted || !ready || isBootstrapping}
       >
         {isBootstrapping
           ? "Preparando carteira e sessão..."

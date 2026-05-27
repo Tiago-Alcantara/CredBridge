@@ -2,7 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AnchorService } from './anchor.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
-import type { Quote, Customer, OnRampTransaction, OffRampTransaction } from '@credbridge/anchor-client';
+import type {
+  Quote,
+  Customer,
+  OnRampTransaction,
+  OffRampTransaction,
+} from '@credbridge/anchor-client';
 
 // -- mock functions defined before jest.mock (hoisted by Jest) --
 const mockGetQuote = jest.fn();
@@ -31,7 +36,9 @@ jest.mock('@credbridge/anchor-client', () => {
       displayName: 'Etherfuse',
       supportedCurrencies: ['BRL', 'MXN'],
       supportedRails: ['pix', 'spei'],
-      supportedTokens: [{ symbol: 'TESOURO', name: 'Tesouro', description: 'BRL-backed' }],
+      supportedTokens: [
+        { symbol: 'TESOURO', name: 'Tesouro', description: 'BRL-backed' },
+      ],
       capabilities: { sep24: true },
     })),
   };
@@ -41,7 +48,12 @@ const userId = 'user-1';
 const stellarWallet = 'GABC1234567890';
 
 function baseUser(overrides = {}) {
-  return { id: userId, email: 'pme@test.com', stellarWalletId: stellarWallet, ...overrides };
+  return {
+    id: userId,
+    email: 'pme@test.com',
+    stellarWalletId: stellarWallet,
+    ...overrides,
+  };
 }
 
 function baseQuote(overrides = {}): Quote {
@@ -118,8 +130,16 @@ describe('AnchorService', () => {
     mockCreateCustomer.mockResolvedValue(baseCustomer());
     mockGetFiatAccounts.mockResolvedValue([baseFiatAccount]);
     mockGetKycStatus.mockResolvedValue('approved');
-    mockCreateOnRamp.mockResolvedValue({ id: 'onramp-1', interactiveUrl: 'https://etherfuse.com/onramp/1', status: 'pending' } as unknown as OnRampTransaction);
-    mockCreateOffRamp.mockResolvedValue({ id: 'offramp-1', interactiveUrl: 'https://etherfuse.com/offramp/1', status: 'pending' } as unknown as OffRampTransaction);
+    mockCreateOnRamp.mockResolvedValue({
+      id: 'onramp-1',
+      interactiveUrl: 'https://etherfuse.com/onramp/1',
+      status: 'pending',
+    });
+    mockCreateOffRamp.mockResolvedValue({
+      id: 'offramp-1',
+      interactiveUrl: 'https://etherfuse.com/offramp/1',
+      status: 'pending',
+    });
     mockGetKycUrl.mockResolvedValue('https://etherfuse.com/kyc/1');
   });
 
@@ -128,19 +148,27 @@ describe('AnchorService', () => {
       const quote = await service.getOnrampQuote(userId, 100);
       expect(quote.fromCurrency).toBe('BRL');
       expect(mockGetQuote).toHaveBeenCalledWith(
-        expect.objectContaining({ fromCurrency: 'BRL', toCurrency: 'TESOURO', fromAmount: '100.00' }),
+        expect.objectContaining({
+          fromCurrency: 'BRL',
+          toCurrency: 'TESOURO',
+          fromAmount: '100.00',
+        }),
       );
     });
 
     it('throws if user has no Stellar wallet', async () => {
       userFindOrThrow.mockResolvedValue(baseUser({ stellarWalletId: null }));
-      await expect(service.getOnrampQuote(userId, 100)).rejects.toThrow('no Stellar wallet');
+      await expect(service.getOnrampQuote(userId, 100)).rejects.toThrow(
+        'no Stellar wallet',
+      );
     });
   });
 
   describe('getOfframpQuote', () => {
     it('returns TESOURO → BRL quote', async () => {
-      mockGetQuote.mockResolvedValue(baseQuote({ fromCurrency: 'TESOURO', toCurrency: 'BRL' }));
+      mockGetQuote.mockResolvedValue(
+        baseQuote({ fromCurrency: 'TESOURO', toCurrency: 'BRL' }),
+      );
       const quote = await service.getOfframpQuote(userId, 100);
       expect(mockGetQuote).toHaveBeenCalledWith(
         expect.objectContaining({ fromCurrency: 'TESOURO', toCurrency: 'BRL' }),
@@ -154,14 +182,22 @@ describe('AnchorService', () => {
       const tx = await service.startOnramp(userId, 100);
       expect(mockCreateCustomer).toHaveBeenCalled();
       expect(mockCreateOnRamp).toHaveBeenCalledWith(
-        expect.objectContaining({ customerId: 'cust-1', fromCurrency: 'BRL', toCurrency: 'TESOURO' }),
+        expect.objectContaining({
+          customerId: 'cust-1',
+          fromCurrency: 'BRL',
+          toCurrency: 'TESOURO',
+        }),
       );
-      expect((tx as unknown as { interactiveUrl: string }).interactiveUrl).toContain('etherfuse.com');
+      expect(
+        (tx as unknown as { interactiveUrl: string }).interactiveUrl,
+      ).toContain('etherfuse.com');
     });
 
     it('reuses existing customer without creating a new one', async () => {
       const userWithCustomer = baseUser({ etherfuseCustomerId: 'cust-1' });
-      const prismaMock = (service as unknown as { prisma: { user: { findUnique: jest.Mock } } }).prisma;
+      const prismaMock = (
+        service as unknown as { prisma: { user: { findUnique: jest.Mock } } }
+      ).prisma;
       prismaMock.user.findUnique.mockResolvedValue(userWithCustomer);
       mockGetCustomer.mockResolvedValue(baseCustomer());
       await service.startOnramp(userId, 100);
@@ -178,7 +214,9 @@ describe('AnchorService', () => {
 
     it('throws KYC_INCOMPLETE when user has no fiat accounts', async () => {
       mockGetFiatAccounts.mockResolvedValue([]);
-      await expect(service.startOnramp(userId, 100)).rejects.toThrow('KYC_INCOMPLETE');
+      await expect(service.startOnramp(userId, 100)).rejects.toThrow(
+        'KYC_INCOMPLETE',
+      );
     });
   });
 
@@ -186,14 +224,22 @@ describe('AnchorService', () => {
     it('creates OffRampTransaction using first PIX account', async () => {
       const tx = await service.startOfframp(userId, 50);
       expect(mockCreateOffRamp).toHaveBeenCalledWith(
-        expect.objectContaining({ fiatAccountId: 'acct-1', fromCurrency: 'TESOURO', toCurrency: 'BRL' }),
+        expect.objectContaining({
+          fiatAccountId: 'acct-1',
+          fromCurrency: 'TESOURO',
+          toCurrency: 'BRL',
+        }),
       );
-      expect((tx as unknown as { interactiveUrl: string }).interactiveUrl).toContain('etherfuse.com');
+      expect(
+        (tx as unknown as { interactiveUrl: string }).interactiveUrl,
+      ).toContain('etherfuse.com');
     });
 
     it('throws if user has no registered PIX account', async () => {
       mockGetFiatAccounts.mockResolvedValue([]);
-      await expect(service.startOfframp(userId, 50)).rejects.toThrow('KYC_INCOMPLETE');
+      await expect(service.startOfframp(userId, 50)).rejects.toThrow(
+        'KYC_INCOMPLETE',
+      );
     });
   });
 

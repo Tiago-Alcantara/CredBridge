@@ -384,6 +384,39 @@
                     "storage": [
                       {
                         "key": {
+                          "symbol": "METADATA"
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "decimals"
+                              },
+                              "val": {
+                                "u32": 7
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "name"
+                              },
+                              "val": {
+                                "string": "Brazilian Real Token"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "symbol"
+                              },
+                              "val": {
+                                "string": "BRLT"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
                           "vec": [
                             {
                               "symbol": "Admin"
@@ -392,18 +425,6 @@
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Decimals"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "u32": 7
                         }
                       },
                       {
@@ -422,24 +443,15 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "Name"
+                              "symbol": "TotalSupply"
                             }
                           ]
                         },
                         "val": {
-                          "string": "Brazilian Real Token"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Symbol"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "string": "BRLT"
+                          "i128": {
+                            "hi": 0,
+                            "lo": 100000000000
+                          }
                         }
                       }
                     ]
@@ -449,7 +461,7 @@
             },
             "ext": "v0"
           },
-          518400
+          4095
         ]
       ],
       [
@@ -662,7 +674,7 @@
             },
             "ext": "v0"
           },
-          518400
+          4095
         ]
       ],
       [
@@ -690,6 +702,39 @@
                     "storage": [
                       {
                         "key": {
+                          "symbol": "METADATA"
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "decimals"
+                              },
+                              "val": {
+                                "u32": 7
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "name"
+                              },
+                              "val": {
+                                "string": "CredBridge Pool Shares"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "symbol"
+                              },
+                              "val": {
+                                "string": "cbSHARE"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
                           "vec": [
                             {
                               "symbol": "Admin"
@@ -698,18 +743,6 @@
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Decimals"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "u32": 7
                         }
                       },
                       {
@@ -728,24 +761,15 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "Name"
+                              "symbol": "TotalSupply"
                             }
                           ]
                         },
                         "val": {
-                          "string": "CredBridge Pool Shares"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Symbol"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "string": "cbSHARE"
+                          "i128": {
+                            "hi": 0,
+                            "lo": 100000000000
+                          }
                         }
                       }
                     ]
@@ -755,7 +779,7 @@
             },
             "ext": "v0"
           },
-          518400
+          4095
         ]
       ],
       [

@@ -4,6 +4,8 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, String, Symbol,
 };
+use stellar_macros::default_impl;
+use stellar_tokens::non_fungible::{burnable::NonFungibleBurnable, Base, NonFungibleToken};
 
 // ===========================================================================
 // Status — covers the full lifecycle of an NF-e
@@ -41,10 +43,11 @@ impl NfeStatus {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NfeData {
     pub key: String,           // UUID do receivable no banco de dados off-chain
-    pub value: i128,           // valor em centavos (i128 suporta números grandes sem overflow)
+    pub token_id: u32,         // ID do NFT correspondente on-chain (novo)
+    pub value: i128,           // valor em centavos
     pub due_date: u64,         // timestamp Unix em segundos do vencimento
     pub xml_hash: BytesN<32>,  // SHA-256 do XML original — prova que o documento não foi alterado
-    pub owner: Address,        // carteira atual do dono (G... clássica ou C... smart wallet)
+    pub owner: Address,        // carteira atual do dono
     pub status: Symbol,        // "Active" | "ListedForSale" | "SoldToPool" | "Settled" | "Defaulted" | "Cancelled"
 
     // Phase 2 fields (for invoice sale flow)
@@ -65,11 +68,14 @@ pub struct SaleListingData {
     pub listed_at: u64,
 }
 
-// DataKey é o índice de armazenamento — cada NFe vive em Nfe("uuid") no ledger
+// DataKey é o índice de armazenamento
 #[contracttype]
 pub enum DataKey {
     Nfe(String),
     SaleListing(String),
+    Platform,               // Configuração do endereço admin da plataforma (novo)
+    TokenToNfe(u32),        // ID sequencial do NFT -> UUID da NF-e (novo)
+    XmlHashToToken(BytesN<32>), // SHA-256 do XML -> ID do NFT para idempotência física (novo)
 }
 
 // ===========================================================================
@@ -116,7 +122,7 @@ pub struct InvoiceSoldToPoolEvent {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Error {
-    AlreadyExists = 1,    // tentativa de tokenizar NFe com key já existente
+    AlreadyExists = 1,    // tentativa de tokenizar NFe com key/hash já existente
     NotFound = 2,         // NFe não encontrada no storage
     NotActive = 3,        // operação requer status Active
     AlreadyListed = 4,    // NF-e já está listada para venda
@@ -142,7 +148,21 @@ pub struct CredBridgeContract;
 #[contractimpl]
 impl CredBridgeContract {
     // -----------------------------------------------------------------------
-    // Tokenize — registers an NF-e on-chain for the first time
+    // Constructor — sets metadata and platform key
+    // -----------------------------------------------------------------------
+    pub fn __constructor(
+        env: Env,
+        uri: String,
+        name: String,
+        symbol: String,
+        platform: Address,
+    ) {
+        env.storage().instance().set(&DataKey::Platform, &platform);
+        Base::set_metadata(&env, uri, name, symbol);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tokenize — registers an NF-e on-chain and mints its NFT
     // -----------------------------------------------------------------------
     pub fn tokenize_nfe(
         env: Env,
@@ -153,20 +173,36 @@ impl CredBridgeContract {
         owner: Address,
         platform_auth: Address,
     ) {
+        // Validação da Plataforma
+        let platform: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Platform)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::Unauthorized));
         platform_auth.require_auth();
+        if platform_auth != platform {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
+
+        // Validação de idempotência por XML Hash
+        let xml_key = DataKey::XmlHashToToken(xml_hash.clone());
+        if env.storage().persistent().has(&xml_key) {
+            panic_with_error!(&env, Error::AlreadyExists);
+        }
 
         let storage_key = DataKey::Nfe(key.clone());
-
         if env.storage().persistent().has(&storage_key) {
             panic_with_error!(&env, Error::AlreadyExists);
         }
 
-        // Compute invoice_hash = the xml_hash serves as a unique identifier
-        // In production, this would be sha256(nfe_access_key)
+        // Cunhar NFT sequencial para o proprietário original (PME)
+        let token_id = Base::sequential_mint(&env, &owner);
+
         let invoice_hash = xml_hash.clone();
 
         let nfe_data = NfeData {
             key: key.clone(),
+            token_id,
             value,
             due_date,
             xml_hash,
@@ -177,12 +213,26 @@ impl CredBridgeContract {
             advance_amount: 0,
         };
 
+        // Salvar dados da NF-e
         env.storage().persistent().set(&storage_key, &nfe_data);
         env.storage()
             .persistent()
             .extend_ttl(&storage_key, TTL_THRESHOLD, TTL_EXTEND);
 
-        // Emit enriched tokenization event
+        // Mapear token_id -> key (lookup reverso)
+        let token_key = DataKey::TokenToNfe(token_id);
+        env.storage().persistent().set(&token_key, &key);
+        env.storage()
+            .persistent()
+            .extend_ttl(&token_key, TTL_THRESHOLD, TTL_EXTEND);
+
+        // Salvar hash do XML mapeado para o ID
+        env.storage().persistent().set(&xml_key, &token_id);
+        env.storage()
+            .persistent()
+            .extend_ttl(&xml_key, TTL_THRESHOLD, TTL_EXTEND);
+
+        // Emitir evento de tokenização
         env.events().publish(
             (Symbol::new(&env, "InvoiceTokenized"), key.clone()),
             TokenizeEventData {
@@ -209,6 +259,20 @@ impl CredBridgeContract {
             .extend_ttl(&storage_key, TTL_THRESHOLD, TTL_EXTEND);
 
         nfe_data
+    }
+
+    // -----------------------------------------------------------------------
+    // Get NF-e by Token ID — lookup reverso
+    // -----------------------------------------------------------------------
+    pub fn get_nfe_by_token_id(env: Env, token_id: u32) -> NfeData {
+        let token_key = DataKey::TokenToNfe(token_id);
+        let key: String = env
+            .storage()
+            .persistent()
+            .get(&token_key)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::NotFound));
+
+        Self::get_nfe(env, key)
     }
 
     // -----------------------------------------------------------------------
@@ -293,7 +357,15 @@ impl CredBridgeContract {
     // Mark as sold — called by platform after Pool purchase is confirmed
     // -----------------------------------------------------------------------
     pub fn mark_as_sold(env: Env, key: String, platform_auth: Address) {
+        let platform: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Platform)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::Unauthorized));
         platform_auth.require_auth();
+        if platform_auth != platform {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
 
         let storage_key = DataKey::Nfe(key.clone());
         let mut nfe_data: NfeData = env
@@ -328,7 +400,15 @@ impl CredBridgeContract {
     // Transfer ownership — model custodial controlled by platform
     // -----------------------------------------------------------------------
     pub fn transfer_ownership(env: Env, key: String, new_owner: Address, platform_auth: Address) {
+        let platform: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Platform)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::Unauthorized));
         platform_auth.require_auth();
+        if platform_auth != platform {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
 
         let storage_key = DataKey::Nfe(key.clone());
         let mut nfe_data: NfeData = env
@@ -342,6 +422,10 @@ impl CredBridgeContract {
         }
 
         let old_owner = nfe_data.owner.clone();
+
+        // Transferir o NFT real on-chain
+        Base::transfer(&env, &old_owner, &new_owner, nfe_data.token_id);
+
         nfe_data.owner = new_owner.clone();
 
         env.storage().persistent().set(&storage_key, &nfe_data);
@@ -359,10 +443,18 @@ impl CredBridgeContract {
     }
 
     // -----------------------------------------------------------------------
-    // Settle — mark as paid
+    // Settle — mark as paid and burn the NFT
     // -----------------------------------------------------------------------
     pub fn settle_nfe(env: Env, key: String, platform_auth: Address) {
+        let platform: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Platform)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::Unauthorized));
         platform_auth.require_auth();
+        if platform_auth != platform {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
 
         let storage_key = DataKey::Nfe(key.clone());
         let mut nfe_data: NfeData = env
@@ -377,6 +469,9 @@ impl CredBridgeContract {
         if nfe_data.status != status_active && nfe_data.status != status_sold {
             panic_with_error!(&env, Error::NotActive);
         }
+
+        // Queimar o NFT on-chain
+        Base::burn(&env, &nfe_data.owner, nfe_data.token_id);
 
         nfe_data.status = Symbol::new(&env, "Settled");
 
@@ -402,5 +497,34 @@ impl CredBridgeContract {
             .unwrap_or_else(|| panic_with_error!(&env, Error::NotFound))
     }
 }
+
+// ===========================================================================
+// Trait implementations (OpenZeppelin SEP-50 NFT)
+// ===========================================================================
+#[default_impl]
+#[contractimpl]
+impl NonFungibleToken for CredBridgeContract {
+    type ContractType = Base;
+
+    // Sobrescrever a função transfer padrão (Opção A)
+    // Apenas a conta Platform cadastrada no constructor pode assinar/executar transferências
+    fn transfer(env: &Env, from: Address, to: Address, token_id: u32) {
+        let platform: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Platform)
+            .unwrap_or_else(|| panic_with_error!(env, Error::Unauthorized));
+        
+        // Exige autenticação da plataforma administradora
+        platform.require_auth();
+        
+        // Executa a transferência real do token base
+        Base::transfer(env, &from, &to, token_id);
+    }
+}
+
+#[default_impl]
+#[contractimpl]
+impl NonFungibleBurnable for CredBridgeContract {}
 
 mod test;

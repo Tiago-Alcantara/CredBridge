@@ -9,7 +9,8 @@ import { FinancialAuthorizationsService } from './financial-authorizations.servi
 const userId = 'user-1';
 const walletKeypair = Keypair.random();
 const walletId = walletKeypair.publicKey();
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const storedPayloadHash = 'a'.repeat(64);
 const validSignature = walletKeypair
   .sign(Buffer.from(storedPayloadHash, 'hex'))
@@ -49,12 +50,18 @@ describe('FinancialAuthorizationsService', () => {
   });
 
   it('does not require direct authorization for receivable tokenization', () => {
-    expect(service.requiresDirectAuthorization('receivable.tokenize')).toBe(false);
+    expect(service.requiresDirectAuthorization('receivable.tokenize')).toBe(
+      false,
+    );
   });
 
   it('requires direct authorization for receivable assignment and investor purchase', () => {
-    expect(service.requiresDirectAuthorization('receivable.assignment')).toBe(true);
-    expect(service.requiresDirectAuthorization('investment.purchase')).toBe(true);
+    expect(service.requiresDirectAuthorization('receivable.assignment')).toBe(
+      true,
+    );
+    expect(service.requiresDirectAuthorization('investment.purchase')).toBe(
+      true,
+    );
   });
 
   it('throws wallet_required when the user has no ready Privy wallet', async () => {
@@ -64,7 +71,10 @@ describe('FinancialAuthorizationsService', () => {
     });
 
     await expect(
-      service.createChallenge(userId, { operation: 'investment.purchase', resourceId: 'r-1' }),
+      service.createChallenge(userId, {
+        operation: 'investment.purchase',
+        resourceId: 'r-1',
+      }),
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'wallet_required' }),
     });
@@ -320,7 +330,9 @@ describe('FinancialAuthorizationsService', () => {
         amount: '970.00',
       }),
     ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'authorization_operation_mismatch' }),
+      response: expect.objectContaining({
+        code: 'authorization_operation_mismatch',
+      }),
     });
   });
 
@@ -364,7 +376,9 @@ describe('FinancialAuthorizationsService', () => {
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
     });
-    prismaMock.financialAuthorization.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.financialAuthorization.updateMany.mockResolvedValue({
+      count: 1,
+    });
 
     await service.consume({
       authorizationId: 'auth-1',
@@ -418,7 +432,9 @@ describe('FinancialAuthorizationsService', () => {
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60000),
     });
-    prismaMock.financialAuthorization.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.financialAuthorization.updateMany.mockResolvedValue({
+      count: 0,
+    });
 
     await expect(
       service.consume({

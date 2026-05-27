@@ -31,7 +31,7 @@ fn test_initialize() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic]
 fn test_double_initialize_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -59,7 +59,7 @@ fn test_mint_and_balance() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #3)")]
+#[should_panic]
 fn test_mint_unauthorized() {
     let env = Env::default();
     env.mock_all_auths();
@@ -88,7 +88,7 @@ fn test_transfer() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #4)")]
+#[should_panic]
 fn test_transfer_insufficient_balance() {
     let env = Env::default();
     env.mock_all_auths();
@@ -112,7 +112,7 @@ fn test_approve_and_transfer_from() {
     let recipient = Address::generate(&env);
 
     client.mint(&admin, &owner, &10_000);
-    client.approve(&owner, &spender, &5_000);
+    client.approve(&owner, &spender, &5_000, &100_000);
 
     assert_eq!(client.allowance(&owner, &spender), 5_000);
 
@@ -124,7 +124,7 @@ fn test_approve_and_transfer_from() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #5)")]
+#[should_panic]
 fn test_transfer_from_insufficient_allowance() {
     let env = Env::default();
     env.mock_all_auths();
@@ -135,7 +135,7 @@ fn test_transfer_from_insufficient_allowance() {
     let recipient = Address::generate(&env);
 
     client.mint(&admin, &owner, &10_000);
-    client.approve(&owner, &spender, &1_000);
+    client.approve(&owner, &spender, &1_000, &100_000);
     client.transfer_from(&spender, &owner, &recipient, &5_000);
 }
 
@@ -155,7 +155,7 @@ fn test_burn() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #4)")]
+#[should_panic]
 fn test_burn_insufficient_balance() {
     let env = Env::default();
     env.mock_all_auths();

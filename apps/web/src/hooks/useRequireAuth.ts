@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAccessToken, getTokenRole } from "@/lib/api/auth-storage";
 
-type UserRole = "pme" | "investor" | "partner";
+type UserRole = "pme" | "investor" | "partner" | "operator";
 
 export function useRequireAuth(requiredRole?: UserRole) {
   const router = useRouter();
@@ -25,6 +25,7 @@ export function useRequireAuth(requiredRole?: UserRole) {
         if (role === "pme") router.replace("/pme/dashboard");
         else if (role === "investor") router.replace("/investor/dashboard");
         else if (role === "partner") router.replace("/partner/dashboard");
+        else if (role === "operator") router.replace("/operator/dashboard");
         else router.replace("/login");
         return;
       }

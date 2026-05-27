@@ -77,6 +77,8 @@
   "status_active": "Ativa",
   "status_settled": "Liquidada",
   "status_defaulted": "Inadimplente",
+  "status_rejected": "Rejeitada",
+  "status_unknown": "Desconhecido",
   "search": "Buscar",
   "view_all": "Ver todas",
   "verify_chain": "Verificar on-chain"

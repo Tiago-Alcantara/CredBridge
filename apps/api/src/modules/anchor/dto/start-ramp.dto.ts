@@ -1,4 +1,10 @@
-import { IsNumber, IsPositive, IsOptional, IsUUID, ValidateIf } from 'class-validator';
+import {
+  IsNumber,
+  IsPositive,
+  IsOptional,
+  IsUUID,
+  ValidateIf,
+} from 'class-validator';
 
 export class StartRampDto {
   @IsNumber()

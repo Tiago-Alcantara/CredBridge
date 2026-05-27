@@ -38,19 +38,7 @@ export class ReceivablesService {
       },
     });
 
-    const validated = await this.repo.updateStatus(receivable.id, 'validated');
-    await this.audit.log({
-      event: 'receivable.validated',
-      entityId: receivable.id,
-      entityType: 'receivable',
-      userId,
-      metadata: {
-        checks: ['document_hash', 'debtor_document', 'due_date'],
-        result: 'passed',
-      },
-    });
-
-    return toReceivableResponse(validated);
+    return toReceivableResponse(receivable);
   }
 
   async findAll(userId: string) {
@@ -163,6 +151,7 @@ export class ReceivablesService {
       destination: 'credbridge-pool',
     });
 
+    const txHash = await this.blockchain.transferNftToPlatform(receivable.id);
     const updated = await this.repo.setActive(id);
 
     await this.audit.log({
@@ -170,6 +159,7 @@ export class ReceivablesService {
       entityId: receivable.id,
       entityType: 'receivable',
       userId: receivable.userId,
+      txHash,
       metadata: { authorizationId },
     });
 

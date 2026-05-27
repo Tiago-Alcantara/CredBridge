@@ -28,6 +28,7 @@ export interface BlockchainService {
   tokenizeNfe(data: TokenizeNfeInput): Promise<string>;
   payPme(data: PayPmeInput): Promise<string>;
   transferNftToInvestor(data: TransferNftToInvestorInput): Promise<string>;
+  transferNftToPlatform(receivableKey: string): Promise<string>;
   chargeInvestor(data: ChargeInvestorInput): Promise<string>;
   settlePayment(data: {
     receivableId: string;
@@ -38,6 +39,10 @@ export interface BlockchainService {
     txHash: string,
   ): Promise<'pending' | 'success' | 'failed'>;
   createCustodialWallet(googleId: string): Promise<string>;
+  fundAccountFromPlatform(
+    destination: string,
+    startingBalance?: string,
+  ): Promise<string | null>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');

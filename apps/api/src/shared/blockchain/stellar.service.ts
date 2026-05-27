@@ -42,13 +42,16 @@ export class StellarService implements BlockchainService {
   private readonly horizon: Horizon.Server;
   private readonly platformKeypair: Keypair | undefined;
   private readonly contractId: string | undefined;
+  private readonly nfeContractId: string | undefined;
+  private readonly poolContractId: string | undefined;
+  private readonly brltContractId: string | undefined;
   private readonly walletSecret: string;
   private readonly isMainnet: boolean;
 
   constructor(private readonly prisma: PrismaService) {
     const rpcUrl = process.env.STELLAR_RPC_URL;
     const secretKey = process.env.STELLAR_SECRET_KEY;
-    const contractId = process.env.STELLAR_CONTRACT_ID;
+    const contractId = process.env.STELLAR_NFE_CONTRACT_ID;
     this.isMainnet = process.env.STELLAR_NETWORK === 'mainnet';
     const horizonUrl = this.isMainnet
       ? 'https://horizon.stellar.org'
@@ -57,13 +60,17 @@ export class StellarService implements BlockchainService {
     this.walletSecret = process.env.STELLAR_WALLET_SECRET ?? '';
     this.horizon = new Horizon.Server(horizonUrl);
 
+    this.nfeContractId = contractId;
+    this.poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    this.brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    this.contractId = contractId;
+
     if (rpcUrl && secretKey && contractId) {
       this.server = new rpc.Server(rpcUrl, { allowHttp: true });
       this.platformKeypair = Keypair.fromSecret(secretKey);
-      this.contractId = contractId;
     } else {
       this.logger.warn(
-        'Stellar contract env vars missing (STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_CONTRACT_ID) — tokenization disabled',
+        'Stellar contract env vars missing (STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID) — tokenization disabled',
       );
     }
   }
@@ -117,9 +124,17 @@ export class StellarService implements BlockchainService {
     );
     this.logger.log(`NF tokenized — txHash: ${mintHash}`);
 
-    // Step 2: transfer ownership to platform (CredBridge receives the receivable)
+    return mintHash;
+  }
+
+  async transferNftToPlatform(receivableKey: string): Promise<string> {
+    this.logger.log(`transferNftToPlatform — key: ${receivableKey}`);
+    const { server, platformKeypair, contractId } =
+      this.requireContractConfig();
+    const platformAddress = platformKeypair.publicKey();
+
     this.logger.log(
-      `Transferring NF ${data.key} ownership to platform: ${platformAddress}`,
+      `Transferring NF ${receivableKey} ownership to platform: ${platformAddress}`,
     );
     const transferHash = await this.invokeContract(
       server,
@@ -127,14 +142,15 @@ export class StellarService implements BlockchainService {
       contractId,
       'transfer_ownership',
       [
-        nativeToScVal(data.key, { type: 'string' }),
+        nativeToScVal(receivableKey, { type: 'string' }),
         nativeToScVal(platformAddress, { type: 'address' }),
         nativeToScVal(platformAddress, { type: 'address' }),
       ],
     );
-    this.logger.log(`Ownership transferred — txHash: ${transferHash}`);
-
-    return mintHash;
+    this.logger.log(
+      `NF transferred to platform custody — txHash: ${transferHash}`,
+    );
+    return transferHash;
   }
 
   async payPme(data: PayPmeInput): Promise<string> {
@@ -308,19 +324,13 @@ export class StellarService implements BlockchainService {
       await this.horizon.loadAccount(publicKey);
       this.logger.log(`Custodial wallet already exists: ${publicKey}`);
     } catch {
-      if (this.isMainnet) {
-        throw new Error('Mainnet custodial wallet requires manual funding');
-      }
-      this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
-      const res = await fetch(
-        `https://friendbot.stellar.org?addr=${publicKey}`,
-      );
-      if (!res.ok) {
-        this.logger.warn(
-          `Friendbot failed (${res.status}) for ${publicKey} — wallet unfunded`,
-        );
-      } else {
+      try {
+        await this.fundAccountFromPlatform(publicKey, '5.0');
         isNew = true;
+      } catch (err) {
+        this.logger.error(
+          `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
+        );
       }
     }
 
@@ -329,6 +339,51 @@ export class StellarService implements BlockchainService {
     }
 
     return publicKey;
+  }
+
+  async fundAccountFromPlatform(
+    destination: string,
+    startingBalance: string = '5.0',
+  ): Promise<string | null> {
+    const { platformKeypair } = this.requireContractConfig();
+    const platformAddress = platformKeypair.publicKey();
+
+    try {
+      await this.horizon.loadAccount(destination);
+      this.logger.log(`Account ${destination} already exists on-chain — no funding needed.`);
+      return null;
+    } catch {
+      // Account does not exist, proceed to fund/create it
+    }
+
+    if (this.isMainnet) {
+      throw new Error(
+        `Mainnet wallet creation for ${destination} requires manual funding`,
+      );
+    }
+
+    this.logger.log(
+      `Funding new account ${destination} from platform ${platformAddress} with ${startingBalance} XLM...`,
+    );
+
+    const sourceAccount = await this.horizon.loadAccount(platformAddress);
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        Operation.createAccount({
+          destination,
+          startingBalance,
+        }),
+      )
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    tx.sign(platformKeypair);
+    const res = await this.submitWithDetail(tx, 'fundAccountFromPlatform');
+    this.logger.log(`Account ${destination} created successfully via platform — txHash: ${res.hash}`);
+    return res.hash;
   }
 
   private async invokeContract(
@@ -437,18 +492,11 @@ export class StellarService implements BlockchainService {
     try {
       await this.horizon.loadAccount(publicKey);
     } catch {
-      if (this.isMainnet) {
+      try {
+        await this.fundAccountFromPlatform(publicKey, '5.0');
+      } catch (err) {
         throw new Error(
-          `Mainnet wallet for user ${userId} requires manual funding`,
-        );
-      }
-      this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
-      const res = await fetch(
-        `https://friendbot.stellar.org?addr=${publicKey}`,
-      );
-      if (!res.ok) {
-        throw new Error(
-          `Friendbot funding failed (${res.status}) for ${publicKey}`,
+          `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
         );
       }
     }
@@ -473,7 +521,7 @@ export class StellarService implements BlockchainService {
   } {
     if (!this.server || !this.platformKeypair || !this.contractId) {
       throw new Error(
-        'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_CONTRACT_ID',
+        'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID',
       );
     }
     return {
@@ -506,5 +554,101 @@ export class StellarService implements BlockchainService {
     if (!hexHash) return Buffer.alloc(32);
     const clean = hexHash.replace(/^0x/, '').padEnd(64, '0').slice(0, 64);
     return Buffer.from(clean, 'hex');
+  }
+
+  async depositToPool(
+    investorUserId: string,
+    amountBrl: number,
+  ): Promise<string> {
+    this.logger.log(
+      `depositToPool — investor: ${investorUserId}, amount: ${amountBrl}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId || !this.server || !this.platformKeypair) {
+      this.logger.warn(
+        'STELLAR_POOL_CONTRACT_ID or credentials not configured — returning mock tx hash',
+      );
+      return `stellar-mock-pool-deposit-${Date.now()}`;
+    }
+
+    const { publicKey: investorAddress } =
+      await this.ensureCustodialWalletForUser(investorUserId);
+    const amountInCentavos = BigInt(Math.round(amountBrl * 100));
+
+    return this.invokeContract(
+      this.server,
+      this.platformKeypair,
+      poolContractId,
+      'deposit',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(amountInCentavos, { type: 'i128' }),
+      ],
+    );
+  }
+
+  async withdrawFromPool(
+    investorUserId: string,
+    shareAmount: number,
+  ): Promise<string> {
+    this.logger.log(
+      `withdrawFromPool — investor: ${investorUserId}, shares: ${shareAmount}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId || !this.server || !this.platformKeypair) {
+      this.logger.warn(
+        'STELLAR_POOL_CONTRACT_ID or credentials not configured — returning mock tx hash',
+      );
+      return `stellar-mock-pool-withdraw-${Date.now()}`;
+    }
+
+    const { publicKey: investorAddress } =
+      await this.ensureCustodialWalletForUser(investorUserId);
+    const sharesInCentavos = BigInt(Math.round(shareAmount * 100));
+
+    return this.invokeContract(
+      this.server,
+      this.platformKeypair,
+      poolContractId,
+      'withdraw',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(sharesInCentavos, { type: 'i128' }),
+      ],
+    );
+  }
+
+  async settleInvoiceInPool(
+    invoiceHash: string,
+    advanceAmountBrl: number,
+  ): Promise<string> {
+    this.logger.log(
+      `settleInvoiceInPool — invoiceHash: ${invoiceHash}, amount: ${advanceAmountBrl}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId || !this.server || !this.platformKeypair) {
+      this.logger.warn(
+        'STELLAR_POOL_CONTRACT_ID or credentials not configured — returning mock tx hash',
+      );
+      return `stellar-mock-pool-settlement-${Date.now()}`;
+    }
+
+    const amountInCentavos = BigInt(Math.round(advanceAmountBrl * 100));
+    const cleanHashBytes = this.toBytes32(invoiceHash);
+
+    return this.invokeContract(
+      this.server,
+      this.platformKeypair,
+      poolContractId,
+      'settle_invoice_in_pool',
+      [
+        nativeToScVal(this.platformKeypair.publicKey(), { type: 'address' }),
+        xdr.ScVal.scvBytes(cleanHashBytes),
+        nativeToScVal(amountInCentavos, { type: 'i128' }),
+      ],
+    );
   }
 }

@@ -24,10 +24,7 @@ export class StellarWalletService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    if (
-      user.privyStellarWalletAddress &&
-      user.privyWalletStatus === 'ready'
-    ) {
+    if (user.privyStellarWalletAddress && user.privyWalletStatus === 'ready') {
       return { contractId: user.privyStellarWalletAddress };
     }
 
@@ -60,10 +57,7 @@ export class StellarWalletService {
     });
     if (!user) return null;
 
-    if (
-      user.privyStellarWalletAddress &&
-      user.privyWalletStatus === 'ready'
-    ) {
+    if (user.privyStellarWalletAddress && user.privyWalletStatus === 'ready') {
       return {
         contractId: user.privyStellarWalletAddress,
         passkeyId: null,

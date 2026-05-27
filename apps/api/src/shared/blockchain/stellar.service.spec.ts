@@ -12,7 +12,7 @@ describe('StellarService', () => {
     process.env = {
       ...originalEnv,
       STELLAR_RPC_URL: 'http://localhost:8000/soroban/rpc',
-      STELLAR_CONTRACT_ID:
+      STELLAR_NFE_CONTRACT_ID:
         'CDIMUPT2SBPGBR5DHFVQ3HK74DHL4TMVCQIXINJYV2SRHXRYUYQRBVC7',
       STELLAR_SECRET_KEY: Keypair.random().secret(),
     };

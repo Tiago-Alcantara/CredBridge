@@ -17,6 +17,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { SetRoleDto } from './dto/set-role.dto';
 import { PrivyAuthService } from './privy-auth.service';
+import { StellarService } from '../../shared/blockchain/stellar.service';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly privyAuth: PrivyAuthService,
+    private readonly stellarService: StellarService,
   ) {
     this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
     this.googleClient = new OAuth2Client(this.googleClientId);
@@ -117,15 +119,9 @@ export class AuthService {
           });
         }
       } else {
-        user = await this.prisma.user.create({
-          data: {
-            email,
-            googleId,
-            provider: 'google',
-            name,
-            role: null,
-          },
-        });
+        throw new UnauthorizedException(
+          'Seu e-mail não está cadastrado na plataforma. Por favor, entre em contato com o administrador.',
+        );
       }
     }
 
@@ -156,6 +152,8 @@ export class AuthService {
       where: { privyUserId: identity.privyUserId },
     });
 
+    let currentWalletAddress = user?.privyStellarWalletAddress ?? null;
+
     if (user) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -167,18 +165,36 @@ export class AuthService {
       });
 
       if (existingEmailUser) {
+        currentWalletAddress = existingEmailUser.privyStellarWalletAddress ?? null;
         user = await this.prisma.user.update({
           where: { id: existingEmailUser.id },
           data: privyUserData,
         });
       } else {
-        user = await this.prisma.user.create({
-          data: {
-            email: identity.email,
-            ...privyUserData,
-            role: null,
-          },
-        });
+        console.error(
+          `AUTH 401: Email ${identity.email} is not in the platform whitelist.`,
+        );
+        throw new UnauthorizedException(
+          'Seu e-mail não está cadastrado na plataforma. Por favor, entre em contato com o administrador.',
+        );
+      }
+    }
+
+    // Automatically fund the Privy Stellar Wallet on Testnet if it is newly registered
+    if (!currentWalletAddress && identity.stellarWalletAddress) {
+      const isMainnet = process.env.STELLAR_NETWORK === 'mainnet';
+      if (!isMainnet) {
+        const walletAddress = identity.stellarWalletAddress;
+        this.logger.log(`New Privy Stellar wallet registered on Testnet: ${walletAddress}. Funding via platform wallet in the background...`);
+        this.stellarService.fundAccountFromPlatform(walletAddress, '5.0')
+          .then((txHash) => {
+            if (txHash) {
+              this.logger.log(`Successfully funded Privy wallet ${walletAddress} via platform wallet: ${txHash}`);
+            }
+          })
+          .catch((err) => {
+            this.logger.error(`Error funding Privy wallet ${walletAddress} via platform wallet:`, err);
+          });
       }
     }
 

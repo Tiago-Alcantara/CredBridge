@@ -1,7 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
+import * as dotenv from 'dotenv';
 
-const prisma = new PrismaClient();
+dotenv.config();
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 // Fictional Brazilian SME — Tecelagem Ribeiro Indústria Ltda.
 // Sacados (debtors) are large Brazilian retailers (publicly known CNPJs)
@@ -45,20 +52,20 @@ async function main() {
   const hash = await bcrypt.hash('demo@1234', 10);
 
   const pme = await prisma.user.upsert({
-    where: { email: 'luciana@tecelagemribeiro.com.br' },
-    update: {},
+    where: { email: 'victorbcbrbc@gmail.com' },
+    update: { role: 'pme' },
     create: {
-      email: 'luciana@tecelagemribeiro.com.br',
+      email: 'victorbcbrbc@gmail.com',
       passwordHash: hash,
       role: 'pme',
     },
   });
 
   await prisma.user.upsert({
-    where: { email: 'gabriel@capitalventures.com.br' },
-    update: {},
+    where: { email: 'victorh.barros011@gmail.com' },
+    update: { role: 'investor' },
     create: {
-      email: 'gabriel@capitalventures.com.br',
+      email: 'victorh.barros011@gmail.com',
       passwordHash: hash,
       role: 'investor',
     },
@@ -71,6 +78,16 @@ async function main() {
       email: 'api@fintechpartner.io',
       passwordHash: hash,
       role: 'partner',
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'victorh.vbarros@gmail.com' },
+    update: { role: 'operator' },
+    create: {
+      email: 'victorh.vbarros@gmail.com',
+      passwordHash: hash,
+      role: 'operator',
     },
   });
 
@@ -272,9 +289,10 @@ async function main() {
   console.log(`✓  ${auditEntries.length} entradas de auditoria`);
 
   console.log('\n✅  Seed concluído!');
-  console.log('   PME login: luciana@tecelagemribeiro.com.br / demo@1234');
-  console.log('   Investor:  gabriel@capitalventures.com.br / demo@1234');
+  console.log('   PME login: victorbcbrbc@gmail.com / demo@1234');
+  console.log('   Investor:  victorh.barros011@gmail.com / demo@1234');
   console.log('   Partner:   api@fintechpartner.io / demo@1234');
+  console.log('   Operator:  victorh.vbarros@gmail.com / demo@1234');
 }
 
 main()

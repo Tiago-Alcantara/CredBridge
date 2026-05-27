@@ -45,6 +45,39 @@
                     "storage": [
                       {
                         "key": {
+                          "symbol": "METADATA"
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "decimals"
+                              },
+                              "val": {
+                                "u32": 7
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "name"
+                              },
+                              "val": {
+                                "string": "Brazilian Real Token"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "symbol"
+                              },
+                              "val": {
+                                "string": "BRLT"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
                           "vec": [
                             {
                               "symbol": "Admin"
@@ -59,48 +92,12 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "Decimals"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "u32": 7
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
                               "symbol": "Initialized"
                             }
                           ]
                         },
                         "val": {
                           "bool": true
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Name"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "string": "Brazilian Real Token"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Symbol"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "string": "BRLT"
                         }
                       }
                     ]
@@ -110,7 +107,7 @@
             },
             "ext": "v0"
           },
-          518400
+          4095
         ]
       ],
       [
@@ -131,7 +128,7 @@
             },
             "ext": "v0"
           },
-          518400
+          4095
         ]
       ]
     ]

@@ -1,14 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { LoginBG } from "@/components/auth/LoginBG";
 import { PrivyLoginPanel } from "@/components/auth/PrivyLoginPanel";
 import { Icon } from "@/components/primitives/Icon";
 import { Logo } from "@/components/primitives/Logo";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   return (
     <div
       style={{
@@ -17,6 +14,7 @@ export default function LoginPage() {
         gridTemplateColumns: "1.1fr 1fr",
       }}
     >
+      {/* Coluna Esquerda - Imagem e Conceito */}
       <div
         style={{
           position: "relative",
@@ -70,24 +68,22 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {/* Coluna Direita - Login com Privy para PME */}
       <div
         style={{
           padding: "40px 48px",
           display: "flex",
           flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
           overflow: "auto",
         }}
       >
-        <div className="row between">
-          <span className="t-3" style={{ fontSize: 13 }}>
-            Login e carteira protegidos pela Privy
-          </span>
-          <button className="btn btn-ghost btn-sm" onClick={() => router.push("/")}>
-            Voltar
-          </button>
+        <div style={{ width: "100%", maxWidth: 440 }}>
+          <PrivyLoginPanel targetRole="pme" />
         </div>
-        <PrivyLoginPanel />
       </div>
     </div>
   );
 }
+

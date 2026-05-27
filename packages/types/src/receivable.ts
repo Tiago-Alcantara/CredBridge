@@ -5,7 +5,8 @@ export type ReceivableStatus =
   | 'assignment_pending'
   | 'active'
   | 'settled'
-  | 'defaulted';
+  | 'defaulted'
+  | 'rejected';
 export type ReceivableType = 'invoice' | 'duplicate' | 'contract';
 
 export interface Receivable {
