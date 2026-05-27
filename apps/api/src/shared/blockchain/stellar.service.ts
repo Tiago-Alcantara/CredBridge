@@ -153,6 +153,109 @@ export class StellarService implements BlockchainService {
     return transferHash;
   }
 
+  async prepareAssignment(
+    receivableKey: string,
+    pmeAddress: string,
+  ): Promise<{ unsignedXdr: string; hashToSign: string }> {
+    this.logger.log(`Preparing assignment transaction for PME: ${pmeAddress}`);
+    const { server, platformKeypair, contractId } =
+      this.requireContractConfig();
+    const platformAddress = platformKeypair.publicKey();
+
+    const contract = new Contract(contractId);
+    
+    // Carrega a conta do PME (como sourceAccount da inner transaction)
+    const pmeAccount = await this.horizon.loadAccount(pmeAddress);
+
+    // Constrói a transação Soroban interna
+    const operation = contract.call(
+      'transfer_ownership',
+      nativeToScVal(receivableKey, { type: 'string' }),
+      nativeToScVal(platformAddress, { type: 'address' }),
+    );
+
+    const tx = new TransactionBuilder(pmeAccount, {
+      fee: '100000', // Taxa básica simbólica para a transação interna
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(operation)
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    // Simula a transação para carregar os recursos exatos do Soroban
+    const simResult = await server.simulateTransaction(tx);
+    if (!rpc.Api.isSimulationSuccess(simResult)) {
+      throw new Error(
+        `Soroban simulation failed for prepareAssignment: ${JSON.stringify(simResult)}`,
+      );
+    }
+
+    // Monta a transação com os parâmetros corretos da simulação
+    const assembledTx = rpc.assembleTransaction(tx, simResult).build();
+
+    // Calcula o hash exato da transação a ser assinado
+    const hashToSign = assembledTx.hash().toString('hex');
+
+    // Retorna a transação em base64 (XDR não assinado) e seu hash
+    return {
+      unsignedXdr: assembledTx.toXDR(),
+      hashToSign,
+    };
+  }
+
+  async submitSignedAssignment(
+    unsignedXdr: string,
+    signatureHex: string,
+    pmeAddress: string,
+  ): Promise<string> {
+    this.logger.log(`Submitting signed assignment transaction via Fee Bump`);
+    const { server, platformKeypair } = this.requireContractConfig();
+
+    // Decodifica a transação interna que já foi assinada pelo Privy do PME
+    const innerTx = TransactionBuilder.fromXDR(
+      unsignedXdr,
+      NETWORK_PASSPHRASE,
+    ) as any;
+
+    // Decodifica a assinatura em formato hex do Privy e a aplica de forma segura
+    const cleanSignature = signatureHex.replace(/^0x/, '');
+    let signatureBuffer = Buffer.from(cleanSignature, 'hex');
+
+    // Se a assinatura possuir bytes adicionais de recuperação (ex: 65 bytes da Privy/EVM),
+    // truncamos para obter exatamente a assinatura ED25519 pura de 64 bytes.
+    if (signatureBuffer.length > 64) {
+      signatureBuffer = signatureBuffer.subarray(0, 64);
+    }
+
+    // Adiciona a assinatura decodificada formatada em Base64 na transação interna
+    innerTx.addSignature(pmeAddress, signatureBuffer.toString('base64'));
+
+    // Constrói a transação Fee Bump patrocinada pela plataforma
+    const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+      platformKeypair,
+      BASE_FEE,
+      innerTx,
+      NETWORK_PASSPHRASE,
+    );
+
+    // Assina a transação Fee Bump externa com a chave privada da plataforma
+    feeBumpTx.sign(platformKeypair);
+
+    // Submete à Stellar RPC
+    const sendResult = await server.sendTransaction(feeBumpTx as any);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(
+        `Stellar RPC rejected Fee Bump assignment: ${JSON.stringify(sendResult.errorResult)}`,
+      );
+    }
+
+    // Aguarda confirmação no ledger
+    await this.waitForConfirmation(sendResult.hash, server);
+    this.logger.log(`Assignment transaction confirmed on-chain — txHash: ${sendResult.hash}`);
+
+    return sendResult.hash;
+  }
+
   async payPme(data: PayPmeInput): Promise<string> {
     const { platformKeypair } = this.requireContractConfig();
 
@@ -565,27 +668,72 @@ export class StellarService implements BlockchainService {
     );
 
     const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
-    if (!poolContractId || !this.server || !this.platformKeypair) {
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!poolContractId || !brltContractId || !this.server || !this.platformKeypair) {
       this.logger.warn(
-        'STELLAR_POOL_CONTRACT_ID or credentials not configured — returning mock tx hash',
+        'STELLAR_POOL_CONTRACT_ID, BRLT or credentials not configured — returning mock tx hash',
       );
       return `stellar-mock-pool-deposit-${Date.now()}`;
     }
 
-    const { publicKey: investorAddress } =
+    const { publicKey: investorAddress, keypair: investorKeypair } =
       await this.ensureCustodialWalletForUser(investorUserId);
-    const amountInCentavos = BigInt(Math.round(amountBrl * 100));
 
-    return this.invokeContract(
+    if (!investorKeypair) {
+      throw new Error(`Custodial keypair for investor ${investorUserId} not available to sign transaction`);
+    }
+
+    // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    // Passo 1: Mint de BRLT da plataforma para a carteira do Investidor
+    this.logger.log(`Step 1: Minting ${amountBrl} BRLT to investor ${investorAddress}...`);
+    await this.invokeContract(
       this.server,
       this.platformKeypair,
+      brltContractId,
+      'mint',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+
+    // Obter ledger atual para expiração do approve
+    const latestLedgers = await this.horizon.ledgers().order('desc').limit(1).call();
+    const currentLedger = latestLedgers.records[0]?.sequence ?? 3000000;
+    const liveUntilLedger = currentLedger + 100000;
+
+    // Passo 2: Approve do Investidor para a Pool gastar o BRLT dele
+    this.logger.log(`Step 2: Approving Pool to spend ${amountBrl} BRLT from investor...`);
+    await this.invokeContract(
+      this.server,
+      investorKeypair, // <-- Assinado pelo investidor
+      brltContractId,
+      'approve',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(poolContractId, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+        nativeToScVal(liveUntilLedger, { type: 'u32' }),
+      ],
+    );
+
+    // Passo 3: Deposit do Investidor na Pool
+    this.logger.log(`Step 3: Depositing ${amountBrl} BRLT from investor to Pool...`);
+    const txHash = await this.invokeContract(
+      this.server,
+      investorKeypair, // <-- Assinado pelo investidor
       poolContractId,
       'deposit',
       [
         nativeToScVal(investorAddress, { type: 'address' }),
-        nativeToScVal(amountInCentavos, { type: 'i128' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
       ],
     );
+
+    this.logger.log(`Deposit sequence completed successfully — txHash: ${txHash}`);
+    return txHash;
   }
 
   async withdrawFromPool(
@@ -604,18 +752,24 @@ export class StellarService implements BlockchainService {
       return `stellar-mock-pool-withdraw-${Date.now()}`;
     }
 
-    const { publicKey: investorAddress } =
+    const { publicKey: investorAddress, keypair: investorKeypair } =
       await this.ensureCustodialWalletForUser(investorUserId);
-    const sharesInCentavos = BigInt(Math.round(shareAmount * 100));
+
+    if (!investorKeypair) {
+      throw new Error(`Custodial keypair for investor ${investorUserId} not available to sign transaction`);
+    }
+
+    // A precisão padrão das cotas é de 7 casas decimais
+    const sharesInStroops = BigInt(Math.round(shareAmount * 10_000_000));
 
     return this.invokeContract(
       this.server,
-      this.platformKeypair,
+      investorKeypair, // <-- Assinado pelo investidor
       poolContractId,
       'withdraw',
       [
         nativeToScVal(investorAddress, { type: 'address' }),
-        nativeToScVal(sharesInCentavos, { type: 'i128' }),
+        nativeToScVal(sharesInStroops, { type: 'i128' }),
       ],
     );
   }
@@ -636,7 +790,8 @@ export class StellarService implements BlockchainService {
       return `stellar-mock-pool-settlement-${Date.now()}`;
     }
 
-    const amountInCentavos = BigInt(Math.round(advanceAmountBrl * 100));
+    // A precisão padrão do BRLT é de 7 casas decimais
+    const amountInStroops = BigInt(Math.round(advanceAmountBrl * 10_000_000));
     const cleanHashBytes = this.toBytes32(invoiceHash);
 
     return this.invokeContract(
@@ -647,7 +802,45 @@ export class StellarService implements BlockchainService {
       [
         nativeToScVal(this.platformKeypair.publicKey(), { type: 'address' }),
         xdr.ScVal.scvBytes(cleanHashBytes),
-        nativeToScVal(amountInCentavos, { type: 'i128' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+  }
+
+  async buyTokenizedInvoiceInPool(data: {
+    sellerAddress: string;
+    invoiceKey: string;
+    xmlHash: string;
+    value: number;
+  }): Promise<string> {
+    this.logger.log(`buyTokenizedInvoiceInPool — key: ${data.invoiceKey}, seller: ${data.sellerAddress}`);
+    const { server, platformKeypair } = this.requireContractConfig();
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
+    const valueInStroops = BigInt(Math.round(data.value * 10_000_000));
+    const cleanHashBytes = this.toBytes32(data.xmlHash);
+    const platformAddress = platformKeypair.publicKey();
+
+    // Data futura simbólica de maturidade para fins de simulação de pool (Unix timestamp 1800000000 = ~2027)
+    const maturityTimestamp = BigInt(1800000000);
+
+    return this.invokeContract(
+      server,
+      platformKeypair,
+      poolContractId,
+      'buy_tokenized_invoice',
+      [
+        nativeToScVal(platformAddress, { type: 'address' }), // operator
+        nativeToScVal(data.sellerAddress, { type: 'address' }), // seller (PME)
+        xdr.ScVal.scvBytes(cleanHashBytes), // invoice_hash
+        nativeToScVal(valueInStroops, { type: 'i128' }), // face_value
+        nativeToScVal(valueInStroops, { type: 'i128' }), // advance_amount (mesmo valor ou proporção)
+        nativeToScVal(100n, { type: 'i128' }), // rate_bps (ex: 1% diário, simbólico)
+        nativeToScVal(maturityTimestamp, { type: 'u64' }), // maturity_timestamp
       ],
     );
   }

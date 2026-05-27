@@ -93,3 +93,34 @@ export function useAssignReceivable() {
     },
   });
 }
+
+export function usePrepareAssignment() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{
+        unsignedXdr: string;
+        hashToSign: string;
+        pmeAddress: string;
+        receivable: Receivable;
+      }>(`/receivables/${id}/prepare-assignment`, { method: "POST" }),
+  });
+}
+
+export function useSubmitAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; unsignedXdr: string; signatureHex: string }) =>
+      apiFetch<Receivable>(`/receivables/${input.id}/submit-assignment`, {
+        method: "POST",
+        body: {
+          unsignedXdr: input.unsignedXdr,
+          signatureHex: input.signatureHex,
+        },
+      }),
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.me });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.byEntity(input.id) });
+    },
+  });
+}

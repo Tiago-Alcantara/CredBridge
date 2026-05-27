@@ -102,4 +102,11 @@ export class ReceivablesRepository {
       poolCount: active + validated,
     };
   }
+
+  async findUserStellarWallet(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { privyStellarWalletAddress: true },
+    });
+  }
 }

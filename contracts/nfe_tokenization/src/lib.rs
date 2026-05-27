@@ -399,16 +399,7 @@ impl CredBridgeContract {
     // -----------------------------------------------------------------------
     // Transfer ownership — model custodial controlled by platform
     // -----------------------------------------------------------------------
-    pub fn transfer_ownership(env: Env, key: String, new_owner: Address, platform_auth: Address) {
-        let platform: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Platform)
-            .unwrap_or_else(|| panic_with_error!(&env, Error::Unauthorized));
-        platform_auth.require_auth();
-        if platform_auth != platform {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
+    pub fn transfer_ownership(env: Env, key: String, new_owner: Address) {
 
         let storage_key = DataKey::Nfe(key.clone());
         let mut nfe_data: NfeData = env

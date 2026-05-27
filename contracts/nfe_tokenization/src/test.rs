@@ -114,7 +114,7 @@ fn test_transfer_ownership() {
     let nfe_before = client.get_nfe(&key);
 
     let new_owner = Address::generate(&env);
-    client.transfer_ownership(&key, &new_owner, &platform);
+    client.transfer_ownership(&key, &new_owner);
 
     // Verificar atualização do storage
     let nfe_after = client.get_nfe(&key);

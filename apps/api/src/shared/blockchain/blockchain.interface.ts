@@ -23,6 +23,13 @@ export interface ChargeInvestorInput {
   memo: string;
 }
 
+export interface BuyTokenizedInvoiceInput {
+  sellerAddress: string;
+  invoiceKey: string;
+  xmlHash: string;
+  value: number;
+}
+
 export interface BlockchainService {
   registerProof(hash: string): Promise<string>;
   tokenizeNfe(data: TokenizeNfeInput): Promise<string>;
@@ -43,6 +50,16 @@ export interface BlockchainService {
     destination: string,
     startingBalance?: string,
   ): Promise<string | null>;
+  prepareAssignment(
+    receivableKey: string,
+    pmeAddress: string,
+  ): Promise<{ unsignedXdr: string; hashToSign: string }>;
+  submitSignedAssignment(
+    unsignedXdr: string,
+    signatureHex: string,
+    pmeAddress: string,
+  ): Promise<string>;
+  buyTokenizedInvoiceInPool(data: BuyTokenizedInvoiceInput): Promise<string>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');
