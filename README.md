@@ -2,128 +2,45 @@
 
 # CredBridge
 
-Plataforma de tokenização de recebíveis que conecta PMEs que precisam de crédito com investidores. As empresas submetem seus recebíveis (notas fiscais, duplicatas, contratos), investidores financiam essas operações, e as liquidações acontecem via PIX, TED ou blockchain Stellar. Todo o fluxo é auditado on-chain.
-
-A plataforma possui três perfis de usuário: **PME**, **Investidor** e **Parceiro**.
-
----
+CredBridge e uma plataforma de tokenizacao de recebiveis para PMEs, investidores e parceiros. O produto hoje prioriza NF-e no fluxo operacional, com autenticacao Privy, API NestJS, dashboard Next.js e trilha on-chain via Stellar/Soroban.
 
 ## Arquitetura
 
-Monorepo gerenciado por **npm workspaces** com três pacotes:
+Monorepo gerenciado por **npm workspaces**:
 
-| Pacote | Caminho | Descrição |
+| Workspace | Caminho | Responsabilidade |
 |---|---|---|
-| `@credbridge/web` | `apps/web` | Frontend Next.js 16 (App Router) — dashboards, landing, auth |
-| `@credbridge/api` | `apps/api` | Backend NestJS 10 modular monolith — domínio, persistência, integrações |
-| `@credbridge/types` | `packages/types` | Tipos TypeScript compartilhados entre frontend e backend |
+| `@credbridge/web` | `apps/web` | Frontend Next.js 16, App Router, dashboards, landing, auth e UX de wallet |
+| `@credbridge/api` | `apps/api` | Backend NestJS 11 modular monolith, Prisma, auth, dominio e integracoes |
+| `@credbridge/types` | `packages/types` | Tipos TypeScript compartilhados entre web e API |
+| `@credbridge/anchor-client` | `packages/anchor-client` | Cliente Stellar Anchor/Etherfuse, SEP-10, SEP-24 e SEP-38 |
 
-```
+Tambem existe `contracts/`, um crate Rust/Soroban para o contrato de NF-e tokenizada. Ele nao e workspace npm.
+
+```text
 CredBridge/
-├── .env.example                          # variáveis de ambiente compartilhadas (template)
-├── .gitignore
-├── package.json                          # raiz do monorepo (npm workspaces + scripts)
-├── package-lock.json                     # lockfile único do monorepo
-├── README.md
-├── AGENTS.md                             # instruções para agentes (LLMs) que tocarem o repo
-├── CLAUDE.md                             # instruções específicas para o Claude Code
-├── docs/                                 # planos de implementação e docs de processo
-│   └── superpowers/plans/                # planos versionados (formato superpowers)
-├── documentacao/                         # documentação de produto (PT-BR)
-│   ├── estrutura.md
-│   ├── nota-fiscal-blockchain-flow.png
-│   └── Preference - Coding Style.md
-│
 ├── apps/
-│   │
-│   ├── web/                              # @credbridge/web — Next.js 16 frontend
-│   │   ├── package.json                  # name: @credbridge/web
-│   │   ├── next.config.ts
-│   │   ├── tsconfig.json
-│   │   ├── postcss.config.mjs            # config PostCSS para Tailwind v4
-│   │   ├── eslint.config.mjs
-│   │   ├── .env.local.example            # template de envs do frontend (NEXT_PUBLIC_*)
-│   │   ├── public/                       # assets estáticos servidos como /
-│   │   ├── styles/
-│   │   │   └── tokens.css                # design tokens (fonte da verdade visual)
-│   │   └── src/
-│   │       ├── app/                      # App Router do Next 16
-│   │       │   ├── layout.tsx            # root layout
-│   │       │   ├── globals.css
-│   │       │   ├── favicon.ico
-│   │       │   ├── (marketing)/          # rota agrupada — landing pública
-│   │       │   │   └── page.tsx
-│   │       │   ├── (auth)/               # rota agrupada — login + onboarding
-│   │       │   │   ├── layout.tsx
-│   │       │   │   ├── login/page.tsx
-│   │       │   │   └── onboarding/page.tsx
-│   │       │   ├── (pme)/                # rota agrupada — dashboard PME
-│   │       │   │   ├── layout.tsx
-│   │       │   │   └── pme/dashboard/page.tsx
-│   │       │   ├── (investor)/           # rota agrupada — dashboard Investidor
-│   │       │   │   ├── layout.tsx
-│   │       │   │   └── investor/dashboard/page.tsx
-│   │       │   └── (partner)/            # rota agrupada — dashboard Parceiro
-│   │       │       ├── layout.tsx
-│   │       │       └── partner/dashboard/page.tsx
-│   │       ├── components/
-│   │       │   ├── primitives/           # átomos reutilizáveis (Icon, Logo, StatusBadge)
-│   │       │   ├── patterns/             # padrões compostos (Sidebar, TopNav, AppTopBar, Timeline, MiniKpi)
-│   │       │   ├── auth/                 # KycFlow, LoginBG, StellarAuth
-│   │       │   ├── marketing/            # HeroNetwork, Audiences, HowItWorks, StatsBar, LandingFooter
-│   │       │   ├── pme/                  # InvoiceTable, PipelineCard, PipelineCol, UploadZone, YieldSpark
-│   │       │   ├── investor/             # NavChart, ShareCard
-│   │       │   └── partner/              # TrafficChart
-│   │       ├── hooks/                    # hooks reutilizáveis (useTheme, etc.)
-│   │       ├── lib/
-│   │       │   ├── api/                  # clientes HTTP por domínio (receivables, documents, settlements, audit)
-│   │       │   ├── i18n/                 # traduções PT/EN + useTranslation
-│   │       │   ├── validations/          # schemas Zod por domínio
-│   │       │   └── format.ts             # helpers de formatação (moeda, datas)
-│   │       ├── providers/                # QueryProvider (TanStack Query)
-│   │       └── types/
-│   │           ├── index.ts              # tipos locais do frontend
-│   │           └── shared.ts             # re-export dos tipos do @credbridge/types
-│   │
-│   └── api/                              # @credbridge/api — NestJS 10 backend
-│       ├── package.json                  # name: @credbridge/api (postinstall: prisma generate)
-│       ├── nest-cli.json
-│       ├── tsconfig.json
-│       ├── tsconfig.build.json
-│       ├── eslint.config.mjs
-│       ├── prisma.config.ts              # config Prisma 7 (datasource, migrations path)
-│       ├── prisma/
-│       │   └── schema.prisma             # modelos: Receivable, Document, Settlement, AuditLog
-│       ├── test/                         # testes e2e (Jest)
+│   ├── web/                  # Next.js 16 + React 19 + Tailwind v4
+│   │   ├── src/app/          # App Router: marketing, auth, PME, investor, partner, auditoria
+│   │   ├── src/components/   # primitives, patterns, auth, pme, investor, partner, anchor
+│   │   ├── src/lib/          # API clients, i18n, validations, wallet, financial actions
+│   │   ├── src/providers/    # Query, Toast, Privy e Google auth providers
+│   │   └── styles/tokens.css # fonte da verdade visual
+│   └── api/                  # NestJS 11 + Prisma 7
+│       ├── prisma/           # schema, migrations e seed
 │       └── src/
-│           ├── main.ts                   # bootstrap, setGlobalPrefix('v1'), porta 3001
-│           ├── app.module.ts             # raiz: importa ConfigModule + todos módulos shared/business
-│           ├── shared/                   # serviços globais (DI por token Symbol)
-│           │   ├── prisma/               # PrismaService + PrismaModule (Prisma 7 + adapter pg)
-│           │   ├── blockchain/           # interface + StellarService stub + BlockchainModule
-│           │   ├── storage/              # interface + S3Service stub + StorageModule
-│           │   ├── kyc/                  # interface + KycProviderService stub + KycModule
-│           │   └── payments/             # interface + PixService stub + PaymentsModule
-│           └── modules/                  # business modules (controller → service → repository)
-│               ├── receivables/          # CRUD básico + DTO (CreateReceivableDto)
-│               ├── documents/            # registro metadado + DTO (CreateDocumentDto)
-│               ├── settlements/          # CRUD básico + DTO (CreateSettlementDto)
-│               ├── audit/                # AuditService polimórfico (entityType/entityId)
-│               └── auth/                 # SEP-10 stellar challenge/verify (stub)
-│
-└── packages/
-    └── types/                            # @credbridge/types — tipos compartilhados
-        ├── package.json                  # name: @credbridge/types (build → dist)
-        ├── tsconfig.json
-        └── src/
-            ├── receivable.ts             # Receivable, ReceivableStatus, ReceivableType, CreateReceivableInput
-            ├── settlement.ts             # Settlement, SettlementStatus, SettlementMethod, CreateSettlementInput
-            ├── investor.ts               # Investor
-            ├── document.ts               # Document, DocumentType, UploadDocumentInput
-            └── index.ts                  # barrel: re-exporta tudo
+│           ├── modules/      # auth, receivables, documents, settlements, audit, investments, anchor, wallet
+│           ├── shared/       # prisma, blockchain, storage, kyc, payments
+│           └── common/       # filtros e infraestrutura HTTP
+├── packages/
+│   ├── types/                # tipos compartilhados de dominio
+│   └── anchor-client/        # cliente Etherfuse/Stellar Anchor
+├── contracts/                # contrato Soroban de NF-e
+├── docs/                     # design system, status, specs e planos
+├── documentacao/             # docs operacionais em PT-BR
+├── docker-compose.yml        # Postgres local
+└── package.json              # scripts raiz e workspaces
 ```
-
----
 
 ## Tecnologias
 
@@ -131,178 +48,195 @@ CredBridge/
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | Next.js 16 (App Router, Turbopack) |
-| Linguagem | TypeScript 5 |
-| UI | React 19 + Tailwind CSS v4 |
-| Formulários | React Hook Form + Zod |
+| Framework | Next.js 16 App Router |
+| Build | `next build --webpack` no build de producao atual |
+| UI | React 19, Tailwind CSS v4, CSS tokens em `apps/web/styles/tokens.css` |
+| Auth | Privy, Google OAuth direto legado, JWT interno CredBridge |
 | Data fetching | TanStack Query v5 |
+| Form/validacao | React Hook Form, Zod |
+| Testes | Vitest + Testing Library |
 
 ### Backend (`apps/api`)
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | NestJS 10 (modular monolith) |
-| Linguagem | TypeScript 5 |
-| ORM | Prisma 7 + adapter `@prisma/adapter-pg` |
+| Framework | NestJS 11 modular monolith |
+| ORM | Prisma 7 + `@prisma/adapter-pg` |
 | Banco | PostgreSQL |
-| Config | `@nestjs/config` (global) |
-| Blockchain | Stellar (SEP-10 auth + liquidação on-chain) |
-| Storage | AWS S3 (interface; impl pendente) |
-| Pagamentos | PIX/TED (interface; impl pendente) |
-| KYC | Provider externo (interface; impl pendente) |
+| Auth | Privy server-side, JWT interno, login/senha legado, Google direto legado, SEP-10 legado |
+| Blockchain | Stellar SDK, Soroban RPC, contrato de NF-e, TESOURO via Etherfuse |
+| Protecao HTTP | Helmet, CORS, ValidationPipe, Throttler global |
+| Testes | Jest |
 
-### Padrões arquiteturais do backend
+### Blockchain e Anchor
 
-- **Modular monolith**: cada domínio em `src/modules/*` com `controller → service → repository`.
-- **Shared services** em `src/shared/*` expostos via `@Global()` e injetados por **token** (`Symbol`) — desacopla consumidores das implementações concretas.
-- **DTOs class-based** em cada módulo (necessário para `emitDecoratorMetadata` do NestJS); reutilizam `union types` de `@credbridge/types`.
-- **AuditLog polimórfico**: `entityType`/`entityId` em vez de FKs — único log para qualquer entidade.
+- `contracts/` contem o contrato Soroban `nfe-contract`.
+- `apps/api/src/shared/blockchain/stellar.service.ts` executa tokenizacao Soroban quando `STELLAR_RPC_URL`, `STELLAR_SECRET_KEY` e `STELLAR_CONTRACT_ID` estao configuradas.
+- `packages/anchor-client` e `apps/api/src/modules/anchor` concentram on/off-ramp BRL/TESOURO via Etherfuse. Brasil/PIX segue tratado como sandbox.
 
----
+## Como rodar localmente
 
-## Pré-requisitos
-
-- [Node.js](https://nodejs.org) v18 ou superior
-- npm v9 ou superior
-- [Docker](https://docs.docker.com/get-docker/) + Docker Compose — para subir o PostgreSQL localmente (recomendado)
-  - Alternativa: PostgreSQL 14+ instalado e rodando na máquina
-
----
-
-## Como rodar
-
-### 1. Clonar e instalar dependências
+### 1. Instalar dependencias
 
 ```bash
-git clone <repo-url>
-cd CredBridge
 npm install
 ```
 
-### 2. Configurar variáveis de ambiente
+### 2. Configurar envs
 
 ```bash
-cp .env.example .env
+cp .env.example apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-Os valores padrão do `.env` já funcionam com o banco Docker abaixo — não é necessário editar nada para rodar localmente.
+Preencha pelo menos Privy para testar o fluxo principal de login:
 
-### 3. Subir o banco de dados
+```env
+PRIVY_APP_ID=
+PRIVY_APP_SECRET=
+NEXT_PUBLIC_PRIVY_APP_ID=
+NEXT_PUBLIC_PRIVY_CLIENT_ID=
+```
 
-**Com Docker (recomendado):**
+### 3. Subir Postgres
 
 ```bash
 docker compose up -d
 ```
 
-Isso sobe um PostgreSQL 16 na porta `5432` com usuário `credbridge`, senha `credbridge` e banco `credbridge` — exatamente o que está no `.env.example`.
+O banco local usa Postgres 16 na porta `5432`, com usuario, senha e database `credbridge`.
 
-**Sem Docker:** certifique-se de ter um PostgreSQL rodando e ajuste `DATABASE_URL` no `.env`.
-
-### 4. Build dos tipos compartilhados e migração
+### 4. Aplicar migrations e seed opcional
 
 ```bash
 npm run build:types
-
-cd apps/api
-npx prisma migrate dev --name init
-cd ../..
+npm exec -w apps/api -- prisma migrate deploy --schema prisma/schema.prisma
+npm run seed
 ```
 
-### 5. Rodar em modo desenvolvimento
+### 5. Rodar web + API
 
 ```bash
 npm run dev
 ```
 
-Após o `npm run dev`:
-- Frontend: [http://localhost:3000](http://localhost:3000)
-- API: [http://localhost:3001/v1](http://localhost:3001/v1)
+- Web: `http://localhost:3000`
+- API: `http://localhost:3001/v1`
+- Health: `http://localhost:3001/v1/health/ping`
 
-> O banco sobe vazio. Crie usuários via `POST /v1/auth/register` ou use a tela de login/onboarding.
+## Scripts
 
----
-
-## Scripts disponíveis (raiz)
+### Raiz
 
 ```bash
-npm run dev          # roda web + api em paralelo (concurrently)
-npm run dev:web      # apenas frontend (Next.js em :3000)
-npm run dev:api      # apenas backend (NestJS em :3001)
-npm run build:types  # builda packages/types → dist/
-npm run build:web    # builda types + apps/web (usado pelo deploy Vercel)
-npm run build:api    # builda types + apps/api (prisma generate + nest build)
-npm run build        # alias de build:web (escopo do deploy Vercel)
-npm run lint         # lint em web + api
+npm run dev          # web + api em paralelo
+npm run dev:web      # apenas Next.js
+npm run dev:api      # apenas NestJS
+npm run build:types  # build de packages/types
+npm run build:web    # types + web
+npm run build:api    # types + api
+npm run build        # alias para build:web, usado pela Vercel
+npm run lint         # lint web + api
+npm run seed         # seed Prisma da API
 ```
 
-> **Por que `build` é só web?** O deploy Vercel roda `npm run build` na raiz. NestJS não roda em ambiente Vercel — o backend deve ir para Railway/Fly/Render. Para buildar a API local ou em CI próprio, use `npm run build:api`.
-
-### Scripts por workspace
+### Workspaces
 
 ```bash
-# Frontend (apps/web)
-npm run build -w apps/web    # next build
-npm run start -w apps/web    # next start (build de produção)
-npm run lint -w apps/web
-
-# Backend (apps/api)
-npm run build -w apps/api    # prisma generate && nest build
-npm run start -w apps/api    # nest start
-npm run start:prod -w apps/api  # node dist/main (produção)
-npm run test -w apps/api     # jest
-npm run test:e2e -w apps/api # jest e2e
-
-# Tipos compartilhados (packages/types)
-npm run build -w packages/types  # tsc → dist/
-npm run dev -w packages/types    # tsc --watch
+npm run test -w apps/web
+npm run test -w apps/api
+npm run test:e2e -w apps/api
+npm run build -w packages/anchor-client
+npm run test -w packages/anchor-client
 ```
 
----
+## Rotas principais
 
-## Variáveis de ambiente
+Todas as rotas da API usam prefixo global `/v1`.
 
-A raiz documenta todas em `.env.example`. Categorias:
-
-- **Database**: `DATABASE_URL` (Postgres)
-- **Stellar**: `STELLAR_NETWORK`, `STELLAR_HORIZON_URL`, `STELLAR_SECRET_KEY`
-- **AWS S3**: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`
-- **KYC**: `KYC_PROVIDER_URL`, `KYC_API_KEY`
-- **Auth**: `JWT_SECRET`, `JWT_EXPIRES_IN`
-- **API**: `PORT` (default 3001)
-
-O frontend mantém `apps/web/.env.local.example` separado para variáveis públicas (`NEXT_PUBLIC_*`).
-
----
-
-## Endpoints da API (scaffold)
-
-Prefix global: `/v1`
-
-| Método | Rota | Módulo |
+| Metodo | Rota | Uso |
 |---|---|---|
-| `POST` | `/v1/receivables` | criar recebível |
-| `GET` | `/v1/receivables` | listar |
-| `GET` | `/v1/receivables/:id` | detalhe |
-| `POST` | `/v1/documents` | registrar metadados de documento |
-| `GET` | `/v1/documents/receivable/:receivableId` | docs por recebível |
-| `POST` | `/v1/settlements` | criar settlement |
-| `GET` | `/v1/settlements/receivable/:receivableId` | settlements por recebível |
-| `POST` | `/v1/auth/stellar/challenge` | gera challenge SEP-10 |
-| `POST` | `/v1/auth/stellar/verify` | verifica challenge e emite JWT |
+| `GET` | `/v1/health/ping` | health check |
+| `POST` | `/v1/auth/privy/session` | troca tokens Privy por JWT interno |
+| `GET` | `/v1/auth/me` | usuario autenticado |
+| `PATCH` | `/v1/auth/me` | atualiza perfil/KYC |
+| `PATCH` | `/v1/auth/me/role` | define perfil inicial |
+| `PATCH` | `/v1/auth/me/password` | altera senha quando aplicavel |
+| `POST` | `/v1/auth/register` | cadastro por senha legado |
+| `POST` | `/v1/auth/login` | login por senha legado |
+| `POST` | `/v1/auth/google` | Google direto legado |
+| `POST` | `/v1/auth/stellar/challenge` | SEP-10 legado |
+| `POST` | `/v1/auth/stellar/verify` | SEP-10 legado |
+| `GET` | `/v1/receivables` | recebiveis do usuario |
+| `POST` | `/v1/receivables` | cria recebivel |
+| `GET` | `/v1/receivables/pool` | pool para investidores |
+| `GET` | `/v1/receivables/pool/stats` | KPIs do pool |
+| `PATCH` | `/v1/receivables/:id/tokenize` | tokeniza NF-e |
+| `PATCH` | `/v1/receivables/:id/request-assignment` | solicita cessao |
+| `PATCH` | `/v1/receivables/:id/assign` | conclui cessao com autorizacao |
+| `POST` | `/v1/receivables/:receivableId/documents` | registra documento do recebivel |
+| `GET` | `/v1/receivables/:receivableId/documents` | lista documentos do recebivel |
+| `POST` | `/v1/settlements` | cria liquidacao |
+| `GET` | `/v1/settlements` | lista liquidacoes |
+| `GET` | `/v1/settlements/receivable/:receivableId` | liquidacoes por recebivel |
+| `GET` | `/v1/audit` | auditoria do usuario ou entidade |
+| `POST` | `/v1/investments` | compra de recebivel por investidor |
+| `GET` | `/v1/investments/me` | posicoes do investidor |
+| `GET` | `/v1/investments/me/stats` | KPIs do investidor |
+| `GET` | `/v1/wallet` | wallet Stellar Privy do usuario |
+| `POST` | `/v1/wallet/create` | legado; exige wallet Privy ja provisionada |
+| `POST` | `/v1/financial-authorizations/challenge` | cria desafio para assinatura Privy Stellar |
+| `POST` | `/v1/financial-authorizations/verify` | verifica assinatura Privy Stellar |
+| `GET` | `/v1/anchor/onboarding-status` | status KYC anchor |
+| `POST` | `/v1/anchor/onramp/quote` | cotacao BRL para TESOURO |
+| `POST` | `/v1/anchor/onramp/start` | inicia deposito interativo |
+| `POST` | `/v1/anchor/offramp/quote` | cotacao TESOURO para BRL |
+| `POST` | `/v1/anchor/offramp/start` | inicia saque interativo |
 
-> Os endpoints estão em estado de **stub**: persistem dados via Prisma mas não validam regra de negócio, não emitem eventos de auditoria, não chamam SDKs reais. Implementação por módulo nos próximos planos.
+## Auth atual
 
----
+O fluxo principal e Privy:
 
-## Próximos passos (fora do escopo do scaffold)
+1. O frontend autentica por Privy e provisiona embedded wallet Stellar quando necessario.
+2. O frontend envia access token e identity token para `POST /v1/auth/privy/session`.
+3. A API valida os tokens com `@privy-io/node`, recupera e-mail verificado e wallet Stellar.
+4. A API cria ou atualiza o `User` local e emite o JWT interno.
+5. Usuarios sem `role` seguem para `/onboarding/role`; PMEs concluem KYC basico antes do dashboard.
 
-- Integração Stellar SDK em `stellar.service.ts`
-- Integração AWS S3 em `s3.service.ts`
-- Provider de KYC e PIX/TED reais
-- Validação SEP-10 + emissão de JWT em `auth.service.ts`
-- Validação de DTOs com `class-validator`
-- Testes (Jest no backend, Playwright/Vitest no frontend)
-- Docker / docker-compose
-- CI/CD
+Login por senha, Google direto e SEP-10 continuam no codigo como fluxos legados ou auxiliares.
+
+## Variaveis de ambiente
+
+`.env.example` documenta as variaveis da API e algumas variaveis publicas compartilhadas. `apps/web/.env.local.example` documenta apenas o que o Next.js precisa no browser.
+
+Mais importantes:
+
+```env
+DATABASE_URL=
+JWT_SECRET=
+WEB_URL=
+PRIVY_APP_ID=
+PRIVY_APP_SECRET=
+NEXT_PUBLIC_PRIVY_APP_ID=
+NEXT_PUBLIC_API_URL=
+STELLAR_RPC_URL=
+STELLAR_SECRET_KEY=
+STELLAR_CONTRACT_ID=
+STELLAR_WALLET_SECRET=
+ETHERFUSE_API_KEY=
+```
+
+## Deploy
+
+- Web: `vercel.json` roda `npm run build` e publica `apps/web/.next`.
+- API: preparada para deploy separado em Railway, Fly, Render ou similar. Ainda nao ha manifesto de deploy backend no repo.
+- Banco: migrations Prisma ficam em `apps/api/prisma/migrations`.
+
+## Docs relacionadas
+
+- [Status atual](docs/STATUS.md)
+- [Estrutura de arquivos](documentacao/estrutura.md)
+- [Fluxo de login atual](documentacao/fluxo-login-atual.md)
+- [Fluxo e regras da smart wallet](documentacao/smart-wallet-fluxo-regras.md)
+- [ADR Anchor Etherfuse](documentacao/anchor-etherfuse-integration.md)
+- [Design System](docs/DESIGN.md)

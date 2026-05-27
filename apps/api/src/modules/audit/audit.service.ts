@@ -5,7 +5,12 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 export interface AuditLogInput {
   event: string;
   entityId: string;
-  entityType: 'receivable' | 'document' | 'settlement' | 'user';
+  entityType:
+    | 'receivable'
+    | 'document'
+    | 'settlement'
+    | 'user'
+    | 'financial_authorization';
   userId: string;
   txHash?: string;
   metadata?: Record<string, unknown>;
@@ -18,7 +23,9 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async log(input: AuditLogInput): Promise<void> {
-    this.logger.log(`[${input.event}] entity=${input.entityId} user=${input.userId}`);
+    this.logger.log(
+      `[${input.event}] entity=${input.entityId} user=${input.userId}`,
+    );
     await this.prisma.auditLog.create({
       data: {
         event: input.event,
@@ -26,9 +33,10 @@ export class AuditService {
         entityType: input.entityType,
         userId: input.userId,
         txHash: input.txHash,
-        metadata: input.metadata !== undefined
-          ? (input.metadata as Prisma.InputJsonValue)
-          : Prisma.DbNull,
+        metadata:
+          input.metadata !== undefined
+            ? (input.metadata as Prisma.InputJsonValue)
+            : Prisma.DbNull,
       },
     });
   }

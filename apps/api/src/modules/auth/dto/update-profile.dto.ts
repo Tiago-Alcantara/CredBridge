@@ -1,6 +1,17 @@
 import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
-const SECTORS = ['tecnologia', 'varejo', 'industria', 'servicos', 'agronegocio', 'saude', 'construcao', 'transporte', 'educacao', 'financeiro'] as const;
+const SECTORS = [
+  'tecnologia',
+  'varejo',
+  'industria',
+  'servicos',
+  'agronegocio',
+  'saude',
+  'construcao',
+  'transporte',
+  'educacao',
+  'financeiro',
+] as const;
 const INVESTOR_TYPES = ['pf', 'pj'] as const;
 const RISK_PROFILES = ['conservador', 'moderado', 'arrojado'] as const;
 

@@ -1,4 +1,10 @@
-import { IsIn, IsNumber, IsPositive, IsString, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsPositive,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import type { SettlementMethod } from '@credbridge/types';
 
 const SETTLEMENT_METHODS: SettlementMethod[] = ['pix', 'ted', 'stellar'];

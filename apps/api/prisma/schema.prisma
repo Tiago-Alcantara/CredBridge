@@ -53,30 +53,62 @@ model Settlement {
 }
 
 model User {
-  id               String   @id @default(uuid())
-  email            String   @unique
-  passwordHash     String?
-  googleId         String?  @unique
-  provider         String   @default("email")
-  role             String?
-  name             String?
-  stellarWalletId  String?
-  passkeyId        String?
-  phone            String?
-  address          String?
-  companyName      String?
-  cnpj             String?  @unique
-  monthlyRevenue   Float?
-  sector           String?
-  investorType     String?
-  riskProfile      String?
-  operationalLimit Float?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                    String   @id @default(uuid())
+  email                 String   @unique
+  passwordHash          String?
+  googleId              String?  @unique
+  provider              String   @default("email")
+  role                  String?
+  name                  String?
+  stellarWalletId       String?
+  passkeyId             String?
+  passkeyPublicKey      String?
+  walletType            String?
+  walletStatus          String?
+  privyUserId           String?  @unique
+  privyStellarWalletAddress String? @unique
+  privyWalletStatus     String?
+  phone                 String?
+  address               String?
+  companyName           String?
+  cnpj                  String?  @unique
+  monthlyRevenue        Float?
+  sector                String?
+  investorType          String?
+  riskProfile           String?
+  operationalLimit      Float?
+  etherfuseCustomerId   String?
+  etherfuseBankAccountId String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  receivables      Receivable[] @relation("UserReceivables")
-  investments      Investment[] @relation("UserInvestments")
-  auditLogs        AuditLog[]   @relation("UserAuditLogs")
+  receivables           Receivable[] @relation("UserReceivables")
+  investments           Investment[] @relation("UserInvestments")
+  auditLogs             AuditLog[]   @relation("UserAuditLogs")
+  financialAuthorizations FinancialAuthorization[] @relation("UserFinancialAuthorizations")
+}
+
+model FinancialAuthorization {
+  id           String    @id @default(uuid())
+  userId       String
+  walletId     String
+  operation    String
+  resourceId   String?
+  amount       String?
+  destination  String?
+  nonce        String    @unique
+  payloadHash  String    @unique
+  payload      Json
+  signature    Json?
+  expiresAt    DateTime
+  verifiedAt   DateTime?
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation("UserFinancialAuthorizations", fields: [userId], references: [id])
+
+  @@index([userId, operation])
+  @@index([expiresAt])
 }
 
 model AuditLog {

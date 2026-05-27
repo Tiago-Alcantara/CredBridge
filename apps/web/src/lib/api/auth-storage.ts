@@ -49,3 +49,7 @@ export function clearAccessToken(): void {
     /* ignore */
   }
 }
+
+export function clearInternalSession(): void {
+  clearAccessToken();
+}

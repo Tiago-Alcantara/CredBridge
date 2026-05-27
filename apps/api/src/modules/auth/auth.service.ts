@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -12,13 +11,12 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../shared/prisma/prisma.service';
-import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
-import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { SetRoleDto } from './dto/set-role.dto';
+import { PrivyAuthService } from './privy-auth.service';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -38,14 +36,16 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    @Inject(BLOCKCHAIN_SERVICE) private readonly blockchain: BlockchainService,
+    private readonly privyAuth: PrivyAuthService,
   ) {
     this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
     this.googleClient = new OAuth2Client(this.googleClientId);
   }
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (existing) {
       throw new ConflictException('Email already registered');
     }
@@ -57,11 +57,14 @@ export class AuthService {
         role: dto.role ?? 'pme',
       },
     });
+
     return this.issueToken(user.id, user.email, user.role);
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -85,7 +88,9 @@ export class AuthService {
       });
       payload = ticket.getPayload();
     } catch (err) {
-      this.logger.warn(`Google ID token verification failed: ${(err as Error).message}`);
+      this.logger.warn(
+        `Google ID token verification failed: ${(err as Error).message}`,
+      );
       throw new UnauthorizedException('Invalid Google credentials');
     }
 
@@ -124,23 +129,67 @@ export class AuthService {
       }
     }
 
-    let stellarWalletId = user.stellarWalletId;
-    if (!stellarWalletId) {
-      try {
-        stellarWalletId = await this.blockchain.createCustodialWallet(googleId);
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { stellarWalletId },
+    const tokenResult = await this.issueToken(user.id, user.email, user.role);
+    return {
+      ...tokenResult,
+      user: {
+        ...tokenResult.user,
+        stellarWalletId: user.stellarWalletId ?? null,
+      },
+      needsRoleSelection: user.role === null,
+    };
+  }
+
+  async privySession(accessToken: string, identityToken: string) {
+    const identity = await this.privyAuth.verifySession(
+      accessToken,
+      identityToken,
+    );
+    const privyUserData = {
+      provider: 'privy',
+      privyUserId: identity.privyUserId,
+      privyStellarWalletAddress: identity.stellarWalletAddress,
+      privyWalletStatus: 'ready',
+    };
+
+    let user = await this.prisma.user.findUnique({
+      where: { privyUserId: identity.privyUserId },
+    });
+
+    if (user) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: privyUserData,
+      });
+    } else {
+      const existingEmailUser = await this.prisma.user.findUnique({
+        where: { email: identity.email },
+      });
+
+      if (existingEmailUser) {
+        user = await this.prisma.user.update({
+          where: { id: existingEmailUser.id },
+          data: privyUserData,
         });
-      } catch (err) {
-        this.logger.warn(`Wallet creation failed for user ${user.id}: ${(err as Error).message}`);
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email: identity.email,
+            ...privyUserData,
+            role: null,
+          },
+        });
       }
     }
 
     const tokenResult = await this.issueToken(user.id, user.email, user.role);
     return {
       ...tokenResult,
-      user: { ...tokenResult.user, stellarWalletId: stellarWalletId ?? null },
+      user: {
+        ...tokenResult.user,
+        privyStellarWalletAddress: user.privyStellarWalletAddress ?? null,
+        privyWalletStatus: user.privyWalletStatus ?? null,
+      },
       needsRoleSelection: user.role === null,
     };
   }
@@ -158,12 +207,16 @@ export class AuthService {
     return this.issueToken(updated.id, updated.email, updated.role);
   }
 
-  async getStellarChallenge(stellarAddress: string): Promise<{ challenge: string }> {
+  async getStellarChallenge(
+    stellarAddress: string,
+  ): Promise<{ challenge: string }> {
     this.logger.log(`getStellarChallenge for: ${stellarAddress}`);
     return { challenge: `challenge-${Date.now()}` };
   }
 
-  async verifyStellarChallenge(signedTransaction: string): Promise<{ token: string }> {
+  async verifyStellarChallenge(
+    signedTransaction: string,
+  ): Promise<{ token: string }> {
     this.logger.log('verifyStellarChallenge called');
     return { token: `jwt-${Date.now()}` };
   }
@@ -183,6 +236,9 @@ export class AuthService {
     riskProfile: true,
     operationalLimit: true,
     stellarWalletId: true,
+    privyUserId: true,
+    privyStellarWalletAddress: true,
+    privyWalletStatus: true,
     createdAt: true,
     updatedAt: true,
   } as const;
@@ -194,7 +250,9 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash: _pw, ...safe } = user as typeof user & { passwordHash?: string };
+    const { passwordHash: _pw, ...safe } = user as typeof user & {
+      passwordHash?: string;
+    };
     return safe;
   }
 
@@ -205,7 +263,9 @@ export class AuthService {
       select: this.userSelect,
     });
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash: _pw, ...safe } = user as typeof user & { passwordHash?: string };
+    const { passwordHash: _pw, ...safe } = user as typeof user & {
+      passwordHash?: string;
+    };
     return safe;
   }
 
@@ -218,7 +278,10 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!ok) throw new BadRequestException('Senha atual incorreta');
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
     return { message: 'ok' };
   }
 

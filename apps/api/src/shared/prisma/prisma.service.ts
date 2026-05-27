@@ -19,7 +19,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Prisma failed to connect at startup: ${message}`);
-      this.logger.warn('API will start without database connection. Queries will fail until DATABASE_URL is set and the database is reachable.');
+      this.logger.warn(
+        'API will start without database connection. Queries will fail until DATABASE_URL is set and the database is reachable.',
+      );
     }
   }
 }

@@ -53,7 +53,8 @@ Paridade:     1 TESOURO = 1 BRL
 
 Wallets custodiais precisam estabelecer uma **trustline** para TESOURO antes
 de poder receber o token. Isso é feito no `createCustodialWallet` via
-`Operation.changeTrust`. Implementado no commit 3.
+`Operation.changeTrust`, com a conta CredBridge como pagadora da fee e
+patrocinadora da reserva da trustline. Implementado no commit 3.
 
 ---
 
@@ -103,7 +104,7 @@ de poder receber o token. Isso é feito no `createCustodialWallet` via
 |-----------|-------|--------|
 | `payPme` — asset | `Asset.native()` (XLM) | `new Asset('TESOURO', ISSUER)` |
 | `chargeInvestor` — asset | `Asset.native()` (XLM) | `new Asset('TESOURO', ISSUER)` |
-| `createCustodialWallet` | cria + funda via Friendbot | cria + funda + adiciona trustline TESOURO |
+| `createCustodialWallet` | cria via conta CredBridge + reserva patrocinada + trustline TESOURO patrocinada | cria via conta CredBridge + reserva patrocinada + trustline TESOURO patrocinada |
 | `BlockchainInterface` | `amountXlm: number` | `amountBrl: number` |
 | Soroban `tokenizeNfe` | inalterado | inalterado |
 | `AnchorModule` | não existe | novo módulo NestJS |

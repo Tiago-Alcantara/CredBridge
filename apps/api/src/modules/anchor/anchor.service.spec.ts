@@ -12,24 +12,30 @@ const mockGetFiatAccounts = jest.fn();
 const mockCreateOnRamp = jest.fn();
 const mockCreateOffRamp = jest.fn();
 const mockGetKycUrl = jest.fn();
+const mockGetKycStatus = jest.fn();
 
-jest.mock('@credbridge/anchor-client', () => ({
-  EtherfuseClient: jest.fn().mockImplementation(() => ({
-    getQuote: mockGetQuote,
-    getCustomer: mockGetCustomer,
-    createCustomer: mockCreateCustomer,
-    getFiatAccounts: mockGetFiatAccounts,
-    createOnRamp: mockCreateOnRamp,
-    createOffRamp: mockCreateOffRamp,
-    getKycUrl: mockGetKycUrl,
-    name: 'etherfuse',
-    displayName: 'Etherfuse',
-    supportedCurrencies: ['BRL', 'MXN'],
-    supportedRails: ['pix', 'spei'],
-    supportedTokens: [{ symbol: 'TESOURO', name: 'Tesouro', description: 'BRL-backed' }],
-    capabilities: { sep24: true },
-  })),
-}));
+jest.mock('@credbridge/anchor-client', () => {
+  const actual = jest.requireActual('@credbridge/anchor-client');
+  return {
+    ...actual,
+    EtherfuseClient: jest.fn().mockImplementation(() => ({
+      getQuote: mockGetQuote,
+      getCustomer: mockGetCustomer,
+      createCustomer: mockCreateCustomer,
+      getFiatAccounts: mockGetFiatAccounts,
+      createOnRamp: mockCreateOnRamp,
+      createOffRamp: mockCreateOffRamp,
+      getKycUrl: mockGetKycUrl,
+      getKycStatus: mockGetKycStatus,
+      name: 'etherfuse',
+      displayName: 'Etherfuse',
+      supportedCurrencies: ['BRL', 'MXN'],
+      supportedRails: ['pix', 'spei'],
+      supportedTokens: [{ symbol: 'TESOURO', name: 'Tesouro', description: 'BRL-backed' }],
+      capabilities: { sep24: true },
+    })),
+  };
+});
 
 const userId = 'user-1';
 const stellarWallet = 'GABC1234567890';
@@ -87,6 +93,7 @@ describe('AnchorService', () => {
       user: {
         findUniqueOrThrow: userFindOrThrow,
         findUnique: jest.fn().mockResolvedValue(baseUser()),
+        update: jest.fn().mockResolvedValue(baseUser()),
       },
     };
 
@@ -110,6 +117,7 @@ describe('AnchorService', () => {
     mockGetCustomer.mockResolvedValue(null);
     mockCreateCustomer.mockResolvedValue(baseCustomer());
     mockGetFiatAccounts.mockResolvedValue([baseFiatAccount]);
+    mockGetKycStatus.mockResolvedValue('approved');
     mockCreateOnRamp.mockResolvedValue({ id: 'onramp-1', interactiveUrl: 'https://etherfuse.com/onramp/1', status: 'pending' } as unknown as OnRampTransaction);
     mockCreateOffRamp.mockResolvedValue({ id: 'offramp-1', interactiveUrl: 'https://etherfuse.com/offramp/1', status: 'pending' } as unknown as OffRampTransaction);
     mockGetKycUrl.mockResolvedValue('https://etherfuse.com/kyc/1');
@@ -152,6 +160,9 @@ describe('AnchorService', () => {
     });
 
     it('reuses existing customer without creating a new one', async () => {
+      const userWithCustomer = baseUser({ etherfuseCustomerId: 'cust-1' });
+      const prismaMock = (service as unknown as { prisma: { user: { findUnique: jest.Mock } } }).prisma;
+      prismaMock.user.findUnique.mockResolvedValue(userWithCustomer);
       mockGetCustomer.mockResolvedValue(baseCustomer());
       await service.startOnramp(userId, 100);
       expect(mockCreateCustomer).not.toHaveBeenCalled();
@@ -163,6 +174,11 @@ describe('AnchorService', () => {
       expect(mockCreateOnRamp).toHaveBeenCalledWith(
         expect.objectContaining({ quoteId: 'existing-q-id' }),
       );
+    });
+
+    it('throws KYC_INCOMPLETE when user has no fiat accounts', async () => {
+      mockGetFiatAccounts.mockResolvedValue([]);
+      await expect(service.startOnramp(userId, 100)).rejects.toThrow('KYC_INCOMPLETE');
     });
   });
 
@@ -177,14 +193,22 @@ describe('AnchorService', () => {
 
     it('throws if user has no registered PIX account', async () => {
       mockGetFiatAccounts.mockResolvedValue([]);
-      await expect(service.startOfframp(userId, 50)).rejects.toThrow('No PIX account registered');
+      await expect(service.startOfframp(userId, 50)).rejects.toThrow('KYC_INCOMPLETE');
     });
   });
 
-  describe('getKycUrl', () => {
-    it('returns Etherfuse KYC URL', async () => {
-      const url = await service.getKycUrl(userId);
-      expect(url).toContain('etherfuse.com/kyc');
+  describe('getOnboardingStatus', () => {
+    it('returns onboarded=true when fiat accounts exist', async () => {
+      const result = await service.getOnboardingStatus(userId);
+      expect(result.onboarded).toBe(true);
+      expect(result.kycUrl).toContain('etherfuse.com');
+    });
+
+    it('returns onboarded=false when no fiat accounts', async () => {
+      mockGetFiatAccounts.mockResolvedValue([]);
+      const result = await service.getOnboardingStatus(userId);
+      expect(result.onboarded).toBe(false);
+      expect(result.kycUrl).toContain('etherfuse.com');
     });
   });
 });

@@ -6,190 +6,165 @@ tags:
   - credbridge
   - status
   - checklist
-date: 2026-05-04
+date: 2026-05-24
 status: em-desenvolvimento
 ---
 
 # Status do Projeto — CredBridge
 
-> Snapshot do que já foi entregue no repositório real (`~/projects/CredBridge`) e do que ainda falta.
-> Última varredura no código: **2026-05-04**.
+> Snapshot do repositório real em `/home/tiago-linux/projects/CredBridge`.
+> Última varredura no código: **2026-05-24**.
 
 ## Decisões fixadas
 
-- **MVP só NF-e** — qualquer outro tipo de recebível (duplicata, contrato) fica fora do escopo inicial.
-- **Stellar SEP-10:** removido do fluxo de login por enquanto; JWT email/senha é o auth principal.
+- **MVP operacional focado em NF-e:** a UI principal de upload cria `type: "invoice"`, embora os tipos compartilhados ainda aceitem `duplicate` e `contract`.
+- **Auth principal:** Privy no frontend + validação server-side no NestJS + JWT interno CredBridge.
+- **Auth legado mantido:** login/senha, Google direto e endpoints SEP-10 ainda existem para compatibilidade/experimentos.
+- **Wallet Privy como fonte única:** embedded wallet Stellar da Privy identifica a sessão e assina autorizações financeiras sensíveis.
+- **Token storage:** JWT interno ainda fica em `localStorage`; migrar para cookie httpOnly antes de produção.
 - **Solana:** descartado.
 - **Cortado do MVP:** Redis, BullMQ, Auth.js/Keycloak, OpenTelemetry, Prometheus/Grafana.
-- **Token storage:** migrar `localStorage` → cookie httpOnly antes de produção.
-- **Deploy backend:** provider ainda **em aberto** (Railway / Fly / Render).
-- **Tela de configurações:** mesma página para PME e Investor — campos específicos por role ficam ocultos.
-- **Stellar Anchor:** Etherfuse selecionado para on/off-ramp BRL↔TESOURO via PIX.
-  Token: `TESOURO` (issuer `GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4`).
-  SEPs: SEP-38 (quotes), SEP-10 (auth), SEP-24 (interactive flows).
-  PIX/Brasil está em sandbox — não usar em produção ainda.
+- **Deploy:** web na Vercel; backend ainda sem manifesto/provider definitivo.
+- **Stellar Anchor:** Etherfuse selecionado para on/off-ramp BRL/TESOURO via PIX.
+- **Etherfuse Brasil/PIX:** tratado como sandbox; não considerar pronto para produção.
 
----
+## Visão geral
 
-## Visão Geral
-
-| Camada | % entregue | Comentário |
+| Camada | Status | Comentário |
 |---|---|---|
-| Estrutura/Monorepo | 100% | npm workspaces, 3 pacotes |
-| Banco + Schema | 97% | seed pronto; faltam índices |
-| Backend (API) | 50% | auth + CRUD real; userId extraído do JWT; integrações externas em stub |
-| Frontend (UI) | 70% | login/register real, dashboard PME parcialmente real, sub-páginas por criar |
-| Integração Front↔Back | 75% | login, receivables, documents, error handling, route guards prontos |
-| Blockchain (Stellar) | 15% | tokenização Soroban funcional; anchor-client portado (SEP-38/10/24) |
-| Storage (S3) | 5% | só interface + stub |
-| Pagamentos (PIX/TED) | 5% | só interface + stub |
-| KYC/KYB | 5% | só interface + stub |
-| Testes | 5% | só scaffold e2e do Nest |
-| CI/CD | 20% | Vercel só para web |
-| Observabilidade | 0% | nada de OTel/Prom/Grafana |
+| Estrutura/monorepo | Estável | npm workspaces para `apps/*` e `packages/*`; contrato Soroban em `contracts/` |
+| Web | Em evolução | Next.js 16, React 19, Tailwind v4, Privy, dashboards principais e testes Vitest |
+| API | Em evolução | NestJS 11, Prisma 7, auth, recebíveis, documentos, investimentos, anchor, wallet e auditoria |
+| Banco | Funcional | Prisma schema, migrations e seed; índices básicos em alguns modelos |
+| Blockchain | Parcial | contrato Soroban e StellarService existem; dependem de envs e infraestrutura Stellar |
+| Anchor/Etherfuse | Parcial | cliente e módulo API implementados; sandbox e integrações externas ainda limitam produção |
+| Storage/KYC/Pagamentos | Stub/parcial | interfaces e serviços existem, integrações reais ainda pendentes |
+| Testes | Parcial | Jest API, Vitest web e testes do anchor-client existem, mas cobertura ainda incompleta |
+| CI/CD | Parcial | Vercel web; GitHub Actions/backend deploy ainda pendentes |
 
----
-
-## ✅ Já feito
+## Já feito
 
 ### Infra e repositório
 
-- [x] Monorepo com npm workspaces (`apps/web`, `apps/api`, `packages/types`)
+- [x] Monorepo npm workspaces (`apps/web`, `apps/api`, `packages/types`, `packages/anchor-client`)
+- [x] Contrato Soroban em `contracts/`
 - [x] `package.json` raiz com scripts `dev`, `build:web`, `build:api`, `build:types`, `lint`, `seed`
 - [x] `.env.example` raiz + `apps/web/.env.local.example`
-- [x] `docker-compose.yml` para Postgres local
-- [x] `vercel.json` apontando para `apps/web/.next`
-- [x] `AGENTS.md` + `CLAUDE.md` com instruções de agentes
+- [x] `docker-compose.yml` para Postgres 16 local
+- [x] `vercel.json` para deploy da web
+- [x] `AGENTS.md` + `CLAUDE.md` com instruções para agentes
 
 ### Banco de dados
 
 - [x] Prisma 7 + adapter `@prisma/adapter-pg`
-- [x] Modelos: `Receivable`, `Document`, `Settlement`, `User`, `AuditLog`
-- [x] Migrations aplicadas
-- [x] `AuditLog` polimórfico (`entityType` + `entityId`, sem FKs)
-- [x] Seed realista (`prisma/seed.ts`) — 3 usuários, 9 recebíveis, 7 docs, 3 liquidações, 18 audit logs
+- [x] Modelos: `User`, `Receivable`, `Document`, `Settlement`, `Investment`, `AuditLog`, `FinancialAuthorization`
+- [x] Campos Privy, Google, perfil, wallet legada e Etherfuse no `User`
+- [x] Migrations aplicadas e versionadas
+- [x] Seed em `apps/api/prisma/seed.ts`
+- [x] Índices em `AuditLog`, `Investment` e `FinancialAuthorization`
 
 ### Backend (`apps/api`)
 
-- [x] Bootstrap Nest com `setGlobalPrefix('v1')` na porta 3001
-- [x] CORS, `ConfigModule`, `PrismaModule`, `ValidationPipe` globais
-- [x] Módulo `health` (`GET /v1/health/ping`)
-- [x] Módulo `receivables` — `userId` extraído do JWT (não mais do body); `findAll` filtra por usuário
-- [x] Módulo `documents` em rota nested (`/v1/receivables/:id/documents`)
-- [x] Módulo `settlements` (CRUD + listar todos)
-- [x] Módulo `audit` (`GET /v1/audit`, `findByEntity`)
-- [x] Módulo `auth` real: register (bcrypt), login, JwtStrategy, JwtAuthGuard
-- [x] `decodeToken` / `getTokenRole` no cliente para leitura do JWT sem biblioteca
+- [x] Bootstrap Nest com `setGlobalPrefix('v1')`, Helmet, CORS, ValidationPipe e filtro global de exceções
+- [x] Throttler global e throttles específicos em auth
+- [x] `health` (`GET /v1/health/ping`)
+- [x] `auth`: Privy session, `GET/PATCH /me`, role selection, senha, Google direto legado, login/senha legado, SEP-10 legado
+- [x] `receivables`: CRUD principal, pool investor, stats, activate, tokenize, assignment request/assign
+- [x] `documents`: rotas nested `/v1/receivables/:receivableId/documents`
+- [x] `settlements`: criar, listar e listar por recebível
+- [x] `audit`: lista por usuário autenticado e por entidade
+- [x] `investments`: compra, posições do investidor e stats
+- [x] `stellar-wallet`: consulta da wallet Stellar Privy
+- [x] `financial-authorizations`: desafio e verificação de assinatura Privy Stellar
+- [x] `anchor`: onboarding status, quotes e start de on/off-ramp
+- [x] Serviços shared para Prisma, blockchain, storage, KYC e payments
 
 ### Frontend (`apps/web`)
 
-- [x] Next.js 16 (App Router + Turbopack) + Tailwind v4 + `tokens.css`
-- [x] Route groups: `(marketing)`, `(auth)`, `(pme)`, `(investor)`, `(partner)`
-- [x] Landing page completa
-- [x] **Login/Register** — fluxo unificado em `/login`; toggle login ↔ registro; KYC só para PME; wired `useLogin` + `useRegister`; erro inline; loading state
-- [x] `useRequireAuth(role?)` — guarda de rota com verificação de role; redireciona para dashboard correto se role errado
-- [x] Layouts `(pme)`, `(investor)`, `(partner)` com guarda de rota por role
-- [x] Dashboard PME — `InvoiceTable` consome `useReceivables()` (dados reais)
-- [x] Dashboard PME — `UploadZone` wired: cria `Receivable` + registra `Document`; drag/drop XML; form com sacado/CNPJ/valor/vencimento
-- [x] `ToastProvider` — toast global com `showToast(msg, kind)`; 401 → toast "Sessão expirada" + redirect
-- [x] Skeletons animados (`Skeleton` primitivo + `InvoiceTableSkeleton`)
-- [x] Empty states com CTA na tabela de recebíveis
-- [x] `auth-storage` com `decodeToken` + `getTokenRole` (decodifica JWT sem biblioteca)
-- [x] `extractApiErrorMessage` para mensagens de erro da API
+- [x] Next.js 16 App Router + React 19 + Tailwind v4
+- [x] Design tokens em `apps/web/styles/tokens.css`
+- [x] Providers globais: Query, Toast, Privy e Google
+- [x] Landing pública e página pública `/auditoria`
+- [x] Fluxo Privy em `/login`
+- [x] Onboarding de role em `/onboarding/role`
+- [x] KYC PME no onboarding
+- [x] Guards client-side por role com `useRequireAuth`
+- [x] Dashboard PME com dados reais de recebíveis e upload de NF-e
+- [x] Dashboard investor com pool, posições, compra e drawer de depósito
+- [x] Dashboard partner básico
+- [x] Configurações compartilhadas em `/pme/configuracoes` e `/investor/configuracoes`
+- [x] Autorização financeira com assinatura da wallet Stellar Privy
+- [x] Testes Vitest/Testing Library para auth, providers, proxy e landing pública
 
-### Pacote compartilhado (`packages/types`)
+### Pacotes
 
-- [x] Todos os tipos de domínio — `Receivable`, `Settlement`, `Document`, `Investor`, `AuditEvent`
-- [x] `CreateReceivableInput` sem `userId` (extraído do JWT no backend)
+- [x] `@credbridge/types`: tipos de receivable, settlement, investor, document, audit e investment
+- [x] `@credbridge/anchor-client`: cliente Etherfuse e helpers SEP-10/24/38
+- [x] Testes do anchor-client para Etherfuse e SEP-38
 
-### Deploy
+### Blockchain
 
-- [x] Vercel para frontend (`build:web`)
+- [x] Contrato Soroban `nfe-contract`
+- [x] Testes Rust do contrato e snapshots
+- [x] `StellarService.tokenizeNfe` com chamada Soroban quando configurado
+- [x] Pagamentos TESOURO em `payPme` e `chargeInvestor`
+- [x] Criação derivada de wallet custodial para fluxos Stellar clássicos
 
----
+## A fazer
 
-## ❌ A fazer
+### Documentação e DX
 
-### Dashboard PME — remover mocks (FASE ATUAL)
+- [ ] Manter `README.md` e `documentacao/estrutura.md` atualizados quando novas rotas/módulos entrarem
+- [ ] Decidir se `docs/graphs/**` é snapshot gerado ou documentação navegável oficial
+- [ ] Documentar deploy backend quando provider for escolhido
 
-- [ ] **KPI "Em análise"** — calcular de `receivables` (soma de `pending` + `validated`)
-- [ ] **KPI "Liberado"** — calcular de `receivables` (soma de `settled`)
-- [ ] **KPI "Total NF-e"** — calcular contagem e breakdown por status
-- [ ] **Saudação** — exibir nome real do usuário (decodificar email do JWT ou endpoint `/me`)
-- [ ] **Timeline** — substituir mock por `useAuditLog` consumindo `GET /v1/audit`
-- [ ] **Saldo disponível** (card hero) — conceito não existe no banco; definir modelo antes de implementar
-- [ ] **YieldSpark** (gráfico de yield) — precisa de histórico de deságio por período (endpoint não existe)
-- [ ] **Endereço Stellar** — mock hardcoded; só real quando SEP-10 for implementado
+### Produção e segurança
 
-### Sub-páginas PME — criar do zero
+- [ ] Migrar JWT interno de `localStorage` para cookie httpOnly
+- [ ] Revisar política de CORS/envs (`WEB_URL` vs `WEB_ORIGIN`) antes de produção
+- [ ] Definir refresh token/rotação de JWT
+- [ ] Revisar autorização por role em todas as rotas sensíveis
+- [ ] Criar rate limits por operação financeira, não só globais/auth
 
-- [ ] `/pme/recebiveis` — listagem completa com filtros por status, busca, paginação
-- [ ] `/pme/documentos` — listagem de documentos por recebível, preview, re-upload
-- [ ] `/pme/liquidacao` — histórico de liquidações (`useSettlements`), status PIX/Stellar
-- [ ] `/pme/auditoria` — log de eventos (`useAuditLog`), filtro por entidade/data
+### Backend e domínio
 
-### Dashboard Investor — remover mocks
+- [ ] Endurecer transições de recebíveis (`pending`, `validated`, `tokenized`, `assignment_pending`, `active`, `settled`, `defaulted`)
+- [ ] Garantir emissão consistente de `AuditLog` em todas as mutações relevantes
+- [ ] Definir modelo real de saldo disponível da PME
+- [ ] Definir histórico de yield/NAV para gráficos
+- [ ] Criar módulo de risco/elegibilidade
+- [ ] Avaliar índices adicionais em `Receivable.userId`, `Receivable.status` e `Settlement.status`
+- [ ] Decidir soft delete
 
-- [ ] KPIs do portfólio (volume investido, yield médio, cotas ativas) — calcular de dados reais
-- [ ] Listagem de recebíveis disponíveis para investimento
-- [ ] Gráfico `NavChart` com dados reais de NAV
+### Integrações externas
 
-### Sub-páginas Investor — criar do zero
+- [ ] S3 real para upload/preview de XML/PDF NF-e
+- [ ] KYC/KYB real (Serpro, Receita Federal ou provider)
+- [ ] PIX/TED real ou estratégia definitiva com anchor
+- [ ] SEFAZ real para validação de NF-e
+- [ ] Etherfuse fora de sandbox antes de produção
 
-- [ ] `/investor/recebiveis` — recebíveis disponíveis para compra, filtros de risco/yield/vencimento
-- [ ] `/investor/cotas` — posição atual do investidor, cotas por fundo/série
-- [ ] `/investor/auditoria` — log de eventos do investidor
+### Frontend
 
-### Configurações de conta (compartilhada PME + Investor)
+- [ ] Reduzir hex inline em componentes novos e aproximar o código dos tokens do design system
+- [ ] Completar subpáginas PME: recebíveis, documentos, liquidação e auditoria
+- [ ] Completar subpáginas investor: recebíveis, cotas e auditoria
+- [ ] Trocar KPIs/gráficos ainda mockados por dados reais quando os endpoints existirem
+- [ ] Melhorar responsividade de telas com estilos inline antigos
 
-- [ ] `/pme/configuracoes` e `/investor/configuracoes` apontam para o mesmo componente `AccountSettings`
-- [ ] Campos comuns: nome, email, senha, telefone, endereço
-- [ ] Campos PME (hidden para Investor): razão social, CNPJ, faturamento mensal, setor
-- [ ] Campos Investor (hidden para PME): tipo de investidor (PF/PJ), perfil de risco, limite operacional
-- [ ] Salvar via endpoint `/me` (a criar no backend)
+### Testes e CI
 
-### Backend — regra de negócio
-
-- [ ] Endpoint `GET /v1/auth/me` — retorna dados do usuário autenticado
-- [ ] `PATCH /v1/auth/me` — atualiza perfil do usuário
-- [ ] Validação de estados e transições em `ReceivablesService` (pending → validated → active → settled)
-- [ ] Emissão automática de `AuditLog` em todas as mutações
-- [ ] `GET /v1/audit` filtrado por userId autenticado (hoje retorna todos)
-- [ ] Módulo de risco/elegibilidade (não existe)
-- [ ] Rate limiting / guard por role
-- [ ] Refresh token / rotação de JWT
-- [ ] Cookie httpOnly em vez de `localStorage`
-
-### Banco
-
-- [ ] Índices em `Receivable.userId`, `Receivable.status`, `Settlement.status`
-- [ ] Soft delete (decisão pendente)
-
-### Integrações externas (todas em stub)
-
-- [ ] **AWS S3** — upload real de XML NF-e
-- [ ] **KYC/KYB** — validação CPF/CNPJ (Serpro, Receita Federal ou provider)
-- [ ] **PIX/TED** — liquidação real
-- [ ] **Stellar SDK** — registro on-chain e liquidação
-- [ ] **SEFAZ** — validação de NF-e
-
-### Testes
-
-- [ ] Jest unitário nos services (`auth`, `receivables`, `settlements`, `audit`)
-- [ ] e2e Nest cobrindo rotas autenticadas
-- [ ] Vitest ou Playwright no frontend
-
-### CI/CD
-
-- [ ] GitHub Actions: lint + build + test
-- [ ] Migrations Prisma em pipeline
-- [ ] Deploy do backend (Railway / Fly / Render — escolher)
-
----
+- [ ] Ampliar cobertura Jest nos services e controllers críticos
+- [ ] Adicionar e2e cobrindo rotas autenticadas principais
+- [ ] Ampliar Vitest/Testing Library nos fluxos financeiros
+- [ ] Adicionar GitHub Actions para lint, build e test
+- [ ] Rodar migrations em pipeline de backend
 
 ## Notas relacionadas
 
-- [[CredBridge]]
-- [[Decisoes de Arquitetura]]
-- [[Stack de Tecnologia]]
-- [[Tarefas]]
+- `README.md`
+- `documentacao/estrutura.md`
+- `documentacao/fluxo-login-atual.md`
+- `documentacao/smart-wallet-fluxo-regras.md`
+- `documentacao/anchor-etherfuse-integration.md`
+- `docs/DESIGN.md`

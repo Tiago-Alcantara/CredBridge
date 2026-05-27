@@ -11,10 +11,12 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<ReceivableStatus, { badgeClass: string; stringKey: string }> = {
-  pending:   { badgeClass: "badge pending",   stringKey: "status_pending" },
+  pending: { badgeClass: "badge pending", stringKey: "status_pending" },
   validated: { badgeClass: "badge validated", stringKey: "status_validated" },
-  active:    { badgeClass: "badge active",    stringKey: "status_active" },
-  settled:   { badgeClass: "badge settled",   stringKey: "status_settled" },
+  tokenized: { badgeClass: "badge validated", stringKey: "status_tokenized" },
+  assignment_pending: { badgeClass: "badge pending", stringKey: "status_assignment_pending" },
+  active: { badgeClass: "badge active", stringKey: "status_active" },
+  settled: { badgeClass: "badge settled", stringKey: "status_settled" },
   defaulted: { badgeClass: "badge defaulted", stringKey: "status_defaulted" },
 };
 

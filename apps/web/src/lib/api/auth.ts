@@ -7,6 +7,8 @@ export interface AuthUser {
   email: string;
   role: string | null;
   stellarWalletId?: string | null;
+  privyStellarWalletAddress?: string | null;
+  privyWalletStatus?: string | null;
 }
 
 export interface AuthResponse {

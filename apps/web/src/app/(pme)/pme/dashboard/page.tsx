@@ -1,8 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
-import { WalletSetupBanner } from "@/components/auth/WalletSetupBanner";
 import { StellarWalletAddress } from "@/components/auth/StellarWalletAddress";
 import { Timeline } from "@/components/patterns/Timeline";
 import type { TimelineItem } from "@/components/patterns/Timeline";
@@ -11,8 +11,9 @@ import { YieldSpark } from "@/components/pme/YieldSpark";
 import { InvoiceTable } from "@/components/pme/InvoiceTable";
 import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
+import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import { useReceivables, useActivateReceivable } from "@/lib/api/receivables";
+import { useReceivables } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
 import { useAuditLog } from "@/lib/api/audit";
 import type { Receivable } from "@/types";
@@ -87,7 +88,7 @@ export default function PmeDashboardPage() {
   const { data: receivables, isLoading, isError } = useReceivables();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
-  const activate = useActivateReceivable();
+  const [offrampOpen, setOfframpOpen] = useState(false);
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
@@ -136,7 +137,6 @@ export default function PmeDashboardPage() {
         </div>
       </div>
 
-      <WalletSetupBanner />
       <StellarWalletAddress />
 
       {/* Balance hero + KPI cards */}
@@ -156,11 +156,8 @@ export default function PmeDashboardPage() {
             <span className="unit">R$</span>—
           </div>
           <div className="row" style={{ gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" disabled>
+            <button className="btn btn-primary" onClick={() => setOfframpOpen(true)} >
               <Icon name="download" size={14} /> {t("dash_withdraw")}
-            </button>
-            <button className="btn btn-ghost" disabled>
-              <Icon name="arrow_up_right" size={14} /> Transferir
             </button>
           </div>
           <div
@@ -293,11 +290,7 @@ export default function PmeDashboardPage() {
         )}
 
         {!isLoading && !isError && invoiceRows.length > 0 && (
-          <InvoiceTable
-            rows={invoiceRows}
-            onActivate={(id) => activate.mutate(id)}
-            activatingId={activate.isPending ? (activate.variables as string) : undefined}
-          />
+          <InvoiceTable rows={invoiceRows} userEmail={me?.email} />
         )}
       </div>
 
@@ -324,6 +317,8 @@ export default function PmeDashboardPage() {
           <Timeline items={timelineItems} />
         )}
       </div> */}
+
+      <AnchorDrawer mode="offramp" open={offrampOpen} onClose={() => setOfframpOpen(false)} />
     </>
   );
 }

@@ -13,10 +13,10 @@ interface AuthRequest {
 export class AnchorController {
   constructor(private readonly anchorService: AnchorService) {}
 
-  /** GET /v1/anchor/kyc-url — returns Etherfuse onboarding URL for KYC */
-  @Get('kyc-url')
-  getKycUrl(@Req() req: AuthRequest) {
-    return this.anchorService.getKycUrl(req.user.userId);
+  /** GET /v1/anchor/onboarding-status — checks if customer has completed KYC; returns kycUrl if not */
+  @Get('onboarding-status')
+  getOnboardingStatus(@Req() req: AuthRequest) {
+    return this.anchorService.getOnboardingStatus(req.user.userId);
   }
 
   /** POST /v1/anchor/onramp/quote — SEP-38 quote: BRL → TESOURO */
@@ -28,7 +28,11 @@ export class AnchorController {
   /** POST /v1/anchor/onramp/start — SEP-24 interactive deposit; returns interactiveUrl */
   @Post('onramp/start')
   startOnramp(@Body() dto: StartRampDto, @Req() req: AuthRequest) {
-    return this.anchorService.startOnramp(req.user.userId, dto.amount, dto.quoteId);
+    return this.anchorService.startOnramp(
+      req.user.userId,
+      dto.amount,
+      dto.quoteId,
+    );
   }
 
   /** POST /v1/anchor/offramp/quote — SEP-38 quote: TESOURO → BRL */
@@ -40,6 +44,10 @@ export class AnchorController {
   /** POST /v1/anchor/offramp/start — SEP-24 interactive withdrawal; returns interactiveUrl */
   @Post('offramp/start')
   startOfframp(@Body() dto: StartRampDto, @Req() req: AuthRequest) {
-    return this.anchorService.startOfframp(req.user.userId, dto.amount, dto.quoteId);
+    return this.anchorService.startOfframp(
+      req.user.userId,
+      dto.amount,
+      dto.quoteId,
+    );
   }
 }

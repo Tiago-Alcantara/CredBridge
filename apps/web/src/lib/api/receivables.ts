@@ -64,3 +64,32 @@ export function useActivateReceivable() {
     },
   });
 }
+
+export function useTokenizeReceivable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<Receivable>(`/receivables/${id}/tokenize`, { method: "PATCH" }),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.me });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.byEntity(id) });
+    },
+  });
+}
+
+export function useAssignReceivable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; authorizationId: string }) =>
+      apiFetch<Receivable>(`/receivables/${input.id}/assign`, {
+        method: "PATCH",
+        body: { authorizationId: input.authorizationId },
+      }),
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.me });
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.byEntity(input.id) });
+    },
+  });
+}

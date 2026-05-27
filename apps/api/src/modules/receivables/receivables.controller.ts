@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Patch, Body, Param, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ReceivablesService } from './receivables.service';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -40,5 +49,20 @@ export class ReceivablesController {
   @Patch(':id/activate')
   activate(@Param('id') id: string) {
     return this.receivablesService.activate(id);
+  }
+
+  @Patch(':id/tokenize')
+  tokenize(@Param('id') id: string) {
+    return this.receivablesService.tokenize(id);
+  }
+
+  @Patch(':id/request-assignment')
+  requestAssignment(@Param('id') id: string) {
+    return this.receivablesService.requestAssignment(id);
+  }
+
+  @Patch(':id/assign')
+  assign(@Param('id') id: string, @Body() body: { authorizationId: string }) {
+    return this.receivablesService.assign(id, body.authorizationId);
   }
 }

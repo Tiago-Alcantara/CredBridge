@@ -7,6 +7,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { fmtBRL } from "@/lib/format";
 import { useBuyReceivable } from "@/lib/api/investments";
 import { extractApiErrorMessage } from "@/lib/api/client";
+import { useFinancialAuthorization } from "@/lib/financial-actions/useFinancialAuthorization";
 
 const DISCOUNT = 0.03;
 
@@ -14,6 +15,7 @@ type Step = "summary" | "settling" | "success";
 
 interface BuyDrawerProps {
   receivable: Receivable | null;
+  userEmail?: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -28,11 +30,12 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
-export function BuyDrawer({ receivable, onClose, onSuccess }: BuyDrawerProps) {
+export function BuyDrawer({ receivable, userEmail, onClose, onSuccess }: BuyDrawerProps) {
   const [step, setStep] = useState<Step>("summary");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Investment | null>(null);
   const buyMutation = useBuyReceivable();
+  const { authorize, isAuthorizing } = useFinancialAuthorization(userEmail);
 
   const open = receivable !== null;
   const faceValue = receivable?.value ?? 0;
@@ -47,29 +50,33 @@ export function BuyDrawer({ receivable, onClose, onSuccess }: BuyDrawerProps) {
     onClose();
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!receivable) return;
     setError(null);
     setStep("settling");
-    buyMutation.mutate(
-      { receivableId: receivable.id },
-      {
-        onSuccess: (inv) => {
-          setResult(inv);
-          setStep("success");
-        },
-        onError: (err) => {
-          const msg = extractApiErrorMessage(err) || "Erro ao processar compra";
-          setStep("summary");
-          if (msg.toLowerCase().includes("indispon")) {
-            setError("Outro investidor adquiriu primeiro.");
-            setTimeout(() => handleClose(), 1500);
-          } else {
-            setError(msg);
-          }
-        },
-      },
-    );
+
+    try {
+      const authorizationId = await authorize({
+        operation: "investment.purchase",
+        resourceId: receivable.id,
+        amount: amountPaid.toFixed(2),
+      });
+      const inv = await buyMutation.mutateAsync({
+        receivableId: receivable.id,
+        authorizationId,
+      });
+      setResult(inv);
+      setStep("success");
+    } catch (err) {
+      const msg = extractApiErrorMessage(err) || "Erro ao processar compra";
+      setStep("summary");
+      if (msg.toLowerCase().includes("indispon")) {
+        setError("Outro investidor adquiriu primeiro.");
+        setTimeout(() => handleClose(), 1500);
+      } else {
+        setError(msg);
+      }
+    }
   };
 
   return (
@@ -119,8 +126,9 @@ export function BuyDrawer({ receivable, onClose, onSuccess }: BuyDrawerProps) {
           >
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Como funciona</div>
             <div className="t-3" style={{ lineHeight: 1.5 }}>
-              Ao confirmar, sua carteira custodial transfere {amountPaid.toFixed(2)} XLM para a
-              CredBridge e recebe o NFT do recebível na rede Stellar. Tudo on-chain, sem Pix.
+              Ao confirmar, sua smart wallet solicita sua assinatura, transfere{" "}
+              {amountPaid.toFixed(2)} XLM para a CredBridge e recebe o NFT do recebível na rede
+              Stellar. Tudo on-chain, sem Pix.
             </div>
           </div>
 
@@ -131,7 +139,7 @@ export function BuyDrawer({ receivable, onClose, onSuccess }: BuyDrawerProps) {
           <button
             className="btn btn-primary btn-lg"
             onClick={handleConfirm}
-            disabled={buyMutation.isPending}
+            disabled={buyMutation.isPending || isAuthorizing}
           >
             Confirmar compra <Icon name="arrow_right" size={14} />
           </button>
@@ -155,7 +163,7 @@ export function BuyDrawer({ receivable, onClose, onSuccess }: BuyDrawerProps) {
           />
           <h3 style={{ fontSize: 18 }}>Liquidando na Stellar…</h3>
           <p className="t-2" style={{ fontSize: 13 }}>
-            Cobrando XLM da sua carteira e transferindo o NFT. Pode levar alguns segundos.
+            Confirmando assinatura, cobrando XLM da sua carteira e transferindo o NFT.
           </p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
@@ -181,7 +189,7 @@ export function BuyDrawer({ receivable, onClose, onSuccess }: BuyDrawerProps) {
           </div>
           <h3 style={{ fontSize: 22 }}>Cota adquirida</h3>
           <p className="t-2" style={{ fontSize: 13 }}>
-            NFT transferido para sua carteira e XLM debitado. Acompanhe em "Minhas cotas".
+            NFT transferido para sua carteira e XLM debitado. Acompanhe em Minhas cotas.
           </p>
 
           {result?.paymentTxHash && (

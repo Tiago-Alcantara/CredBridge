@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   Asset,
@@ -28,7 +28,8 @@ const NETWORK_PASSPHRASE =
     : Networks.TESTNET;
 
 const BASE_FEE = '1000000'; // 0.1 XLM — generous for Soroban ops
-const TESOURO_ISSUER = 'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4';
+const TESOURO_ISSUER =
+  'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4';
 const TESOURO = new Asset('TESOURO', TESOURO_ISSUER);
 const TX_TIMEOUT_SECONDS = 30;
 const POLL_INTERVAL_MS = 2000;
@@ -77,17 +78,21 @@ export class StellarService implements BlockchainService {
       `tokenizeNfe — key: ${data.key}, value: ${data.value}, owner: ${data.ownerUserId}`,
     );
 
-    const { server, platformKeypair, contractId } = this.requireContractConfig();
+    const { server, platformKeypair, contractId } =
+      this.requireContractConfig();
 
-    // Look up PME's custodial wallet
+    // Look up PME's Privy wallet, with legacy wallet fallback.
     const user = await this.prisma.user.findUnique({
       where: { id: data.ownerUserId },
-      select: { stellarWalletId: true, googleId: true },
+      select: { stellarWalletId: true, privyStellarWalletAddress: true },
     });
-    if (!user?.stellarWalletId || !user?.googleId) {
-      throw new Error(`PME ${data.ownerUserId} has no Stellar wallet — cannot tokenize`);
+    const pmeAddress =
+      user?.privyStellarWalletAddress ?? user?.stellarWalletId ?? null;
+    if (!pmeAddress) {
+      throw new ConflictException(
+        `PME ${data.ownerUserId} has no Stellar wallet — cannot tokenize`,
+      );
     }
-    const pmeAddress = user.stellarWalletId;
 
     const xmlHashBytes = this.toBytes32(data.xmlHash);
     const valueInCentavos = BigInt(Math.round(data.value * 100));
@@ -96,23 +101,37 @@ export class StellarService implements BlockchainService {
 
     // Step 1: tokenize with PME as owner, platform authorizes
     this.logger.log(`Tokenizing NF ${data.key} — owner: ${pmeAddress}`);
-    const mintHash = await this.invokeContract(server, platformKeypair, contractId, 'tokenize_nfe', [
-      nativeToScVal(data.key, { type: 'string' }),
-      nativeToScVal(valueInCentavos, { type: 'i128' }),
-      nativeToScVal(dueDateUnix, { type: 'u64' }),
-      xdr.ScVal.scvBytes(xmlHashBytes),
-      nativeToScVal(pmeAddress, { type: 'address' }),
-      nativeToScVal(platformAddress, { type: 'address' }),
-    ]);
+    const mintHash = await this.invokeContract(
+      server,
+      platformKeypair,
+      contractId,
+      'tokenize_nfe',
+      [
+        nativeToScVal(data.key, { type: 'string' }),
+        nativeToScVal(valueInCentavos, { type: 'i128' }),
+        nativeToScVal(dueDateUnix, { type: 'u64' }),
+        xdr.ScVal.scvBytes(xmlHashBytes),
+        nativeToScVal(pmeAddress, { type: 'address' }),
+        nativeToScVal(platformAddress, { type: 'address' }),
+      ],
+    );
     this.logger.log(`NF tokenized — txHash: ${mintHash}`);
 
     // Step 2: transfer ownership to platform (CredBridge receives the receivable)
-    this.logger.log(`Transferring NF ${data.key} ownership to platform: ${platformAddress}`);
-    const transferHash = await this.invokeContract(server, platformKeypair, contractId, 'transfer_ownership', [
-      nativeToScVal(data.key, { type: 'string' }),
-      nativeToScVal(platformAddress, { type: 'address' }),
-      nativeToScVal(platformAddress, { type: 'address' }),
-    ]);
+    this.logger.log(
+      `Transferring NF ${data.key} ownership to platform: ${platformAddress}`,
+    );
+    const transferHash = await this.invokeContract(
+      server,
+      platformKeypair,
+      contractId,
+      'transfer_ownership',
+      [
+        nativeToScVal(data.key, { type: 'string' }),
+        nativeToScVal(platformAddress, { type: 'address' }),
+        nativeToScVal(platformAddress, { type: 'address' }),
+      ],
+    );
     this.logger.log(`Ownership transferred — txHash: ${transferHash}`);
 
     return mintHash;
@@ -126,9 +145,13 @@ export class StellarService implements BlockchainService {
     );
 
     const amount = data.amountBrl.toFixed(7);
-    this.logger.log(`payPme — ${amount} TESOURO to ${pmeAddress} memo=${data.memo}`);
+    this.logger.log(
+      `payPme — ${amount} TESOURO to ${pmeAddress} memo=${data.memo}`,
+    );
 
-    const sourceAccount = await this.horizon.loadAccount(platformKeypair.publicKey());
+    const sourceAccount = await this.horizon.loadAccount(
+      platformKeypair.publicKey(),
+    );
 
     const tx = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,
@@ -151,12 +174,14 @@ export class StellarService implements BlockchainService {
     return res.hash;
   }
 
-  async transferNftToInvestor(data: TransferNftToInvestorInput): Promise<string> {
-    const { server, platformKeypair, contractId } = this.requireContractConfig();
+  async transferNftToInvestor(
+    data: TransferNftToInvestorInput,
+  ): Promise<string> {
+    const { server, platformKeypair, contractId } =
+      this.requireContractConfig();
 
-    const { publicKey: investorAddress } = await this.ensureCustodialWalletForUser(
-      data.investorUserId,
-    );
+    const { publicKey: investorAddress } =
+      await this.ensureCustodialWalletForUser(data.investorUserId);
 
     const platformAddress = platformKeypair.publicKey();
     this.logger.log(
@@ -183,6 +208,11 @@ export class StellarService implements BlockchainService {
 
     const { publicKey: investorAddress, keypair: investorKeypair } =
       await this.ensureCustodialWalletForUser(data.investorUserId);
+    if (!investorKeypair) {
+      throw new Error(
+        `Investor ${data.investorUserId} uses a Privy wallet; payment must be signed by Privy`,
+      );
+    }
 
     const platformAddress = platformKeypair.publicKey();
     const amount = data.amountBrl.toFixed(7);
@@ -221,12 +251,19 @@ export class StellarService implements BlockchainService {
       return await this.horizon.submitTransaction(tx);
     } catch (err: unknown) {
       const e = err as {
-        response?: { data?: { extras?: { result_codes?: unknown; result_xdr?: string }; detail?: string } };
+        response?: {
+          data?: {
+            extras?: { result_codes?: unknown; result_xdr?: string };
+            detail?: string;
+          };
+        };
         message?: string;
       };
       const extras = e?.response?.data?.extras;
       const detail = e?.response?.data?.detail;
-      const codes = extras?.result_codes ? JSON.stringify(extras.result_codes) : 'n/a';
+      const codes = extras?.result_codes
+        ? JSON.stringify(extras.result_codes)
+        : 'n/a';
       const resultXdr = extras?.result_xdr ?? 'n/a';
       this.logger.error(
         `Horizon submit failed [${label}] — detail=${detail ?? 'n/a'} codes=${codes} result_xdr=${resultXdr}`,
@@ -242,11 +279,15 @@ export class StellarService implements BlockchainService {
     amount: number;
     destination: string;
   }): Promise<string> {
-    this.logger.log(`settlePayment: receivable ${data.receivableId} (not yet implemented)`);
+    this.logger.log(
+      `settlePayment: receivable ${data.receivableId} (not yet implemented)`,
+    );
     return `stellar-settle-${Date.now()}`;
   }
 
-  async getTransactionStatus(txHash: string): Promise<'pending' | 'success' | 'failed'> {
+  async getTransactionStatus(
+    txHash: string,
+  ): Promise<'pending' | 'success' | 'failed'> {
     const { server } = this.requireContractConfig();
     const result = await server.getTransaction(txHash);
     if (result.status === 'SUCCESS') return 'success';
@@ -271,9 +312,13 @@ export class StellarService implements BlockchainService {
         throw new Error('Mainnet custodial wallet requires manual funding');
       }
       this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
-      const res = await fetch(`https://friendbot.stellar.org?addr=${publicKey}`);
+      const res = await fetch(
+        `https://friendbot.stellar.org?addr=${publicKey}`,
+      );
       if (!res.ok) {
-        this.logger.warn(`Friendbot failed (${res.status}) for ${publicKey} — wallet unfunded`);
+        this.logger.warn(
+          `Friendbot failed (${res.status}) for ${publicKey} — wallet unfunded`,
+        );
       } else {
         isNew = true;
       }
@@ -294,7 +339,9 @@ export class StellarService implements BlockchainService {
     args: xdr.ScVal[],
   ): Promise<string> {
     const contract = new Contract(contractId);
-    const sourceAccount = await this.horizon.loadAccount(signerKeypair.publicKey());
+    const sourceAccount = await this.horizon.loadAccount(
+      signerKeypair.publicKey(),
+    );
 
     const tx = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,
@@ -306,7 +353,9 @@ export class StellarService implements BlockchainService {
 
     const simResult = await server.simulateTransaction(tx);
     if (!rpc.Api.isSimulationSuccess(simResult)) {
-      throw new Error(`Soroban simulation failed [${method}]: ${JSON.stringify(simResult)}`);
+      throw new Error(
+        `Soroban simulation failed [${method}]: ${JSON.stringify(simResult)}`,
+      );
     }
 
     const assembled = rpc.assembleTransaction(tx, simResult).build();
@@ -314,7 +363,9 @@ export class StellarService implements BlockchainService {
 
     const sendResult = await server.sendTransaction(assembled);
     if (sendResult.status === 'ERROR') {
-      throw new Error(`Stellar RPC rejected tx [${method}]: ${JSON.stringify(sendResult.errorResult)}`);
+      throw new Error(
+        `Stellar RPC rejected tx [${method}]: ${JSON.stringify(sendResult.errorResult)}`,
+      );
     }
 
     await this.waitForConfirmation(sendResult.hash, server);
@@ -336,28 +387,41 @@ export class StellarService implements BlockchainService {
       await this.submitWithDetail(tx, 'changeTrust:TESOURO');
       this.logger.log(`TESOURO trustline established for ${publicKey}`);
     } catch (err) {
-      this.logger.warn(`Failed to establish TESOURO trustline for ${publicKey}: ${(err as Error).message}`);
+      this.logger.warn(
+        `Failed to establish TESOURO trustline for ${publicKey}: ${(err as Error).message}`,
+      );
     }
   }
 
   private deriveKeypair(seedSource: string): Keypair {
-    const seed = createHmac('sha256', this.walletSecret).update(seedSource).digest();
+    const seed = createHmac('sha256', this.walletSecret)
+      .update(seedSource)
+      .digest();
     return Keypair.fromRawEd25519Seed(seed);
   }
 
   private async ensureCustodialWalletForUser(
     userId: string,
-  ): Promise<{ publicKey: string; keypair: Keypair }> {
+  ): Promise<{ publicKey: string; keypair: Keypair | null }> {
     if (!this.walletSecret) {
       throw new Error('STELLAR_WALLET_SECRET not configured');
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, googleId: true, stellarWalletId: true },
+      select: {
+        id: true,
+        googleId: true,
+        stellarWalletId: true,
+        privyStellarWalletAddress: true,
+      },
     });
     if (!user) {
       throw new Error(`User ${userId} not found`);
+    }
+
+    if (user.privyStellarWalletAddress) {
+      return { publicKey: user.privyStellarWalletAddress, keypair: null };
     }
 
     const seedSource = user.googleId ?? user.id;
@@ -374,10 +438,14 @@ export class StellarService implements BlockchainService {
       await this.horizon.loadAccount(publicKey);
     } catch {
       if (this.isMainnet) {
-        throw new Error(`Mainnet wallet for user ${userId} requires manual funding`);
+        throw new Error(
+          `Mainnet wallet for user ${userId} requires manual funding`,
+        );
       }
       this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
-      const res = await fetch(`https://friendbot.stellar.org?addr=${publicKey}`);
+      const res = await fetch(
+        `https://friendbot.stellar.org?addr=${publicKey}`,
+      );
       if (!res.ok) {
         throw new Error(
           `Friendbot funding failed (${res.status}) for ${publicKey}`,
@@ -390,7 +458,9 @@ export class StellarService implements BlockchainService {
         where: { id: userId },
         data: { stellarWalletId: publicKey },
       });
-      this.logger.log(`Persisted custodial wallet for user ${userId}: ${publicKey}`);
+      this.logger.log(
+        `Persisted custodial wallet for user ${userId}: ${publicKey}`,
+      );
     }
 
     return { publicKey, keypair };
@@ -406,10 +476,17 @@ export class StellarService implements BlockchainService {
         'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_CONTRACT_ID',
       );
     }
-    return { server: this.server, platformKeypair: this.platformKeypair, contractId: this.contractId };
+    return {
+      server: this.server,
+      platformKeypair: this.platformKeypair,
+      contractId: this.contractId,
+    };
   }
 
-  private async waitForConfirmation(hash: string, server?: rpc.Server): Promise<void> {
+  private async waitForConfirmation(
+    hash: string,
+    server?: rpc.Server,
+  ): Promise<void> {
     const s = server ?? this.requireContractConfig().server;
     const deadline = Date.now() + POLL_DEADLINE_MS;
     while (Date.now() < deadline) {
@@ -420,7 +497,9 @@ export class StellarService implements BlockchainService {
       }
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }
-    throw new Error(`Stellar tx timed out after ${POLL_DEADLINE_MS / 1000}s: ${hash}`);
+    throw new Error(
+      `Stellar tx timed out after ${POLL_DEADLINE_MS / 1000}s: ${hash}`,
+    );
   }
 
   private toBytes32(hexHash: string | null): Buffer {

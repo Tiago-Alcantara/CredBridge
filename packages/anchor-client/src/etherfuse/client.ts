@@ -55,6 +55,7 @@ import type {
     EtherfuseKycIdentityRequest,
     EtherfuseKycDocumentRequest,
 } from './types';
+import { log } from 'console';
 
 /**
  * Client for the Etherfuse fiat on/off ramp API.
@@ -155,7 +156,7 @@ export class EtherfuseClient implements Anchor {
         const url = `${this.config.baseUrl}${endpoint}`;
 
         console.log(`[Etherfuse] ${method} ${url}`, body ? JSON.stringify(body) : '');
-
+        console.log(this.config.apiKey);
         const response = await fetch(url, {
             method,
             headers: {
@@ -374,8 +375,8 @@ export class EtherfuseClient implements Anchor {
             );
         }
 
-        const customerId = crypto.randomUUID();
-        const bankAccountId = crypto.randomUUID();
+        const customerId = crypto.randomUUID().replace(/-/g, '');
+        const bankAccountId = crypto.randomUUID().replace(/-/g, '');
         const publicKey = input.publicKey;
 
         try {
@@ -485,7 +486,7 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
-        const quoteId = crypto.randomUUID();
+        const quoteId = crypto.randomUUID().replace(/-/g, '');
         const [sourceAsset, targetAsset] = await this.resolveAssetPair(
             input.fromCurrency,
             input.toCurrency,
@@ -497,14 +498,14 @@ export class EtherfuseClient implements Anchor {
 
         const response = await this.request<EtherfuseQuoteResponse>('POST', '/ramp/quote', {
             quoteId,
-            customerId: input.customerId || '',
+            customerId: input.customerId,
             blockchain: this.blockchain,
             quoteAssets: { type, sourceAsset, targetAsset },
             sourceAmount: String(input.fromAmount || input.toAmount || ''),
         });
 
         return {
-            id: response.quoteId,
+            id: response.quoteId || quoteId,
             fromCurrency: response.quoteAssets.sourceAsset,
             toCurrency: response.quoteAssets.targetAsset,
             fromAmount: response.sourceAmount,
@@ -527,7 +528,7 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
-        const orderId = crypto.randomUUID();
+        const orderId = crypto.randomUUID().replace(/-/g, '');
 
         let bankAccountId = input.bankAccountId;
         if (!bankAccountId && input.customerId) {
@@ -600,7 +601,8 @@ export class EtherfuseClient implements Anchor {
                 `/ramp/customer/${customerId}/bank-accounts`,
                 { pageSize: 100, pageNumber: 0 },
             );
-
+            console.log("@@@@@@@@@@BANCOS ENCONTRADOS ",response);
+            
             return response.items.map((account) => {
                 const isPix = !!account.pixKey;
                 return {
@@ -633,7 +635,7 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
-        const orderId = crypto.randomUUID();
+        const orderId = crypto.randomUUID().replace(/-/g, '');
 
         let bankAccountId = input.fiatAccountId;
         if (!bankAccountId && input.customerId) {
@@ -721,7 +723,7 @@ export class EtherfuseClient implements Anchor {
             );
         }
 
-        const resolvedBankAccountId = bankAccountId || crypto.randomUUID();
+        const resolvedBankAccountId = bankAccountId || crypto.randomUUID().replace(/-/g, '');
 
         const response = await this.request<EtherfuseOnboardingResponse>(
             'POST',

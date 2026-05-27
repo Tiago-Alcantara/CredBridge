@@ -6,3 +6,7 @@ dist/
 .turbo/
 *.log
 .superpowers/
+.claude/
+.codex/
+.agents/
+skills-lock

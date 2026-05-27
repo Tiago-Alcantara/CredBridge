@@ -4,27 +4,30 @@ import { useState } from "react";
 import type { Receivable } from "@credbridge/types";
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
-import { WalletSetupBanner } from "@/components/auth/WalletSetupBanner";
 import { NavChart } from "@/components/investor/NavChart";
 import { ShareCard } from "@/components/investor/ShareCard";
 import { PoolToggle, type PoolView } from "@/components/investor/PoolToggle";
 import { PoolTable } from "@/components/investor/PoolTable";
 import { PositionsTable } from "@/components/investor/PositionsTable";
 import { BuyDrawer } from "@/components/investor/BuyDrawer";
+import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { fmtBRL } from "@/lib/format";
 import { useInvestorPool, useInvestorStats } from "@/lib/api/receivables";
 import { useInvestorPositions, useInvestorPositionStats } from "@/lib/api/investments";
+import { useMe } from "@/lib/api/me";
 
 export default function InvestorDashboardPage() {
   const { t } = useTranslation("pt");
   const [view, setView] = useState<PoolView>("pool");
   const [buyTarget, setBuyTarget] = useState<Receivable | null>(null);
+  const [onrampOpen, setOnrampOpen] = useState(false);
 
   const { data: pool = [], isLoading: loadingPool } = useInvestorPool();
   const { data: poolStats, isLoading: loadingPoolStats } = useInvestorStats();
   const { data: positions = [], isLoading: loadingPositions } = useInvestorPositions();
   const { data: posStats, isLoading: loadingPosStats } = useInvestorPositionStats();
+  const { data: me } = useMe();
 
   const isMine = view === "mine";
 
@@ -55,6 +58,9 @@ export default function InvestorDashboardPage() {
           <button className="btn btn-ghost">
             <Icon name="download" size={14} /> Relatório
           </button>
+          <button className="btn btn-primary" onClick={() => setOnrampOpen(true)}>
+            <Icon name="download" size={14} /> Depositar BRL
+          </button>
           <button
             className="btn btn-violet"
             onClick={goToPool}
@@ -63,8 +69,6 @@ export default function InvestorDashboardPage() {
           </button>
         </div>
       </div>
-
-      <WalletSetupBanner />
 
       {/* KPI row */}
       <div
@@ -188,9 +192,12 @@ export default function InvestorDashboardPage() {
 
       <BuyDrawer
         receivable={buyTarget}
+        userEmail={me?.email}
         onClose={() => setBuyTarget(null)}
         onSuccess={() => setView("mine")}
       />
+
+      <AnchorDrawer mode="onramp" open={onrampOpen} onClose={() => setOnrampOpen(false)} />
     </>
   );
 }
