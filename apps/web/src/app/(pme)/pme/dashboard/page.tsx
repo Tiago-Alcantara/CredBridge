@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
 import { StellarWalletAddress } from "@/components/auth/StellarWalletAddress";
@@ -11,11 +10,11 @@ import { YieldSpark } from "@/components/pme/YieldSpark";
 import { InvoiceTable } from "@/components/pme/InvoiceTable";
 import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
-import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useReceivables } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
 import { useAuditLog } from "@/lib/api/audit";
+import { useGetWalletXlmBalance } from "@/lib/api/wallet";
 import type { Receivable } from "@/types";
 import type { AuditEvent } from "@credbridge/types";
 
@@ -56,6 +55,21 @@ function relativeTime(dateStr: string): string {
   return `há ${Math.floor(hours / 24)}d`;
 }
 
+function formatXlmBalance(balance: number): string {
+  return balance.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 7,
+  });
+}
+
+function formatUpdatedAt(timestamp: number): string {
+  if (!timestamp) return "—";
+  return new Date(timestamp).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 const EVENT_LABELS: Record<string, string> = {
   "receivable.created": "Recebível enviado",
   "receivable.updated": "Recebível atualizado",
@@ -88,7 +102,14 @@ export default function PmeDashboardPage() {
   const { data: receivables, isLoading, isError } = useReceivables();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
-  const [offrampOpen, setOfframpOpen] = useState(false);
+  const {
+    data: xlmBalance,
+    dataUpdatedAt: xlmBalanceUpdatedAt,
+    isError: isXlmBalanceError,
+    isFetching: isXlmBalanceFetching,
+    isLoading: isXlmBalanceLoading,
+    refetch: refetchXlmBalance,
+  } = useGetWalletXlmBalance();
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
@@ -100,6 +121,7 @@ export default function PmeDashboardPage() {
   const analysisValue = analysisRows.reduce((sum, r) => sum + r.value, 0);
   const settledValue = settledRows.reduce((sum, r) => sum + r.value, 0);
   const totalCount = receivables?.length ?? 0;
+  const availableXlmBalance = xlmBalance?.xlmBalance ?? 0;
 
   const firstName = me?.name?.split(" ")[0] ?? me?.email?.split("@")[0] ?? "";
 
@@ -149,16 +171,32 @@ export default function PmeDashboardPage() {
         }}
       >
         <div className="card hi" style={{ padding: 32 }}>
-          <div className="eyebrow" style={{ marginBottom: 14 }}>
-            {t("dash_avail")}
+          <div className="row between" style={{ marginBottom: 14, gap: 12 }}>
+            <div className="eyebrow">
+              {t("dash_avail")}
+            </div>
+            <button
+              aria-label="Atualizar saldo XLM na Stellar"
+              className="btn btn-ghost btn-sm"
+              disabled={isXlmBalanceFetching}
+              onClick={() => {
+                void refetchXlmBalance();
+              }}
+              title="Atualizar saldo XLM na Stellar"
+              type="button"
+            >
+              <Icon name="refresh" size={13} />
+              {isXlmBalanceFetching ? "Atualizando" : "Atualizar"}
+            </button>
           </div>
           <div className="kpi kpi-lg num">
-            <span className="unit">R$</span>—
+            <span className="unit">R$</span>
+            {isXlmBalanceLoading ? "…" : formatXlmBalance(availableXlmBalance)}
           </div>
-          <div className="row" style={{ gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" onClick={() => setOfframpOpen(true)} >
-              <Icon name="download" size={14} /> {t("dash_withdraw")}
-            </button>
+          <div className="t-2" style={{ fontSize: 12.5, marginTop: 12 }}>
+            {isXlmBalanceError
+              ? "Erro ao consultar a rede Stellar"
+              : "Saldo nativo da carteira conectada"}
           </div>
           <div
             className="row"
@@ -173,9 +211,9 @@ export default function PmeDashboardPage() {
           >
             <span className="row" style={{ gap: 6 }}>
               <span className="dot-live" />
-              <span>BRL Digital · Stellar</span>
+              <span>Carteira Stellar · Horizon</span>
             </span>
-            <span className="mono">—</span>
+            <span className="mono">{formatUpdatedAt(xlmBalanceUpdatedAt)}</span>
           </div>
         </div>
 
@@ -318,7 +356,6 @@ export default function PmeDashboardPage() {
         )}
       </div> */}
 
-      <AnchorDrawer mode="offramp" open={offrampOpen} onClose={() => setOfframpOpen(false)} />
     </>
   );
 }

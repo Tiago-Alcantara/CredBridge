@@ -74,6 +74,9 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    await this.ensureLoginWalletHasMinimumXlm(
+      user.privyStellarWalletAddress ?? user.stellarWalletId,
+    );
     return this.issueToken(user.id, user.email, user.role);
   }
 
@@ -125,6 +128,10 @@ export class AuthService {
       }
     }
 
+    await this.ensureLoginWalletHasMinimumXlm(
+      user.privyStellarWalletAddress ?? user.stellarWalletId,
+    );
+
     const tokenResult = await this.issueToken(user.id, user.email, user.role);
     return {
       ...tokenResult,
@@ -152,8 +159,6 @@ export class AuthService {
       where: { privyUserId: identity.privyUserId },
     });
 
-    let currentWalletAddress = user?.privyStellarWalletAddress ?? null;
-
     if (user) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -165,7 +170,6 @@ export class AuthService {
       });
 
       if (existingEmailUser) {
-        currentWalletAddress = existingEmailUser.privyStellarWalletAddress ?? null;
         user = await this.prisma.user.update({
           where: { id: existingEmailUser.id },
           data: privyUserData,
@@ -181,22 +185,7 @@ export class AuthService {
     }
 
     // Automatically fund the Privy Stellar Wallet on Testnet if it is newly registered
-    if (!currentWalletAddress && identity.stellarWalletAddress) {
-      const isMainnet = process.env.STELLAR_NETWORK === 'mainnet';
-      if (!isMainnet) {
-        const walletAddress = identity.stellarWalletAddress;
-        this.logger.log(`New Privy Stellar wallet registered on Testnet: ${walletAddress}. Funding via platform wallet in the background...`);
-        this.stellarService.fundAccountFromPlatform(walletAddress, '5.0')
-          .then((txHash) => {
-            if (txHash) {
-              this.logger.log(`Successfully funded Privy wallet ${walletAddress} via platform wallet: ${txHash}`);
-            }
-          })
-          .catch((err) => {
-            this.logger.error(`Error funding Privy wallet ${walletAddress} via platform wallet:`, err);
-          });
-      }
-    }
+    await this.ensureLoginWalletHasMinimumXlm(identity.stellarWalletAddress);
 
     const tokenResult = await this.issueToken(user.id, user.email, user.role);
     return {
@@ -258,6 +247,25 @@ export class AuthService {
     createdAt: true,
     updatedAt: true,
   } as const;
+
+  private async ensureLoginWalletHasMinimumXlm(
+    walletAddress: string | null | undefined,
+  ): Promise<void> {
+    if (!walletAddress) return;
+
+    this.logger.log(
+      `Ensuring Stellar wallet has at least 5 XLM before login: ${walletAddress}`,
+    );
+    const txHash = await this.stellarService.ensureAccountHasMinimumXlm(
+      walletAddress,
+      '5.0',
+    );
+    if (txHash) {
+      this.logger.log(
+        `Stellar wallet funded before login — wallet=${walletAddress} txHash=${txHash}`,
+      );
+    }
+  }
 
   async findMe(userId: string) {
     const user = await this.prisma.user.findUnique({

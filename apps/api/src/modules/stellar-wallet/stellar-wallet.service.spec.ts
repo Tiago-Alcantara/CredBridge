@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { StellarWalletService } from './stellar-wallet.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
 const mockUser = {
   id: 'user-1',
@@ -27,6 +28,10 @@ const auditMock = {
   log: jest.fn(),
 };
 
+const blockchainMock = {
+  getNativeXlmBalance: jest.fn(),
+};
+
 describe('StellarWalletService', () => {
   let service: StellarWalletService;
 
@@ -36,6 +41,7 @@ describe('StellarWalletService', () => {
         StellarWalletService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditService, useValue: auditMock },
+        { provide: BLOCKCHAIN_SERVICE, useValue: blockchainMock },
       ],
     }).compile();
     service = module.get<StellarWalletService>(StellarWalletService);
@@ -170,6 +176,46 @@ describe('StellarWalletService', () => {
 
       const result = await service.getWallet('user-1');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('getXlmBalance', () => {
+    it('returns the native XLM balance for the ready Privy wallet', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+      });
+      blockchainMock.getNativeXlmBalance.mockResolvedValue(4.25);
+
+      const result = await service.getXlmBalance('user-1');
+
+      expect(blockchainMock.getNativeXlmBalance).toHaveBeenCalledWith(
+        'GPRIVYWALLET',
+      );
+      expect(result).toEqual({
+        walletAddress: 'GPRIVYWALLET',
+        xlmBalance: 4.25,
+      });
+    });
+
+    it('returns zero when the user has no wallet', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        stellarWalletId: null,
+        passkeyId: null,
+        walletType: null,
+        walletStatus: null,
+        privyStellarWalletAddress: null,
+        privyWalletStatus: null,
+      });
+
+      const result = await service.getXlmBalance('user-1');
+
+      expect(blockchainMock.getNativeXlmBalance).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        walletAddress: null,
+        xlmBalance: 0,
+      });
     });
   });
 });

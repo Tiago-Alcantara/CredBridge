@@ -51,10 +51,10 @@ Rail:         PIX (Brasil)
 Paridade:     1 TESOURO = 1 BRL
 ```
 
-Wallets custodiais precisam estabelecer uma **trustline** para TESOURO antes
-de poder receber o token. Isso é feito no `createCustodialWallet` via
-`Operation.changeTrust`, com a conta CredBridge como pagadora da fee e
-patrocinadora da reserva da trustline. Implementado no commit 3.
+Wallets Stellar precisam estabelecer uma **trustline** para TESOURO antes
+de poder receber o token. O fluxo atual prioriza wallets Stellar da Privy
+registradas em `privyStellarWalletAddress`; o antigo caminho explícito
+`createCustodialWallet` foi removido.
 
 ---
 
@@ -104,7 +104,7 @@ patrocinadora da reserva da trustline. Implementado no commit 3.
 |-----------|-------|--------|
 | `payPme` — asset | `Asset.native()` (XLM) | `new Asset('TESOURO', ISSUER)` |
 | `chargeInvestor` — asset | `Asset.native()` (XLM) | `new Asset('TESOURO', ISSUER)` |
-| `createCustodialWallet` | cria via conta CredBridge + reserva patrocinada + trustline TESOURO patrocinada | cria via conta CredBridge + reserva patrocinada + trustline TESOURO patrocinada |
+| Wallet Stellar do usuário | wallet custodial criada explicitamente no backend | wallet Stellar Privy registrada na sessão do usuário |
 | `BlockchainInterface` | `amountXlm: number` | `amountBrl: number` |
 | Soroban `tokenizeNfe` | inalterado | inalterado |
 | `AnchorModule` | não existe | novo módulo NestJS |

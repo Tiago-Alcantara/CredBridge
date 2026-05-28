@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,6 +8,10 @@ import {
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
+import {
+  BLOCKCHAIN_SERVICE,
+  type BlockchainService,
+} from '../../shared/blockchain/blockchain.interface';
 
 @Injectable()
 export class StellarWalletService {
@@ -15,6 +20,8 @@ export class StellarWalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Inject(BLOCKCHAIN_SERVICE)
+    private readonly blockchain: BlockchainService,
   ) {}
 
   async createWallet(
@@ -72,6 +79,42 @@ export class StellarWalletService {
       passkeyId: user.passkeyId,
       walletType: user.walletType,
       walletStatus: user.walletStatus,
+    };
+  }
+
+  async getXlmBalance(userId: string): Promise<{
+    walletAddress: string | null;
+    xlmBalance: number;
+  }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        stellarWalletId: true,
+        privyStellarWalletAddress: true,
+        privyWalletStatus: true,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const walletAddress =
+      user.privyStellarWalletAddress && user.privyWalletStatus === 'ready'
+        ? user.privyStellarWalletAddress
+        : user.stellarWalletId;
+
+    if (!walletAddress) {
+      return {
+        walletAddress: null,
+        xlmBalance: 0,
+      };
+    }
+
+    const xlmBalance = await this.blockchain.getNativeXlmBalance(walletAddress);
+
+    return {
+      walletAddress,
+      xlmBalance,
     };
   }
 }

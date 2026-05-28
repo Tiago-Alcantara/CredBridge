@@ -739,11 +739,13 @@ apps/api/src/shared/blockchain/stellar.service.ts
 Esse service tem funcoes como:
 
 ```ts
-createCustodialWallet(...)
 ensureCustodialWalletForUser(...)
 ```
 
-Esse caminho e diferente da smart wallet com passkey.
+O caminho explícito `createCustodialWallet` foi removido. O fluxo atual usa
+wallet Stellar da Privy quando `privyStellarWalletAddress` existe, e mantém
+`ensureCustodialWalletForUser` apenas como compatibilidade para fluxos internos
+que ainda precisam resolver uma wallet Stellar do usuário.
 
 ### Smart wallet com passkey
 

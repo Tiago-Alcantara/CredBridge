@@ -45,10 +45,14 @@ export interface BlockchainService {
   getTransactionStatus(
     txHash: string,
   ): Promise<'pending' | 'success' | 'failed'>;
-  createCustodialWallet(googleId: string): Promise<string>;
   fundAccountFromPlatform(
     destination: string,
     startingBalance?: string,
+  ): Promise<string | null>;
+  getNativeXlmBalance(walletAddress: string): Promise<number>;
+  ensureAccountHasMinimumXlm(
+    destination: string,
+    minimumBalance?: string,
   ): Promise<string | null>;
   prepareAssignment(
     receivableKey: string,
