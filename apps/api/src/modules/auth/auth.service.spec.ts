@@ -53,7 +53,6 @@ const privyAuthMock = {
 
 const stellarMock = {
   fundAccountFromPlatform: jest.fn().mockResolvedValue('tx-hash'),
-  ensureAccountHasMinimumXlm: jest.fn().mockResolvedValue('tx-hash'),
 };
 
 describe('AuthService', () => {
@@ -84,8 +83,6 @@ describe('AuthService', () => {
     privyAuthMock.verifySession.mockReset();
     stellarMock.fundAccountFromPlatform.mockReset();
     stellarMock.fundAccountFromPlatform.mockResolvedValue('tx-hash');
-    stellarMock.ensureAccountHasMinimumXlm.mockReset();
-    stellarMock.ensureAccountHasMinimumXlm.mockResolvedValue('tx-hash');
   });
 
   describe('googleLogin', () => {
@@ -185,46 +182,6 @@ describe('AuthService', () => {
     });
   });
 
-  describe('login', () => {
-    it('waits for wallet funding before returning a password login session when the user has a wallet', async () => {
-      const passwordHash = await bcrypt.hash('teste123456', 10);
-      let finishFunding!: () => void;
-      const fundingPromise = new Promise<string>((resolve) => {
-        finishFunding = () => resolve('funding-tx');
-      });
-      stellarMock.ensureAccountHasMinimumXlm.mockReturnValue(fundingPromise);
-      prismaMock.user.findUnique.mockResolvedValue({
-        ...mockUser,
-        passwordHash,
-        privyStellarWalletAddress: 'GPRIVYWALLET',
-      });
-
-      let sessionResolved = false;
-      const sessionPromise = service
-        .login({
-          email: 'test@example.com',
-          password: 'teste123456',
-        })
-        .then((result) => {
-          sessionResolved = true;
-          return result;
-        });
-
-      await Promise.resolve();
-
-      expect(sessionResolved).toBe(false);
-
-      finishFunding();
-      const result = await sessionPromise;
-
-      expect(result.accessToken).toBe('token');
-      expect(stellarMock.ensureAccountHasMinimumXlm).toHaveBeenCalledWith(
-        'GPRIVYWALLET',
-        '5.0',
-      );
-    });
-  });
-
   describe('privySession', () => {
     beforeEach(() => {
       privyAuthMock.verifySession.mockResolvedValue({
@@ -271,46 +228,6 @@ describe('AuthService', () => {
         },
       });
       expect(result.needsRoleSelection).toBe(false);
-      expect(stellarMock.ensureAccountHasMinimumXlm).toHaveBeenCalledWith(
-        'GPRIVYWALLET',
-        '5.0',
-      );
-    });
-
-    it('waits for Stellar wallet funding before returning the Privy session', async () => {
-      let finishFunding!: () => void;
-      const fundingPromise = new Promise<string>((resolve) => {
-        finishFunding = () => resolve('funding-tx');
-      });
-      stellarMock.ensureAccountHasMinimumXlm.mockReturnValue(fundingPromise);
-      prismaMock.user.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(mockUser);
-      prismaMock.user.update.mockResolvedValue({
-        ...mockUser,
-        provider: 'privy',
-        privyUserId: 'did:privy:user-1',
-        privyStellarWalletAddress: 'GPRIVYWALLET',
-        privyWalletStatus: 'ready',
-      });
-
-      let sessionResolved = false;
-      const sessionPromise = service
-        .privySession('access-token', 'identity-token')
-        .then((result) => {
-          sessionResolved = true;
-          return result;
-        });
-
-      await Promise.resolve();
-
-      expect(sessionResolved).toBe(false);
-
-      finishFunding();
-      const result = await sessionPromise;
-
-      expect(result.accessToken).toBe('token');
-      expect(sessionResolved).toBe(true);
     });
 
     it('refreshes wallet data for an already linked Privy user without changing the local email', async () => {

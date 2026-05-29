@@ -80,31 +80,12 @@ const sectionTitleStyle: React.CSSProperties = {
   borderBottom: "1px solid var(--line)",
 };
 
-const walletInfoValueStyle: React.CSSProperties = {
-  minWidth: 0,
-  overflowWrap: "anywhere",
-  fontFamily: "var(--mono)",
-  fontSize: 12.5,
-  color: "var(--fg)",
-};
-
-function formatNullableValue(value: string | null | undefined): string {
-  return value?.trim() ? value : "Não informado";
-}
-
-function formatWalletStatus(value: string | null | undefined): string {
-  if (value === "ready") return "Pronta";
-  if (value?.trim()) return value;
-  return "Não provisionada";
-}
-
 export function AccountSettings() {
   const { data: me, isLoading } = useMe();
   const updateMe = useUpdateMe();
   const updatePassword = useUpdatePassword();
   const { showToast } = useToast();
   const role = getTokenRole();
-  const [copiedWalletField, setCopiedWalletField] = useState<string | null>(null);
 
   // Profile section state
   const [name, setName] = useState("");
@@ -216,46 +197,6 @@ export function AccountSettings() {
     );
   }
 
-  async function handleCopyWalletInfo(fieldName: string, value: string | null | undefined) {
-    if (!value?.trim()) return;
-    await navigator.clipboard.writeText(value);
-    setCopiedWalletField(fieldName);
-    setTimeout(() => setCopiedWalletField(null), 2000);
-  }
-
-  function renderWalletInfoRow(
-    label: string,
-    value: string,
-    copyValue?: string | null,
-  ) {
-    const canCopy = Boolean(copyValue?.trim());
-    return (
-      <div
-        key={label}
-        style={{
-          display: "grid",
-          gridTemplateColumns: "150px minmax(0, 1fr) auto",
-          gap: 12,
-          alignItems: "center",
-          padding: "12px 0",
-          borderBottom: "1px solid var(--line)",
-        }}
-      >
-        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{label}</span>
-        <code style={walletInfoValueStyle}>{value}</code>
-        <button
-          className="btn btn-ghost btn-sm"
-          type="button"
-          disabled={!canCopy}
-          onClick={() => handleCopyWalletInfo(label, copyValue)}
-          style={{ justifySelf: "end", fontSize: 12 }}
-        >
-          {copiedWalletField === label ? "Copiado" : "Copiar"}
-        </button>
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -280,24 +221,6 @@ export function AccountSettings() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 800 }}>
       <h2 style={{ fontSize: 28, marginBottom: 4 }}>Configurações</h2>
       <p className="t-2" style={{ fontSize: 13, marginTop: 0 }}>Gerencie suas informações de conta.</p>
-
-      {/* Wallet */}
-      <div className="card" style={{ padding: 32 }}>
-        <p style={sectionTitleStyle}>Informações da wallet</p>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {renderWalletInfoRow("ID do usuário", formatNullableValue(me?.id), me?.id)}
-          {renderWalletInfoRow("Perfil", formatNullableValue(me?.role))}
-          {renderWalletInfoRow("Privy DID", formatNullableValue(me?.privyUserId), me?.privyUserId)}
-          {renderWalletInfoRow(
-            "Wallet Stellar Privy",
-            formatNullableValue(me?.privyStellarWalletAddress),
-            me?.privyStellarWalletAddress,
-          )}
-          {renderWalletInfoRow("Status da wallet", formatWalletStatus(me?.privyWalletStatus))}
-          {me?.stellarWalletId &&
-            renderWalletInfoRow("Wallet legada", me.stellarWalletId, me.stellarWalletId)}
-        </div>
-      </div>
 
       {/* Perfil */}
       <div className="card" style={{ padding: 32 }}>

@@ -51,8 +51,7 @@ export class StellarService implements BlockchainService {
   constructor(private readonly prisma: PrismaService) {
     const rpcUrl = process.env.STELLAR_RPC_URL;
     const secretKey = process.env.STELLAR_SECRET_KEY;
-    const contractId =
-      process.env.STELLAR_NFE_CONTRACT_ID ?? process.env.STELLAR_CONTRACT_ID;
+    const contractId = process.env.STELLAR_NFE_CONTRACT_ID;
     this.isMainnet = process.env.STELLAR_NETWORK === 'mainnet';
     const horizonUrl = this.isMainnet
       ? 'https://horizon.stellar.org'
@@ -66,15 +65,12 @@ export class StellarService implements BlockchainService {
     this.brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
     this.contractId = contractId;
 
-    if (rpcUrl) {
+    if (rpcUrl && secretKey && contractId) {
       this.server = new rpc.Server(rpcUrl, { allowHttp: true });
-    }
-    if (secretKey) {
       this.platformKeypair = Keypair.fromSecret(secretKey);
-    }
-    if (!rpcUrl || !secretKey || !contractId) {
+    } else {
       this.logger.warn(
-        'Stellar contract env vars missing (STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID or STELLAR_CONTRACT_ID) — tokenization disabled',
+        'Stellar contract env vars missing (STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID) — tokenization disabled',
       );
     }
   }
@@ -418,24 +414,41 @@ export class StellarService implements BlockchainService {
     return 'pending';
   }
 
-  async getNativeXlmBalance(walletAddress: string): Promise<number> {
-    const account = await this.horizon.loadAccount(walletAddress);
-    const nativeBalance = account.balances.find(
-      (balance) => balance.asset_type === 'native',
-    );
-    const xlmBalance = nativeBalance ? Number(nativeBalance.balance) : 0;
-    if (!Number.isFinite(xlmBalance) || xlmBalance < 0) {
-      throw new Error(`Invalid native XLM balance: ${String(nativeBalance?.balance)}`);
+  async createCustodialWallet(googleId: string): Promise<string> {
+    if (!this.walletSecret) {
+      throw new Error('STELLAR_WALLET_SECRET not configured');
     }
 
-    return xlmBalance;
+    const keypair = this.deriveKeypair(googleId);
+    const publicKey = keypair.publicKey();
+
+    let isNew = false;
+    try {
+      await this.horizon.loadAccount(publicKey);
+      this.logger.log(`Custodial wallet already exists: ${publicKey}`);
+    } catch {
+      try {
+        await this.fundAccountFromPlatform(publicKey, '5.0');
+        isNew = true;
+      } catch (err) {
+        this.logger.error(
+          `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    if (isNew) {
+      await this.establishTesourTrustline(keypair);
+    }
+
+    return publicKey;
   }
 
   async fundAccountFromPlatform(
     destination: string,
     startingBalance: string = '5.0',
   ): Promise<string | null> {
-    const { platformKeypair } = this.requirePlatformFundingConfig();
+    const { platformKeypair } = this.requireContractConfig();
     const platformAddress = platformKeypair.publicKey();
 
     try {
@@ -473,71 +486,6 @@ export class StellarService implements BlockchainService {
     tx.sign(platformKeypair);
     const res = await this.submitWithDetail(tx, 'fundAccountFromPlatform');
     this.logger.log(`Account ${destination} created successfully via platform — txHash: ${res.hash}`);
-    return res.hash;
-  }
-
-  async ensureAccountHasMinimumXlm(
-    destination: string,
-    minimumBalance: string = '5.0',
-  ): Promise<string | null> {
-    const minimumBalanceNumber = Number(minimumBalance);
-    if (!Number.isFinite(minimumBalanceNumber) || minimumBalanceNumber <= 0) {
-      throw new Error(`Invalid minimum XLM balance: ${minimumBalance}`);
-    }
-
-    let account: Horizon.AccountResponse;
-    try {
-      account = await this.horizon.loadAccount(destination);
-    } catch {
-      return this.fundAccountFromPlatform(destination, minimumBalance);
-    }
-
-    const nativeBalance = account.balances.find(
-      (balance) => balance.asset_type === 'native',
-    );
-    const currentBalanceNumber = nativeBalance
-      ? Number(nativeBalance.balance)
-      : 0;
-
-    if (currentBalanceNumber >= minimumBalanceNumber) {
-      this.logger.log(
-        `Account ${destination} already has ${currentBalanceNumber.toFixed(7)} XLM — no funding needed.`,
-      );
-      return null;
-    }
-
-    if (this.isMainnet) {
-      throw new Error(
-        `Mainnet wallet top-up for ${destination} requires manual funding`,
-      );
-    }
-
-    const topUpAmount = (minimumBalanceNumber - currentBalanceNumber).toFixed(7);
-    const { platformKeypair } = this.requirePlatformFundingConfig();
-    const platformAddress = platformKeypair.publicKey();
-
-    this.logger.log(
-      `Topping up account ${destination} from platform ${platformAddress} with ${topUpAmount} XLM...`,
-    );
-
-    const sourceAccount = await this.horizon.loadAccount(platformAddress);
-    const tx = new TransactionBuilder(sourceAccount, {
-      fee: BASE_FEE,
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(
-        Operation.payment({
-          destination,
-          asset: Asset.native(),
-          amount: topUpAmount,
-        }),
-      )
-      .setTimeout(TX_TIMEOUT_SECONDS)
-      .build();
-
-    tx.sign(platformKeypair);
-    const res = await this.submitWithDetail(tx, 'ensureAccountHasMinimumXlm');
-    this.logger.log(`Account ${destination} topped up successfully — txHash: ${res.hash}`);
     return res.hash;
   }
 
@@ -580,6 +528,27 @@ export class StellarService implements BlockchainService {
 
     await this.waitForConfirmation(sendResult.hash, server);
     return sendResult.hash;
+  }
+
+  private async establishTesourTrustline(keypair: Keypair): Promise<void> {
+    const publicKey = keypair.publicKey();
+    try {
+      const account = await this.horizon.loadAccount(publicKey);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(Operation.changeTrust({ asset: TESOURO }))
+        .setTimeout(TX_TIMEOUT_SECONDS)
+        .build();
+      tx.sign(keypair);
+      await this.submitWithDetail(tx, 'changeTrust:TESOURO');
+      this.logger.log(`TESOURO trustline established for ${publicKey}`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to establish TESOURO trustline for ${publicKey}: ${(err as Error).message}`,
+      );
+    }
   }
 
   private deriveKeypair(seedSource: string): Keypair {
@@ -655,26 +624,13 @@ export class StellarService implements BlockchainService {
   } {
     if (!this.server || !this.platformKeypair || !this.contractId) {
       throw new Error(
-        'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, and STELLAR_NFE_CONTRACT_ID or STELLAR_CONTRACT_ID',
+        'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID',
       );
     }
     return {
       server: this.server,
       platformKeypair: this.platformKeypair,
       contractId: this.contractId,
-    };
-  }
-
-  private requirePlatformFundingConfig(): {
-    platformKeypair: Keypair;
-  } {
-    if (!this.platformKeypair) {
-      throw new Error(
-        'Stellar platform funding not configured — set STELLAR_SECRET_KEY',
-      );
-    }
-    return {
-      platformKeypair: this.platformKeypair,
     };
   }
 
