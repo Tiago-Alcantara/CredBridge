@@ -11,6 +11,7 @@ const operatorSidebarItems: SidebarItem[] = [
   { group: "OPERAÇÕES" },
   { href: "/operator/dashboard?tab=receivables", icon: "doc", label: "Validar NF-es" },
   { href: "/operator/dashboard?tab=transactions", icon: "zap", label: "Aprovações Pool" },
+  { href: "/operator/dashboard?tab=pool-status", icon: "wallet", label: "Situação pool" },
   { group: "CONTA" },
   { href: "/operator/dashboard?tab=settings", icon: "settings", label: "Configurações" },
 ];

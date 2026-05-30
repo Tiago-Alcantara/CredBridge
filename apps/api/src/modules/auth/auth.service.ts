@@ -152,8 +152,6 @@ export class AuthService {
       where: { privyUserId: identity.privyUserId },
     });
 
-    let currentWalletAddress = user?.privyStellarWalletAddress ?? null;
-
     if (user) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -165,7 +163,6 @@ export class AuthService {
       });
 
       if (existingEmailUser) {
-        currentWalletAddress = existingEmailUser.privyStellarWalletAddress ?? null;
         user = await this.prisma.user.update({
           where: { id: existingEmailUser.id },
           data: privyUserData,
@@ -180,22 +177,30 @@ export class AuthService {
       }
     }
 
-    // Automatically fund the Privy Stellar Wallet on Testnet if it is newly registered
-    if (!currentWalletAddress && identity.stellarWalletAddress) {
-      const isMainnet = process.env.STELLAR_NETWORK === 'mainnet';
-      if (!isMainnet) {
-        const walletAddress = identity.stellarWalletAddress;
-        this.logger.log(`New Privy Stellar wallet registered on Testnet: ${walletAddress}. Funding via platform wallet in the background...`);
-        this.stellarService.fundAccountFromPlatform(walletAddress, '5.0')
-          .then((txHash) => {
-            if (txHash) {
-              this.logger.log(`Successfully funded Privy wallet ${walletAddress} via platform wallet: ${txHash}`);
-            }
-          })
-          .catch((err) => {
-            this.logger.error(`Error funding Privy wallet ${walletAddress} via platform wallet:`, err);
-          });
-      }
+    // Keep Privy Stellar wallets usable on testnet without blocking login.
+    if (
+      identity.stellarWalletAddress &&
+      process.env.STELLAR_NETWORK !== 'mainnet'
+    ) {
+      const walletAddress = identity.stellarWalletAddress;
+      this.logger.log(
+        `Checking Privy Stellar wallet testnet balance: ${walletAddress}`,
+      );
+      this.stellarService
+        .fundAccountFromPlatform(walletAddress, '1.0')
+        .then((txHash) => {
+          if (txHash) {
+            this.logger.log(
+              `Successfully funded Privy wallet ${walletAddress} via platform wallet: ${txHash}`,
+            );
+          }
+        })
+        .catch((err) => {
+          this.logger.error(
+            `Error funding Privy wallet ${walletAddress} via platform wallet:`,
+            err,
+          );
+        });
     }
 
     const tokenResult = await this.issueToken(user.id, user.email, user.role);

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSignRawHash } from "@privy-io/react-auth/extended-chains";
 import { Icon } from "@/components/primitives/Icon";
+import { extractApiErrorMessage } from "@/lib/api/client";
 import { usePrepareAssignment, useSubmitAssignment } from "@/lib/api/receivables";
 import { fmtBRL } from "@/lib/format";
 
@@ -74,9 +75,9 @@ export function CessaoModal({
         onClose();
         setSuccess(false);
       }, 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Cessão falhou:", err);
-      setError(err?.message || "Ocorreu um erro ao assinar a cessão.");
+      setError(extractApiErrorMessage(err) || "Ocorreu um erro ao assinar a cessão.");
     } finally {
       setLoading(false);
     }

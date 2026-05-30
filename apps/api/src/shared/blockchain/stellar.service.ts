@@ -34,6 +34,11 @@ const TESOURO = new Asset('TESOURO', TESOURO_ISSUER);
 const TX_TIMEOUT_SECONDS = 30;
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 60_000;
+const MINIMUM_TESTNET_XLM_BALANCE = 1.0;
+
+type HorizonAccountResponse = Awaited<
+  ReturnType<Horizon.Server['loadAccount']>
+>;
 
 @Injectable()
 export class StellarService implements BlockchainService {
@@ -108,6 +113,7 @@ export class StellarService implements BlockchainService {
 
     // Step 1: tokenize with PME as owner, platform authorizes
     this.logger.log(`Tokenizing NF ${data.key} — owner: ${pmeAddress}`);
+    this.logger.log(`data.xmlHash: ${data.xmlHash}`);
     const mintHash = await this.invokeContract(
       server,
       platformKeypair,
@@ -163,7 +169,7 @@ export class StellarService implements BlockchainService {
     const platformAddress = platformKeypair.publicKey();
 
     const contract = new Contract(contractId);
-    
+
     // Carrega a conta do PME (como sourceAccount da inner transaction)
     const pmeAccount = await this.horizon.loadAccount(pmeAddress);
 
@@ -185,8 +191,15 @@ export class StellarService implements BlockchainService {
     // Simula a transação para carregar os recursos exatos do Soroban
     const simResult = await server.simulateTransaction(tx);
     if (!rpc.Api.isSimulationSuccess(simResult)) {
+      const simulationError = JSON.stringify(simResult);
+      if (simulationError.includes('Error(Contract, #2)')) {
+        throw new ConflictException(
+          `Receivable ${receivableKey} is marked as tokenized locally, but was not found in the configured Stellar contract. Retokenize it or check STELLAR_NFE_CONTRACT_ID and STELLAR_NETWORK.`,
+        );
+      }
+
       throw new Error(
-        `Soroban simulation failed for prepareAssignment: ${JSON.stringify(simResult)}`,
+        `Soroban simulation failed for prepareAssignment: ${simulationError}`,
       );
     }
 
@@ -251,7 +264,9 @@ export class StellarService implements BlockchainService {
 
     // Aguarda confirmação no ledger
     await this.waitForConfirmation(sendResult.hash, server);
-    this.logger.log(`Assignment transaction confirmed on-chain — txHash: ${sendResult.hash}`);
+    this.logger.log(
+      `Assignment transaction confirmed on-chain — txHash: ${sendResult.hash}`,
+    );
 
     return sendResult.hash;
   }
@@ -446,17 +461,65 @@ export class StellarService implements BlockchainService {
 
   async fundAccountFromPlatform(
     destination: string,
-    startingBalance: string = '5.0',
+    startingBalance: string = '1.0',
   ): Promise<string | null> {
     const { platformKeypair } = this.requireContractConfig();
     const platformAddress = platformKeypair.publicKey();
+    const targetBalance = Number(startingBalance);
 
+    let destinationAccount: HorizonAccountResponse | null = null;
     try {
-      await this.horizon.loadAccount(destination);
-      this.logger.log(`Account ${destination} already exists on-chain — no funding needed.`);
-      return null;
+      destinationAccount = await this.horizon.loadAccount(destination);
     } catch {
       // Account does not exist, proceed to fund/create it
+    }
+
+    if (destinationAccount) {
+      const nativeBalanceLine = destinationAccount.balances.find(
+        (balance) => balance.asset_type === 'native',
+      );
+      const nativeBalance = Number(nativeBalanceLine?.balance ?? '0');
+
+      if (this.isMainnet || nativeBalance >= MINIMUM_TESTNET_XLM_BALANCE) {
+        this.logger.log(
+          `Account ${destination} already exists with ${nativeBalance} XLM — no funding needed.`,
+        );
+        return null;
+      }
+
+      const topUpAmount = targetBalance - nativeBalance;
+      if (topUpAmount <= 0) {
+        this.logger.log(
+          `Account ${destination} already has the target XLM balance — no funding needed.`,
+        );
+        return null;
+      }
+
+      this.logger.log(
+        `Topping up account ${destination} from ${nativeBalance} to ${targetBalance} XLM...`,
+      );
+
+      const sourceAccount = await this.horizon.loadAccount(platformAddress);
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(
+          Operation.payment({
+            destination,
+            asset: Asset.native(),
+            amount: topUpAmount.toFixed(7),
+          }),
+        )
+        .setTimeout(TX_TIMEOUT_SECONDS)
+        .build();
+
+      tx.sign(platformKeypair);
+      const res = await this.submitWithDetail(tx, 'fundAccountFromPlatform');
+      this.logger.log(
+        `Account ${destination} topped up successfully via platform — txHash: ${res.hash}`,
+      );
+      return res.hash;
     }
 
     if (this.isMainnet) {
@@ -485,7 +548,9 @@ export class StellarService implements BlockchainService {
 
     tx.sign(platformKeypair);
     const res = await this.submitWithDetail(tx, 'fundAccountFromPlatform');
-    this.logger.log(`Account ${destination} created successfully via platform — txHash: ${res.hash}`);
+    this.logger.log(
+      `Account ${destination} created successfully via platform — txHash: ${res.hash}`,
+    );
     return res.hash;
   }
 
@@ -669,7 +734,12 @@ export class StellarService implements BlockchainService {
 
     const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
     const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
-    if (!poolContractId || !brltContractId || !this.server || !this.platformKeypair) {
+    if (
+      !poolContractId ||
+      !brltContractId ||
+      !this.server ||
+      !this.platformKeypair
+    ) {
       this.logger.warn(
         'STELLAR_POOL_CONTRACT_ID, BRLT or credentials not configured — returning mock tx hash',
       );
@@ -680,32 +750,43 @@ export class StellarService implements BlockchainService {
       await this.ensureCustodialWalletForUser(investorUserId);
 
     if (!investorKeypair) {
-      throw new Error(`Custodial keypair for investor ${investorUserId} not available to sign transaction`);
+      throw new Error(
+        `Custodial keypair for investor ${investorUserId} not available to sign transaction`,
+      );
     }
 
     // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
     const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
 
     // Passo 1: Mint de BRLT da plataforma para a carteira do Investidor
-    this.logger.log(`Step 1: Minting ${amountBrl} BRLT to investor ${investorAddress}...`);
+    this.logger.log(
+      `Step 1: Minting ${amountBrl} BRLT to investor ${investorAddress}...`,
+    );
     await this.invokeContract(
       this.server,
       this.platformKeypair,
       brltContractId,
       'mint',
       [
+        nativeToScVal(this.platformKeypair.publicKey(), { type: 'address' }), // admin
         nativeToScVal(investorAddress, { type: 'address' }),
         nativeToScVal(amountInStroops, { type: 'i128' }),
       ],
     );
 
     // Obter ledger atual para expiração do approve
-    const latestLedgers = await this.horizon.ledgers().order('desc').limit(1).call();
+    const latestLedgers = await this.horizon
+      .ledgers()
+      .order('desc')
+      .limit(1)
+      .call();
     const currentLedger = latestLedgers.records[0]?.sequence ?? 3000000;
     const liveUntilLedger = currentLedger + 100000;
 
     // Passo 2: Approve do Investidor para a Pool gastar o BRLT dele
-    this.logger.log(`Step 2: Approving Pool to spend ${amountBrl} BRLT from investor...`);
+    this.logger.log(
+      `Step 2: Approving Pool to spend ${amountBrl} BRLT from investor...`,
+    );
     await this.invokeContract(
       this.server,
       investorKeypair, // <-- Assinado pelo investidor
@@ -720,7 +801,9 @@ export class StellarService implements BlockchainService {
     );
 
     // Passo 3: Deposit do Investidor na Pool
-    this.logger.log(`Step 3: Depositing ${amountBrl} BRLT from investor to Pool...`);
+    this.logger.log(
+      `Step 3: Depositing ${amountBrl} BRLT from investor to Pool...`,
+    );
     const txHash = await this.invokeContract(
       this.server,
       investorKeypair, // <-- Assinado pelo investidor
@@ -732,7 +815,9 @@ export class StellarService implements BlockchainService {
       ],
     );
 
-    this.logger.log(`Deposit sequence completed successfully — txHash: ${txHash}`);
+    this.logger.log(
+      `Deposit sequence completed successfully — txHash: ${txHash}`,
+    );
     return txHash;
   }
 
@@ -756,7 +841,9 @@ export class StellarService implements BlockchainService {
       await this.ensureCustodialWalletForUser(investorUserId);
 
     if (!investorKeypair) {
-      throw new Error(`Custodial keypair for investor ${investorUserId} not available to sign transaction`);
+      throw new Error(
+        `Custodial keypair for investor ${investorUserId} not available to sign transaction`,
+      );
     }
 
     // A precisão padrão das cotas é de 7 casas decimais
@@ -813,7 +900,9 @@ export class StellarService implements BlockchainService {
     xmlHash: string;
     value: number;
   }): Promise<string> {
-    this.logger.log(`buyTokenizedInvoiceInPool — key: ${data.invoiceKey}, seller: ${data.sellerAddress}`);
+    this.logger.log(
+      `buyTokenizedInvoiceInPool — key: ${data.invoiceKey}, seller: ${data.sellerAddress}`,
+    );
     const { server, platformKeypair } = this.requireContractConfig();
     const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
     if (!poolContractId) {
@@ -862,6 +951,7 @@ export class StellarService implements BlockchainService {
       brltContractId,
       'mint',
       [
+        nativeToScVal(platformKeypair.publicKey(), { type: 'address' }),
         nativeToScVal(toAddress, { type: 'address' }),
         nativeToScVal(amountInStroops, { type: 'i128' }),
       ],

@@ -25,6 +25,11 @@ interface AdminReceivable extends Receivable {
   };
 }
 
+const stellarExpertContractBaseUrl = "https://stellar.expert/explorer/testnet/contract";
+const poolContractId = "CASSTE2CZFG72SBGCPD7YOXCRQC3WSMDS7QHRN6DKVNEZWVJM3EXXXWG";
+const brltTokenContractId = "CCUPQSBG3C4BYYZC6ZUHUFYICHKMNW436MXYFP43UUCP34KXCKNOUVZO";
+const poolBrltBalance = "0 BRLT";
+
 export default function OperatorDashboardPage() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
@@ -54,7 +59,7 @@ export default function OperatorDashboardPage() {
       await approveReceivableMut.mutateAsync(id);
       showToast("NF-e validada e disponibilizada com sucesso!", "success");
       setViewingReceivable(null);
-    } catch (err) {
+    } catch {
       showToast("Erro ao aprovar recebível.", "error");
     } finally {
       setProcessingId(null);
@@ -67,7 +72,7 @@ export default function OperatorDashboardPage() {
       await rejectReceivableMut.mutateAsync(id);
       showToast("Recebível recusado com sucesso.", "success");
       setViewingReceivable(null);
-    } catch (err) {
+    } catch {
       showToast("Erro ao recusar recebível.", "error");
     } finally {
       setProcessingId(null);
@@ -83,7 +88,7 @@ export default function OperatorDashboardPage() {
       } else {
         showToast("Transação rejeitada com sucesso.", "success");
       }
-    } catch (err) {
+    } catch {
       showToast("Falha ao processar ação de pool.", "error");
     } finally {
       setProcessingId(null);
@@ -109,7 +114,7 @@ export default function OperatorDashboardPage() {
       setCreateDepositOpen(false);
       setSelectedInvestorId("");
       setDepositAmount("");
-    } catch (err) {
+    } catch {
       showToast("Falha ao criar ordem de depósito.", "error");
     } finally {
       setCreatingDeposit(false);
@@ -350,6 +355,66 @@ export default function OperatorDashboardPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pool Status Tab */}
+      {activeTab === "pool-status" && (
+        <div className="card" style={{ padding: 24 }}>
+          <div style={{ marginBottom: 20 }}>
+            <h3>Situação pool</h3>
+            <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
+              Consulta rápida dos contratos usados pela pool na Stellar testnet.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--line-2)",
+                borderRadius: 8,
+                padding: 20,
+              }}
+            >
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Token BRLT na pool</div>
+              <div className="kpi num" style={{ fontSize: 28, marginBottom: 12 }}>{poolBrltBalance}</div>
+              <div className="t-3" style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
+                {brltTokenContractId}
+              </div>
+              <a
+                className="btn btn-ghost btn-sm"
+                href={`${stellarExpertContractBaseUrl}/${brltTokenContractId}`}
+                rel="noreferrer"
+                target="_blank"
+                style={{ marginTop: 16 }}
+              >
+                Ver BRLT no Stellar Expert <Icon name="arrow_right" size={14} />
+              </a>
+            </div>
+
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--line-2)",
+                borderRadius: 8,
+                padding: 20,
+              }}
+            >
+              <div className="eyebrow" style={{ marginBottom: 10 }}>ID do contrato da Pool</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>
+                {poolContractId}
+              </div>
+              <a
+                className="btn btn-violet btn-sm"
+                href={`${stellarExpertContractBaseUrl}/${poolContractId}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Ver Pool no Stellar Expert <Icon name="arrow_right" size={14} />
+              </a>
+            </div>
           </div>
         </div>
       )}

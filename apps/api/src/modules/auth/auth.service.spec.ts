@@ -273,6 +273,30 @@ describe('AuthService', () => {
       expect(result.user.privyWalletStatus).toBe('ready');
     });
 
+    it('checks testnet funding on every Privy login when a wallet exists', async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        ...mockUser,
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        provider: 'privy',
+        privyUserId: 'did:privy:user-1',
+        privyStellarWalletAddress: 'GPRIVYWALLET',
+        privyWalletStatus: 'ready',
+      });
+
+      await service.privySession('access-token', 'identity-token');
+
+      expect(stellarMock.fundAccountFromPlatform).toHaveBeenCalledWith(
+        'GPRIVYWALLET',
+        '1.0',
+      );
+    });
+
     it('never writes Privy wallet details into legacy smart-account fields', async () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce(null)
