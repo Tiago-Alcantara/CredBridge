@@ -30,6 +30,15 @@ export interface BuyTokenizedInvoiceInput {
   value: number;
 }
 
+export interface UnsignedSorobanTx {
+  /** Base64 transaction envelope XDR, simulated + assembled, unsigned. */
+  xdr: string;
+  /** Hex-encoded 32-byte transaction hash the wallet must sign. */
+  hashToSign: string;
+  /** Stellar public key (G...) expected to provide the signature. */
+  signerPublicKey: string;
+}
+
 export interface BlockchainService {
   registerProof(hash: string): Promise<string>;
   tokenizeNfe(data: TokenizeNfeInput): Promise<string>;
@@ -61,6 +70,16 @@ export interface BlockchainService {
   ): Promise<string>;
   buyTokenizedInvoiceInPool(data: BuyTokenizedInvoiceInput): Promise<string>;
   mintBrlt(toAddress: string, amount: number): Promise<string>;
+  /** Build the BRLT approve(investor -> pool) tx, source = investor Privy address. */
+  buildApproveTx(investorAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
+  /** Build the Pool deposit(investor, amount) tx, source = investor Privy address. */
+  buildDepositTx(investorAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
+  /** Attach a Privy ed25519 signature to an unsigned XDR and submit via RPC; resolves to the confirmed tx hash. */
+  submitSignedTx(input: {
+    xdr: string;
+    signerPublicKey: string;
+    signatureHex: string;
+  }): Promise<string>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');
