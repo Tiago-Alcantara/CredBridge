@@ -9,7 +9,6 @@ import { extractApiErrorMessage } from "@/lib/api/client";
 import { useAssignReceivable, useTokenizeReceivable } from "@/lib/api/receivables";
 import { useFinancialAuthorization } from "@/lib/financial-actions/useFinancialAuthorization";
 import type { ReceivableStatus } from "@/types";
-import { CessaoModal } from "@/components/pme/CessaoModal";
 
 export interface InvoiceRow {
   id: string;
@@ -35,7 +34,6 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionRowId, setActionRowId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [selectedRowForCessao, setSelectedRowForCessao] = useState<InvoiceRow | null>(null);
   const tokenizeReceivable = useTokenizeReceivable();
   const assignReceivable = useAssignReceivable();
   const { authorize, isAuthorizing } = useFinancialAuthorization(userEmail);
@@ -56,7 +54,13 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
       }
 
       if (row.status === "tokenized" || row.status === "assignment_pending") {
-        setSelectedRowForCessao(row);
+        const authorizationId = await authorize({
+          operation: "receivable.assignment",
+          resourceId: row.id,
+          amount: row.valor.toFixed(2),
+          destination: "credbridge-pool",
+        });
+        await assignReceivable.mutateAsync({ id: row.id, authorizationId });
       }
     } catch (err) {
       setActionError(extractApiErrorMessage(err) || "Não foi possível concluir a ação.");
@@ -213,18 +217,6 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
         })}
       </tbody>
     </table>
-
-    <CessaoModal
-      isOpen={!!selectedRowForCessao}
-      onClose={() => setSelectedRowForCessao(null)}
-      receivableId={selectedRowForCessao?.id ?? ""}
-      nfeNumber={selectedRowForCessao?.nfe ?? ""}
-      sacado={selectedRowForCessao?.sacado ?? ""}
-      valor={selectedRowForCessao?.valor ?? 0}
-      desagio={selectedRowForCessao?.desagio ?? 0}
-      liquido={selectedRowForCessao?.liquido ?? 0}
-      userEmail={userEmail}
-    />
-  </>
-);
+    </div>
+  );
 }

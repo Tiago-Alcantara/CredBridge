@@ -4,10 +4,7 @@ import { BLOCKCHAIN_SERVICE } from './blockchain.interface';
 
 @Global()
 @Module({
-  providers: [
-    StellarService,
-    { provide: BLOCKCHAIN_SERVICE, useClass: StellarService },
-  ],
-  exports: [StellarService, BLOCKCHAIN_SERVICE],
+  providers: [{ provide: BLOCKCHAIN_SERVICE, useClass: StellarService }],
+  exports: [BLOCKCHAIN_SERVICE],
 })
 export class BlockchainModule {}

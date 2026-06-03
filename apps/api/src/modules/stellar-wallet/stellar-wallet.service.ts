@@ -6,8 +6,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { StellarService } from '../../shared/blockchain/stellar.service';
-import type { WalletBalance } from '../../shared/blockchain/blockchain.interface';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 
 @Injectable()
@@ -17,7 +15,6 @@ export class StellarWalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly stellar: StellarService,
   ) {}
 
   async createWallet(
@@ -27,7 +24,10 @@ export class StellarWalletService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    if (user.privyStellarWalletAddress && user.privyWalletStatus === 'ready') {
+    if (
+      user.privyStellarWalletAddress &&
+      user.privyWalletStatus === 'ready'
+    ) {
       return { contractId: user.privyStellarWalletAddress };
     }
 
@@ -60,7 +60,10 @@ export class StellarWalletService {
     });
     if (!user) return null;
 
-    if (user.privyStellarWalletAddress && user.privyWalletStatus === 'ready') {
+    if (
+      user.privyStellarWalletAddress &&
+      user.privyWalletStatus === 'ready'
+    ) {
       return {
         contractId: user.privyStellarWalletAddress,
         passkeyId: null,
@@ -76,24 +79,5 @@ export class StellarWalletService {
       walletType: user.walletType,
       walletStatus: user.walletStatus,
     };
-  }
-
-  async getBalance(userId: string): Promise<WalletBalance | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        stellarWalletId: true,
-        privyStellarWalletAddress: true,
-        privyWalletStatus: true,
-      },
-    });
-
-    const address =
-      user?.privyStellarWalletAddress && user.privyWalletStatus === 'ready'
-        ? user.privyStellarWalletAddress
-        : (user?.stellarWalletId ?? null);
-    if (!address) return null;
-
-    return this.stellar.getBrltBalance(address);
   }
 }

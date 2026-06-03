@@ -77,8 +77,6 @@
   "status_active": "Active",
   "status_settled": "Settled",
   "status_defaulted": "Defaulted",
-  "status_rejected": "Rejected",
-  "status_unknown": "Unknown",
   "search": "Search",
   "view_all": "View all",
   "verify_chain": "Verify on-chain"

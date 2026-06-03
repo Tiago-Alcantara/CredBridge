@@ -41,7 +41,6 @@ describe('ReceivablesService', () => {
   const blockchainMock = {
     tokenizeNfe: jest.fn(),
     payPme: jest.fn(),
-    transferNftToPlatform: jest.fn(),
   };
   const financialAuthorizationsMock = {
     consume: jest.fn(),
@@ -66,7 +65,6 @@ describe('ReceivablesService', () => {
     auditMock.log.mockReset();
     blockchainMock.tokenizeNfe.mockReset();
     blockchainMock.payPme.mockReset();
-    blockchainMock.transferNftToPlatform.mockReset();
     financialAuthorizationsMock.consume.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -184,7 +182,6 @@ describe('ReceivablesService', () => {
       findUniqueMock.mockResolvedValue(
         baseReceivable({ status: 'tokenized', value: 1000 }),
       );
-      blockchainMock.transferNftToPlatform.mockResolvedValue('transfer-hash');
       updateMock.mockResolvedValue(baseReceivable({ status: 'active' }));
 
       await service.assign(receivableId, 'auth-1');
@@ -197,9 +194,6 @@ describe('ReceivablesService', () => {
         amount: '1000.00',
         destination: 'credbridge-pool',
       });
-      expect(blockchainMock.transferNftToPlatform).toHaveBeenCalledWith(
-        receivableId,
-      );
       expect(updateMock).toHaveBeenCalledWith({
         where: { id: receivableId },
         data: { status: 'active' },
@@ -207,7 +201,6 @@ describe('ReceivablesService', () => {
       expect(auditMock.log).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'receivable.assignment_signed',
-          txHash: 'transfer-hash',
           metadata: { authorizationId: 'auth-1' },
         }),
       );

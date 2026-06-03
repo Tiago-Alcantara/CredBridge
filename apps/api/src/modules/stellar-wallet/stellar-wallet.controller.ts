@@ -21,9 +21,4 @@ export class StellarWalletController {
   get(@Req() req: AuthRequest) {
     return this.walletService.getWallet(req.user.userId);
   }
-
-  @Get('balance')
-  getBalance(@Req() req: AuthRequest) {
-    return this.walletService.getBalance(req.user.userId);
-  }
 }

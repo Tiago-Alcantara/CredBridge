@@ -7,7 +7,6 @@ import {
   exchangePrivySession,
   type PrivySessionResponse,
 } from "@/lib/api/privy-session";
-import { extractApiErrorMessage } from "@/lib/api/client";
 
 interface LinkedAccount {
   type?: string;
@@ -65,7 +64,10 @@ export function usePrivySessionBootstrap() {
 
       return await exchangePrivySession(accessToken, identityToken);
     } catch (bootstrapError) {
-      const errorMessage = extractApiErrorMessage(bootstrapError);
+      const errorMessage =
+        bootstrapError instanceof Error
+          ? bootstrapError.message
+          : "Nao foi possivel iniciar sua sessao.";
       setError(errorMessage);
       throw bootstrapError;
     } finally {

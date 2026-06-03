@@ -14,8 +14,7 @@
     "build:api": "npm run build:types && npm run build -w apps/api",
     "build": "npm run build:web",
     "lint": "npm run lint -w apps/web && npm run lint -w apps/api",
-    "seed": "npm run seed -w apps/api",
-    "add:user": "TS_NODE_TRANSPILE_ONLY=true apps/api/node_modules/.bin/ts-node --project apps/api/tsconfig.json scripts/add-user.ts"
+    "seed": "npm run seed -w apps/api"
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^15.1.0",
