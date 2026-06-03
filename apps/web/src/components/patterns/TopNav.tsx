@@ -39,7 +39,7 @@ export function TopNav({ lang = "pt", activePath }: TopNavProps) {
           <Icon name="menu" size={16} />
         </button>
         <div className={`topnav__links ${menuOpen ? "topnav__links--open" : ""}`.trim()}>
-          <div className="appnav-links" style={{ marginLeft: 24 }}>
+          <div className="appnav-links topnav__primary-links">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
