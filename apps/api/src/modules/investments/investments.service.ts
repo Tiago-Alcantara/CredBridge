@@ -15,6 +15,10 @@ import {
   BLOCKCHAIN_SERVICE,
   type BlockchainService,
 } from '../../shared/blockchain/blockchain.interface';
+import {
+  type DepositStage,
+  type SubmitDepositStageDto,
+} from './dto/onchain-deposit.dto';
 
 const DISCOUNT_RATE = 0.03;
 const ALLOWED_STATUSES = new Set(['active']);
@@ -198,7 +202,7 @@ export class InvestmentsService {
   async buildDepositStage(
     transactionId: string,
     investorUserId: string,
-    stage: 'approve' | 'deposit',
+    stage: DepositStage,
   ) {
     const transaction = await this.loadApprovedDeposit(transactionId, investorUserId);
     const investorAddress = await this.resolveInvestorAddress(investorUserId);
@@ -210,7 +214,7 @@ export class InvestmentsService {
   async submitDepositStage(
     transactionId: string,
     investorUserId: string,
-    dto: { stage: 'approve' | 'deposit'; xdr: string; signature: string },
+    dto: SubmitDepositStageDto,
   ) {
     const transaction = await this.loadApprovedDeposit(transactionId, investorUserId);
     const investorAddress = await this.resolveInvestorAddress(investorUserId);

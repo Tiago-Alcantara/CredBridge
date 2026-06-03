@@ -337,6 +337,61 @@ describe('InvestmentsService', () => {
     });
   });
 
+  describe('buildDepositStage', () => {
+    const approvedTx = {
+      id: 'tx1',
+      userId: 'inv1',
+      amount: 500,
+      status: 'APPROVED',
+      type: 'DEPOSIT',
+    };
+    const investorUser = {
+      privyStellarWalletAddress: 'GINV...',
+      stellarWalletId: null,
+    };
+
+    it('calls buildApproveTx with the server-resolved investor address and transaction amount when stage is approve', async () => {
+      const builtXdr = { xdr: 'approve-xdr', hashToSign: 'hash-approve', signerPublicKey: 'GINV...' };
+      prisma.transaction.findFirst.mockResolvedValue(approvedTx);
+      prisma.user.findUnique.mockResolvedValue(investorUser);
+      blockchain.buildApproveTx.mockResolvedValue(builtXdr);
+
+      const result = await service.buildDepositStage('tx1', 'inv1', 'approve');
+
+      expect(blockchain.buildApproveTx).toHaveBeenCalledWith('GINV...', 500);
+      expect(blockchain.buildDepositTx).not.toHaveBeenCalled();
+      expect(result).toBe(builtXdr);
+    });
+
+    it('calls buildDepositTx with the server-resolved investor address and transaction amount when stage is deposit', async () => {
+      const builtXdr = { xdr: 'deposit-xdr', hashToSign: 'hash-deposit', signerPublicKey: 'GINV...' };
+      prisma.transaction.findFirst.mockResolvedValue(approvedTx);
+      prisma.user.findUnique.mockResolvedValue(investorUser);
+      blockchain.buildDepositTx.mockResolvedValue(builtXdr);
+
+      const result = await service.buildDepositStage('tx1', 'inv1', 'deposit');
+
+      expect(blockchain.buildDepositTx).toHaveBeenCalledWith('GINV...', 500);
+      expect(blockchain.buildApproveTx).not.toHaveBeenCalled();
+      expect(result).toBe(builtXdr);
+    });
+
+    it('throws BadRequestException and calls neither build method when transaction is not in APPROVED status', async () => {
+      prisma.transaction.findFirst.mockResolvedValue({
+        ...approvedTx,
+        status: 'PENDING_PAYMENT',
+      });
+      prisma.user.findUnique.mockResolvedValue(investorUser);
+
+      await expect(
+        service.buildDepositStage('tx1', 'inv1', 'approve'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(blockchain.buildApproveTx).not.toHaveBeenCalled();
+      expect(blockchain.buildDepositTx).not.toHaveBeenCalled();
+    });
+  });
+
   describe('submitDepositStage', () => {
     const approvedTx = {
       id: 'tx1',
