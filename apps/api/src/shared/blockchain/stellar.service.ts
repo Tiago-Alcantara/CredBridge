@@ -12,12 +12,16 @@ import {
   TransactionBuilder,
   nativeToScVal,
   rpc,
+  scValToNative,
   xdr,
 } from '@stellar/stellar-sdk';
 import type {
   BlockchainService,
   ChargeInvestorInput,
+  InvestorShares,
   PayPmeInput,
+  PoolStatus,
+  Scaled,
   TokenizeNfeInput,
   TransferNftToInvestorInput,
   UnsignedSorobanTx,
@@ -1067,8 +1071,9 @@ export class StellarService implements BlockchainService {
     if (!this.server) {
       throw new Error('Stellar RPC server not configured');
     }
+    const { platformKeypair } = this.requireContractConfig();
 
-    const tx = TransactionBuilder.fromXDR(
+    const innerTx = TransactionBuilder.fromXDR(
       input.xdr,
       NETWORK_PASSPHRASE,
     ) as import('@stellar/stellar-sdk').Transaction;
@@ -1079,18 +1084,29 @@ export class StellarService implements BlockchainService {
       'hex',
     );
 
-    if (!keypair.verify(tx.hash(), signature)) {
+    if (!keypair.verify(innerTx.hash(), signature)) {
       throw new Error('Signature does not match transaction hash');
     }
 
-    tx.addDecoratedSignature(
+    // Aplica a assinatura do investidor (Privy) na transação interna.
+    innerTx.addDecoratedSignature(
       new xdr.DecoratedSignature({
         hint: keypair.signatureHint(),
         signature,
       }),
     );
 
-    const sendResult = await this.server.sendTransaction(tx as any);
+    // Envolve numa Fee Bump patrocinada pela carteira da plataforma (CredBridge),
+    // que passa a pagar o fee — inclusive o resource fee Soroban — em vez do investidor.
+    const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+      platformKeypair,
+      BASE_FEE,
+      innerTx,
+      NETWORK_PASSPHRASE,
+    );
+    feeBumpTx.sign(platformKeypair);
+
+    const sendResult = await this.server.sendTransaction(feeBumpTx as any);
     if (sendResult.status === 'ERROR') {
       throw new Error(
         `sendTransaction failed: ${JSON.stringify(sendResult.errorResult)}`,
@@ -1100,5 +1116,123 @@ export class StellarService implements BlockchainService {
     await this.waitForConfirmation(sendResult.hash, this.server);
     this.logger.log(`submitSignedTx confirmed — hash ${sendResult.hash}`);
     return sendResult.hash;
+  }
+
+  // -----------------------------------------------------------------------
+  // Leitura read-only de contrato (simulação — sem assinar, sem fee)
+  // -----------------------------------------------------------------------
+  private async simulateRead(
+    contractId: string,
+    method: string,
+    args: xdr.ScVal[] = [],
+  ): Promise<unknown> {
+    const { server, platformKeypair } = this.requireContractConfig();
+
+    const account = await server.getAccount(platformKeypair.publicKey());
+    const contract = new Contract(contractId);
+
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call(method, ...args))
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (!rpc.Api.isSimulationSuccess(sim)) {
+      throw new Error(`Simulation failed for ${method}: ${JSON.stringify(sim)}`);
+    }
+    if (!sim.result?.retval) {
+      throw new Error(`No return value from ${method}`);
+    }
+    return scValToNative(sim.result.retval);
+  }
+
+  async getPoolStatus(): Promise<PoolStatus> {
+    const poolId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    const state = (await this.simulateRead(poolId, 'get_pool_state', [])) as {
+      admin: string;
+      operator: string;
+      asset_address: string;
+      share_token_address: string;
+      total_principal: bigint;
+      total_shares: bigint;
+      paused: boolean;
+    };
+    const navRaw = (await this.simulateRead(poolId, 'get_nav', [])) as bigint;
+    const sharePriceRaw = (await this.simulateRead(
+      poolId,
+      'get_share_price',
+      [],
+    )) as bigint;
+    const brltDecimals = Number(
+      await this.simulateRead(state.asset_address, 'decimals', []),
+    );
+    const shareDecimals = Number(
+      await this.simulateRead(state.share_token_address, 'decimals', []),
+    );
+
+    const cashRaw = navRaw - state.total_principal;
+    const toScaled = (raw: bigint, decimals: number): Scaled => ({
+      raw: raw.toString(),
+      value: Number(raw) / 10 ** decimals,
+    });
+
+    return {
+      poolContractId: poolId,
+      brltTokenId: state.asset_address,
+      shareTokenId: state.share_token_address,
+      admin: state.admin,
+      operator: state.operator,
+      paused: state.paused,
+      brltDecimals,
+      shareDecimals,
+      nav: toScaled(navRaw, brltDecimals),
+      cashBalance: toScaled(cashRaw, brltDecimals),
+      totalPrincipal: toScaled(state.total_principal, brltDecimals),
+      totalShares: toScaled(state.total_shares, shareDecimals),
+      sharePrice: {
+        raw: sharePriceRaw.toString(),
+        value: Number(sharePriceRaw) / 1e9,
+      },
+    };
+  }
+
+  async getInvestorShares(address: string): Promise<InvestorShares> {
+    const poolId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    const state = (await this.simulateRead(poolId, 'get_pool_state', [])) as {
+      share_token_address: string;
+    };
+    const shareDecimals = Number(
+      await this.simulateRead(state.share_token_address, 'decimals', []),
+    );
+    const sharePriceRaw = (await this.simulateRead(
+      poolId,
+      'get_share_price',
+      [],
+    )) as bigint;
+    const balanceRaw = (await this.simulateRead(
+      state.share_token_address,
+      'balance',
+      [nativeToScVal(address, { type: 'address' })],
+    )) as bigint;
+
+    const sharesValue = Number(balanceRaw) / 10 ** shareDecimals;
+    const sharePriceValue = Number(sharePriceRaw) / 1e9;
+
+    return {
+      address,
+      shares: { raw: balanceRaw.toString(), value: sharesValue },
+      estimatedValueBrl: sharesValue * sharePriceValue,
+    };
   }
 }
