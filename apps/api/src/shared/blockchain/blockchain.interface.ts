@@ -39,6 +39,36 @@ export interface UnsignedSorobanTx {
   signerPublicKey: string;
 }
 
+export interface Scaled {
+  /** Valor bruto em stroops (menor unidade do token), como string para preservar precisão. */
+  raw: string;
+  /** Valor já convertido para a unidade humana (raw / 10**decimals). */
+  value: number;
+}
+
+export interface PoolStatus {
+  poolContractId: string;
+  brltTokenId: string;
+  shareTokenId: string;
+  admin: string;
+  operator: string;
+  paused: boolean;
+  brltDecimals: number;
+  shareDecimals: number;
+  nav: Scaled;
+  cashBalance: Scaled;
+  totalPrincipal: Scaled;
+  totalShares: Scaled;
+  /** Preço da cota em BRLT por cota (raw escalado por 1e9). */
+  sharePrice: { raw: string; value: number };
+}
+
+export interface InvestorShares {
+  address: string;
+  shares: Scaled;
+  estimatedValueBrl: number;
+}
+
 export interface BlockchainService {
   registerProof(hash: string): Promise<string>;
   tokenizeNfe(data: TokenizeNfeInput): Promise<string>;
@@ -80,6 +110,10 @@ export interface BlockchainService {
     signerPublicKey: string;
     signatureHex: string;
   }): Promise<string>;
+  /** Lê o estado on-chain da liquidity pool (read-only, via simulação). */
+  getPoolStatus(): Promise<PoolStatus>;
+  /** Lê o saldo de cotas (share token) de um endereço Stellar. */
+  getInvestorShares(address: string): Promise<InvestorShares>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');
