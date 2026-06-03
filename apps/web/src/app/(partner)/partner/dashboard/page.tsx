@@ -72,7 +72,7 @@ export default function PartnerDashboardPage() {
       </div>
 
       {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      <div className="grid-kpi" style={{ marginBottom: 24 }}>
         <MiniKpi label="Chamadas 24h"        value="284.712"  sub="99,98% uptime"    color="#00D4FF" icon="bolt"         />
         <MiniKpi label="Latência p95"        value="112ms"    sub="▼ 18ms vs 7d"     color="#00FF94" icon="arrow_up_right"/>
         <MiniKpi label="Webhooks"            value="4 / 5"    sub="ativos"           color="#7B2FFF" icon="webhook"      />
@@ -80,7 +80,7 @@ export default function PartnerDashboardPage() {
       </div>
 
       {/* Keys + Quick start */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 24 }}>
+      <div className="grid-split" style={{ marginBottom: 24 }}>
         <div className="card" style={{ padding: 0 }}>
           <div className="row between" style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
             <div>
@@ -139,7 +139,7 @@ export default function PartnerDashboardPage() {
       </div>
 
       {/* Monitor + webhooks */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+      <div className="grid-split">
         <div className="card" style={{ padding: 0 }}>
           <div className="row between" style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
             <div>

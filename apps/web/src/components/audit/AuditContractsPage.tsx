@@ -462,6 +462,7 @@ export function AuditContractsPage() {
           </div>
 
           {activeTab === "Contract" && (
+            <div className="tbl-scroll">
             <div
               style={{
                 padding: "16px 24px",
@@ -469,6 +470,7 @@ export function AuditContractsPage() {
                 display: "grid",
                 gridTemplateColumns: "minmax(0, 1.4fr) repeat(3, minmax(160px, 1fr))",
                 gap: 12,
+                minWidth: 760,
               }}
             >
               <div className="chip" style={{ justifyContent: "flex-start", minWidth: 0 }}>
@@ -521,6 +523,7 @@ export function AuditContractsPage() {
                   Contrato encontrado, mas a busca de eventos retornou: {contractData.eventError}
                 </p>
               )}
+            </div>
             </div>
           )}
 

@@ -167,12 +167,8 @@ export default function PmeDashboardPage() {
 
       {/* Balance hero + KPI cards */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.4fr 1fr 1fr 1fr",
-          gap: 16,
-          marginBottom: 24,
-        }}
+        className="grid-kpi"
+        style={{ marginBottom: 24 }}
       >
         <div className="card hi" style={{ padding: 32 }}>
           <div className="eyebrow" style={{ marginBottom: 14 }}>
@@ -241,12 +237,8 @@ export default function PmeDashboardPage() {
 
       {/* Upload zone + yield spark */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.6fr 1fr",
-          gap: 16,
-          marginBottom: 24,
-        }}
+        className="grid-split"
+        style={{ marginBottom: 24 }}
       >
         <UploadZone id="upload-zone" />
         <YieldSpark />

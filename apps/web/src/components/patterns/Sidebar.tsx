@@ -23,17 +23,24 @@ export type SidebarItem = SidebarNavLink | SidebarNavGroup;
 interface SidebarProps {
   items: SidebarItem[];
   footer?: React.ReactNode;
+  open?: boolean;
+  onClose?: () => void;
+  hidden?: boolean;
 }
 
 function isNavGroup(item: SidebarItem): item is SidebarNavGroup {
   return "group" in item;
 }
 
-export function Sidebar({ items, footer }: SidebarProps) {
+export function Sidebar({ items, footer, open = false, onClose, hidden }: SidebarProps) {
   const currentPath = usePathname();
 
   return (
-    <aside className="sidebar">
+    <aside
+      className={`sidebar ${open ? "sidebar--open" : ""}`.trim()}
+      inert={hidden || undefined}
+      aria-hidden={hidden || undefined}
+    >
       {items.map((item, index) => {
         if (isNavGroup(item)) {
           return (
@@ -50,6 +57,7 @@ export function Sidebar({ items, footer }: SidebarProps) {
             key={index}
             href={item.href}
             className={`sidenav-item ${isActive ? "active" : ""}`}
+            onClick={onClose}
           >
             <Icon name={item.icon} size={16} />
             <span>{item.label}</span>

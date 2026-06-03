@@ -1,6 +1,13 @@
 /* CredBridge — shared design system
    ============================================ */
 
+/* Breakpoints (mobile-first):
+   phone   < 640px  (base, sem media query)
+   tablet  >= 640px
+   desktop >= 1024px  (sidebar estática; abaixo disso vira drawer)
+   wide    >= 1440px
+   ============================================ */
+
 :root, [data-theme="dark"] {
   /* palette — dark */
   --bg: #0A0A1A;
@@ -164,8 +171,16 @@ h1, h2, h3, h4, .display {
   letter-spacing: -0.02em;
   margin: 0;
 }
-h1 { font-size: 64px; line-height: 1.02; letter-spacing: -0.035em; }
-h2 { font-size: 40px; line-height: 1.1; letter-spacing: -0.025em; }
+h1 { font-size: 36px; line-height: 1.05; letter-spacing: -0.03em; }
+h2 { font-size: 28px; line-height: 1.12; letter-spacing: -0.02em; }
+@media (min-width: 640px) {
+  h1 { font-size: 48px; }
+  h2 { font-size: 34px; }
+}
+@media (min-width: 1024px) {
+  h1 { font-size: 64px; line-height: 1.02; letter-spacing: -0.035em; }
+  h2 { font-size: 40px; line-height: 1.1; letter-spacing: -0.025em; }
+}
 h3 { font-size: 22px; line-height: 1.25; }
 h4 { font-size: 15px; line-height: 1.3; font-weight: 600; letter-spacing: 0; }
 p { margin: 0; }
@@ -352,8 +367,14 @@ p { margin: 0; }
 .tbl tbody tr:hover td { background: var(--row-hover); }
 
 /* ── Layout utilities ─────────────────────── */
-.wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
-.wrap-wide { max-width: 1360px; margin: 0 auto; padding: 0 32px; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+.wrap-wide { max-width: 1360px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 640px) {
+  .wrap, .wrap-wide { padding: 0 32px; }
+}
+.app-main { flex: 1; min-width: 0; padding: 20px 16px 48px; }
+@media (min-width: 640px)  { .app-main { padding: 24px 24px 56px; } }
+@media (min-width: 1024px) { .app-main { padding: 32px 40px 64px; } }
 .row { display: flex; align-items: center; gap: 12px; }
 .col { display: flex; flex-direction: column; gap: 12px; }
 .between { justify-content: space-between; }
@@ -370,14 +391,18 @@ p { margin: 0; }
 .kpi {
   font-family: var(--sans);
   font-weight: 600;
-  font-size: 34px;
+  font-size: 28px;
   letter-spacing: -0.03em;
   line-height: 1.1;
   color: var(--fg);
 }
 .kpi-lg {
-  font-size: 56px;
+  font-size: 36px;
   letter-spacing: -0.04em;
+}
+@media (min-width: 1024px) {
+  .kpi { font-size: 34px; }
+  .kpi-lg { font-size: 56px; }
 }
 .kpi .unit { color: var(--fg-2); font-size: 0.55em; margin-right: 4px; font-weight: 500; }
 .kpi-label {
@@ -469,15 +494,52 @@ p { margin: 0; }
 
 /* ── Sidebar nav ─────────────────────────── */
 .sidebar {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  z-index: 40;
   width: 240px;
+  height: calc(100vh - 64px);
   padding: 24px 16px;
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex-shrink: 0;
-  min-height: calc(100vh - 64px);
+  background: var(--bg);
+  transform: translateX(-100%);
+  transition: transform .25s ease;
+  overflow-y: auto;
 }
+.sidebar--open { transform: translateX(0); }
+
+.sidebar__overlay {
+  position: fixed;
+  inset: 64px 0 0 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.5);
+  border: 0;
+  cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    position: static;
+    top: auto;
+    height: auto;
+    min-height: calc(100vh - 64px);
+    flex-shrink: 0;
+    background: transparent;
+    transform: none;
+    transition: none;
+  }
+  .sidebar__overlay { display: none; }
+}
+
+.appnav__menu { display: inline-flex; }
+@media (min-width: 1024px) { .appnav__menu { display: none; } }
+
+.appnav__hide-sm { display: none; }
+@media (min-width: 640px) { .appnav__hide-sm { display: revert; } }
 .sidenav-group {
   font-family: var(--sans);
   font-size: 10px;
@@ -613,3 +675,88 @@ p { margin: 0; }
   overflow: hidden; clip: rect(0,0,0,0);
   white-space: nowrap; border: 0;
 }
+
+/* ── Grids responsivos ───────────────────── */
+.grid-kpi {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 640px)  { .grid-kpi { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .grid-kpi { grid-template-columns: repeat(4, 1fr); } }
+
+.grid-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 1024px) { .grid-split { grid-template-columns: 1.4fr 1fr; } }
+
+.grid-auth-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+}
+@media (min-width: 1024px) { .grid-auth-split { grid-template-columns: 1.1fr 1fr; } }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) { .grid-2 { grid-template-columns: repeat(2, 1fr); } }
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 640px)  { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
+
+.grid-form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: center;
+}
+@media (min-width: 640px) { .grid-form-row { grid-template-columns: 150px minmax(0, 1fr) auto; } }
+
+/* ── Tabela com scroll horizontal no mobile ─ */
+.tbl-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Auth decorative aside ───────────────── */
+.auth-aside { display: none; }
+@media (min-width: 1024px) { .auth-aside { display: flex; flex-direction: column; } }
+
+/* ── TopNav mobile hamburger ─────────────── */
+.topnav__menu-btn { display: inline-flex; }
+.topnav__links { display: none; }
+@media (min-width: 768px) {
+  .topnav__menu-btn { display: none; }
+  .topnav__links { display: contents; }
+}
+.topnav__links--open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: var(--appnav-bg);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border-bottom: 1px solid var(--line);
+  padding: 16px;
+  gap: 8px;
+  z-index: 50;
+}
+.topnav__links--open .topnav__primary-links {
+  flex-direction: column;
+  align-items: stretch;
+  margin-left: 0;
+  gap: 4px;
+  width: 100%;
+}
+@media (min-width: 768px) { .topnav__primary-links { margin-left: 24px; } }

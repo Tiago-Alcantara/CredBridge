@@ -34,19 +34,6 @@ export function Audiences() {
       cta: t("cta_investir"),
       href: "/login",
     },
-    {
-      color: "#00FF94",
-      eyebrow: t("audience_partner"),
-      title: "API e webhooks para\nsua plataforma.",
-      benefits: [
-        "REST + GraphQL endpoints",
-        "Webhooks em tempo real",
-        "SDKs em JS, Python, Go",
-        "Sandbox com dados SEFAZ",
-      ],
-      cta: t("cta_api"),
-      href: "/partner/dashboard",
-    },
   ];
 
   return (
@@ -55,13 +42,7 @@ export function Audiences() {
         <h2 style={{ marginBottom: 56, whiteSpace: "pre-line" }}>
           {t("audiences_title")}
         </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 20,
-          }}
-        >
+        <div className="grid-2">
           {cards.map((c, i) => (
             <div
               key={i}
