@@ -190,7 +190,7 @@ export function UploadZone({ id }: UploadZoneProps) {
               </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="grid-2">
               <div style={{ gridColumn: "1 / -1" }}>
                 <label className="field-label">Sacado (razão social)</label>
                 <input className="input" placeholder="Empresa Ltda." value={debtorName} onChange={(e) => setDebtorName(e.target.value)} disabled={isPending} />

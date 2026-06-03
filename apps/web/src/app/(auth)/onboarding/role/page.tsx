@@ -71,8 +71,9 @@ export default function RoleSelectionPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.1fr 1fr" }}>
+    <div className="grid-auth-split">
       <div
+        className="auth-aside"
         style={{
           position: "relative",
           padding: "40px 48px",
