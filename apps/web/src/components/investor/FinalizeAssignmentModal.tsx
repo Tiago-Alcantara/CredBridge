@@ -9,27 +9,10 @@ import { type InvestorTransaction } from "@/lib/api/investments";
 import { useToast } from "@/providers/ToastProvider";
 import { useGetWallet } from "@/lib/api/wallet";
 import { runOnChainDeposit } from "@/lib/stellar/sign-deposit";
-
-interface LinkedAccount {
-  type?: string;
-  address?: string;
-  chainType?: string;
-  chain_type?: string;
-}
-
-function findPrivyStellarWalletAddress(
-  linkedAccounts: LinkedAccount[] | undefined,
-): string | null {
-  const stellarWallet = linkedAccounts?.find(
-    (linkedAccount) =>
-      linkedAccount.type === "wallet" &&
-      (linkedAccount.chainType === "stellar" ||
-        linkedAccount.chain_type === "stellar") &&
-      typeof linkedAccount.address === "string",
-  );
-
-  return stellarWallet?.address ?? null;
-}
+import {
+  type LinkedAccount,
+  findPrivyStellarWalletAddress,
+} from "@/lib/stellar/wallet-address";
 
 interface FinalizeAssignmentModalProps {
   isOpen: boolean;
@@ -58,7 +41,7 @@ export function FinalizeAssignmentModal({
 
   if (!isOpen || !transaction) return null;
 
-  function resolvePrivyAddress(): string {
+  const resolvePrivyAddress = (): string => {
     const privyAddress =
       wallet?.walletType === "privy_stellar"
         ? wallet.contractId
@@ -71,7 +54,7 @@ export function FinalizeAssignmentModal({
     }
 
     return privyAddress;
-  }
+  };
 
   const handleFinalize = async () => {
     try {

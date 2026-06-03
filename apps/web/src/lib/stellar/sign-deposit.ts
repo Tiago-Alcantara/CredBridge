@@ -29,5 +29,9 @@ export async function runOnChainDeposit(params: {
     }
   }
 
+  if (!depositHash) {
+    throw new Error("Depósito on-chain não retornou hash da etapa de depósito");
+  }
+
   return { depositHash };
 }
