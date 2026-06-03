@@ -23,9 +23,7 @@ export function StatsBar() {
             borderColor: "rgba(255,255,255,0.1)",
           }}
         >
-          <div
-            style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}
-          >
+          <div className="grid-kpi">
             {stats.map((s, i) => (
               <div
                 key={i}

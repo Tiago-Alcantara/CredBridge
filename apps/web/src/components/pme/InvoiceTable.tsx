@@ -76,7 +76,8 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
   }
 
   return (
-    <table className="tbl">
+    <div className="tbl-scroll">
+    <table className="tbl" style={{ minWidth: 720 }}>
       <thead>
         <tr>
           <th style={{ width: 28 }} />
@@ -216,5 +217,6 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
         })}
       </tbody>
     </table>
+    </div>
   );
 }

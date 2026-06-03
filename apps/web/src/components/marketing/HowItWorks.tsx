@@ -270,10 +270,8 @@ export function HowItWorks() {
             />
           </svg>
           <div
+            className="grid-3"
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 24,
               position: "relative",
             }}
           >

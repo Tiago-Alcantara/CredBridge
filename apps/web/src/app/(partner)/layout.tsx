@@ -1,8 +1,7 @@
 "use client";
 
-import { AppTopBar } from "@/components/patterns/AppTopBar";
-import { Sidebar } from "@/components/patterns/Sidebar";
 import type { SidebarItem } from "@/components/patterns/Sidebar";
+import { AppShell } from "@/components/patterns/AppShell";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 const partnerSidebarItems: SidebarItem[] = [
@@ -26,15 +25,5 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
 
   if (!isReady) return null;
 
-  return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <AppTopBar user={partnerUser} />
-      <div style={{ display: "flex", flex: 1 }}>
-        <Sidebar items={partnerSidebarItems} />
-        <main style={{ flex: 1, minWidth: 0, padding: "32px 40px 64px" }}>
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <AppShell items={partnerSidebarItems} user={partnerUser}>{children}</AppShell>;
 }

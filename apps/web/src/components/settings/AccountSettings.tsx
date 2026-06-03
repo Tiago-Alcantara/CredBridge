@@ -66,12 +66,6 @@ const fieldStyle: React.CSSProperties = {
   gap: 0,
 };
 
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 16,
-};
-
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
@@ -232,11 +226,8 @@ export function AccountSettings() {
     return (
       <div
         key={label}
+        className="grid-form-row"
         style={{
-          display: "grid",
-          gridTemplateColumns: "150px minmax(0, 1fr) auto",
-          gap: 12,
-          alignItems: "center",
           padding: "12px 0",
           borderBottom: "1px solid var(--line)",
         }}
@@ -262,7 +253,7 @@ export function AccountSettings() {
         {[0, 1, 2].map((i) => (
           <div key={i} className="card" style={{ padding: 32 }}>
             <Skeleton height={20} width={160} style={{ marginBottom: 24 }} />
-            <div style={gridStyle}>
+            <div className="grid-2">
               {[0, 1, 2, 3].map((j) => (
                 <div key={j}>
                   <Skeleton height={12} width={80} style={{ marginBottom: 8 }} />
@@ -303,7 +294,7 @@ export function AccountSettings() {
       <div className="card" style={{ padding: 32 }}>
         <p style={sectionTitleStyle}>Perfil</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={gridStyle}>
+          <div className="grid-2">
             <div style={fieldStyle}>
               <label style={labelStyle}>Nome</label>
               <input
@@ -318,7 +309,7 @@ export function AccountSettings() {
               <input style={disabledInputStyle} value={me?.email ?? ""} disabled />
             </div>
           </div>
-          <div style={gridStyle}>
+          <div className="grid-2">
             <div style={fieldStyle}>
               <label style={labelStyle}>Telefone</label>
               <input
@@ -355,7 +346,7 @@ export function AccountSettings() {
         <div className="card" style={{ padding: 32 }}>
           <p style={sectionTitleStyle}>Empresa</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={gridStyle}>
+            <div className="grid-2">
               <div style={fieldStyle}>
                 <label style={labelStyle}>Razão Social</label>
                 <input
@@ -375,7 +366,7 @@ export function AccountSettings() {
                 />
               </div>
             </div>
-            <div style={gridStyle}>
+            <div className="grid-2">
               <div style={fieldStyle}>
                 <label style={labelStyle}>Faturamento Mensal (R$)</label>
                 <input
@@ -419,7 +410,7 @@ export function AccountSettings() {
         <div className="card" style={{ padding: 32 }}>
           <p style={sectionTitleStyle}>Perfil de Investidor</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={gridStyle}>
+            <div className="grid-2">
               <div style={fieldStyle}>
                 <label style={labelStyle}>Tipo</label>
                 <select
@@ -488,7 +479,7 @@ export function AccountSettings() {
               />
             </div>
           </div>
-          <div style={gridStyle}>
+          <div className="grid-2">
             <div style={fieldStyle}>
               <label style={labelStyle}>Nova Senha</label>
               <input

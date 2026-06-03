@@ -162,9 +162,7 @@ export function KycFlow({ onDone }: KycFlowProps) {
                 onChange={(e) => setCnpj(e.target.value)}
               />
             </div>
-            <div
-              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-            >
+            <div className="grid-2">
               <div>
                 <label className="field-label">Faturamento mensal</label>
                 <select
