@@ -26,9 +26,7 @@ export function LandingFooter() {
       <div className="wrap-wide">
         <div
           className="grid-kpi"
-          style={{
-            marginBottom: 40,
-          }}
+          style={{ marginBottom: 40, gap: 40 }}
         >
           <div>
             <Logo />

@@ -734,7 +734,7 @@ p { margin: 0; }
 .topnav__links { display: none; }
 @media (min-width: 768px) {
   .topnav__menu-btn { display: none; }
-  .topnav__links { display: flex; }
+  .topnav__links { display: contents; }
 }
 .topnav__links--open {
   display: flex;

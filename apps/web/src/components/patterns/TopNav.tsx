@@ -26,7 +26,7 @@ export function TopNav({ lang = "pt", activePath }: TopNavProps) {
   ];
 
   return (
-    <nav className="appnav" style={{ position: "relative" }}>
+    <nav className="appnav">
       <div className="wrap-wide">
         <Logo />
         <button
