@@ -70,19 +70,29 @@ export function useNotifyDepositPayment() {
   });
 }
 
-export function useFinalizeDeposit() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { id: string; txHash: string }) =>
-      apiFetch<InvestorTransaction>(`/investments/deposit/${input.id}/finalize`, {
-        method: "POST",
-        body: { txHash: input.txHash },
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["investments", "me", "transactions"] });
-      qc.invalidateQueries({ queryKey: investmentQueryKeys.mine });
-      qc.invalidateQueries({ queryKey: investmentQueryKeys.myStats });
-      qc.invalidateQueries({ queryKey: ["receivables", "pool", "stats"] });
-    },
+export interface UnsignedSorobanTx {
+  xdr: string;
+  hashToSign: string;
+  signerPublicKey: string;
+}
+
+export type DepositStage = "approve" | "deposit";
+
+export function buildDepositStage(id: string, stage: DepositStage) {
+  return apiFetch<UnsignedSorobanTx>(`/investments/deposit/${id}/onchain/build`, {
+    method: "POST",
+    body: { stage },
   });
+}
+
+export function submitDepositStage(
+  id: string,
+  stage: DepositStage,
+  xdr: string,
+  signature: string,
+) {
+  return apiFetch<{ hash: string; status: string }>(
+    `/investments/deposit/${id}/onchain/submit`,
+    { method: "POST", body: { stage, xdr, signature } },
+  );
 }
