@@ -164,13 +164,6 @@ export class InvestmentsService {
     });
   }
 
-  async finalizeDeposit(transactionId: string, investorUserId: string, txHash: string): Promise<never> {
-    void transactionId;
-    void investorUserId;
-    void txHash;
-    throw new BadRequestException('finalizeDeposit is deprecated — use submitDepositStage via /investments/deposit/:id/onchain/submit');
-  }
-
   private async resolveInvestorAddress(investorUserId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { id: investorUserId },

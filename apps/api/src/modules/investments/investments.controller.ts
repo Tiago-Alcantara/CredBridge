@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { InvestmentsService } from './investments.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
+import { BuildDepositStageDto, SubmitDepositStageDto } from './dto/onchain-deposit.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 interface AuthRequest {
@@ -60,13 +61,23 @@ export class InvestmentsController {
     return this.service.markAsPaid(id, req.user.userId);
   }
 
-  @Post('deposit/:id/finalize')
-  finalizeDeposit(
+  @Post('deposit/:id/onchain/build')
+  buildOnchainDeposit(
     @Req() req: AuthRequest,
     @Param('id') id: string,
-    @Body('txHash') txHash: string,
+    @Body() dto: BuildDepositStageDto,
   ) {
     assertInvestor(req);
-    return this.service.finalizeDeposit(id, req.user.userId, txHash);
+    return this.service.buildDepositStage(id, req.user.userId, dto.stage);
+  }
+
+  @Post('deposit/:id/onchain/submit')
+  submitOnchainDeposit(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() dto: SubmitDepositStageDto,
+  ) {
+    assertInvestor(req);
+    return this.service.submitDepositStage(id, req.user.userId, dto);
   }
 }
