@@ -72,12 +72,8 @@ export default function InvestorDashboardPage() {
 
       {/* KPI row */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.4fr 1fr 1fr 1fr",
-          gap: 16,
-          marginBottom: 24,
-        }}
+        className="grid-kpi"
+        style={{ marginBottom: 24 }}
       >
         <div className="card violet-hi" style={{ padding: 32 }}>
           <div className="eyebrow" style={{ marginBottom: 12 }}>
@@ -109,12 +105,8 @@ export default function InvestorDashboardPage() {
 
       {/* Chart + shares */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.6fr 1fr",
-          gap: 16,
-          marginBottom: 24,
-        }}
+        className="grid-split"
+        style={{ marginBottom: 24 }}
       >
         <div className="card" style={{ padding: 24 }}>
           <div className="row between" style={{ marginBottom: 6 }}>
