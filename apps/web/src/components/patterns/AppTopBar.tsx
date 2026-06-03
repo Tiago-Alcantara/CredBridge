@@ -14,9 +14,10 @@ export interface AppTopBarUser {
 interface AppTopBarProps {
   user: AppTopBarUser;
   onToggleSidebar?: () => void;
+  sidebarOpen?: boolean;
 }
 
-export function AppTopBar({ user, onToggleSidebar }: AppTopBarProps) {
+export function AppTopBar({ user, onToggleSidebar, sidebarOpen }: AppTopBarProps) {
   const stellarDisplay = user.stellarAccountId
     ? fmtTxHash(user.stellarAccountId, 6)
     : "GA…X7Q";
@@ -25,8 +26,10 @@ export function AppTopBar({ user, onToggleSidebar }: AppTopBarProps) {
     <nav className="appnav">
       <div className="wrap-wide">
         <button
+          type="button"
           className="btn btn-ghost btn-sm js-sidebar-toggle appnav__menu"
-          aria-label="Abrir menu"
+          aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
+          aria-expanded={sidebarOpen}
           onClick={onToggleSidebar}
         >
           <Icon name="menu" size={16} />

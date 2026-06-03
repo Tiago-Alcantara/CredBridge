@@ -14,6 +14,10 @@ interface AppShellProps {
 
 export function AppShell({ items, user, children }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 1023px)").matches;
+  });
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -23,18 +27,35 @@ export function AppShell({ items, user, children }: AppShellProps) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    function onChange(e: MediaQueryListEvent) {
+      setIsMobile(e.matches);
+    }
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [drawerOpen]);
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <AppTopBar user={user} onToggleSidebar={() => setDrawerOpen((open) => !open)} />
+      <AppTopBar user={user} onToggleSidebar={() => setDrawerOpen((open) => !open)} sidebarOpen={drawerOpen} />
       <div style={{ display: "flex", flex: 1 }}>
         {drawerOpen && (
           <button
+            type="button"
             className="sidebar__overlay"
             aria-label="Fechar menu"
             onClick={() => setDrawerOpen(false)}
           />
         )}
-        <Sidebar items={items} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+        <Sidebar items={items} open={drawerOpen} onClose={() => setDrawerOpen(false)} hidden={isMobile && !drawerOpen} />
         <main className="app-main">{children}</main>
       </div>
     </div>

@@ -25,17 +25,22 @@ interface SidebarProps {
   footer?: React.ReactNode;
   open?: boolean;
   onClose?: () => void;
+  hidden?: boolean;
 }
 
 function isNavGroup(item: SidebarItem): item is SidebarNavGroup {
   return "group" in item;
 }
 
-export function Sidebar({ items, footer, open = false, onClose }: SidebarProps) {
+export function Sidebar({ items, footer, open = false, onClose, hidden }: SidebarProps) {
   const currentPath = usePathname();
 
   return (
-    <aside className={`sidebar ${open ? "sidebar--open" : ""}`.trim()}>
+    <aside
+      className={`sidebar ${open ? "sidebar--open" : ""}`.trim()}
+      inert={hidden || undefined}
+      aria-hidden={hidden || undefined}
+    >
       {items.map((item, index) => {
         if (isNavGroup(item)) {
           return (
