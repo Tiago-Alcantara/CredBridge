@@ -16,8 +16,6 @@ export default function LoginPage() {
         style={{
           position: "relative",
           padding: "40px 48px",
-          display: "flex",
-          flexDirection: "column",
           borderRight: "1px solid var(--line)",
           overflow: "hidden",
         }}

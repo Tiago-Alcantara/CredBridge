@@ -727,7 +727,7 @@ p { margin: 0; }
 
 /* ── Auth decorative aside ───────────────── */
 .auth-aside { display: none; }
-@media (min-width: 1024px) { .auth-aside { display: revert; } }
+@media (min-width: 1024px) { .auth-aside { display: flex; flex-direction: column; } }
 
 /* ── TopNav mobile hamburger ─────────────── */
 .topnav__menu-btn { display: inline-flex; }
