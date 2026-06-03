@@ -59,9 +59,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     }
     if (response.status === 401) {
       clearAccessToken();
-      if (!skipAuth) {
-        onUnauthorized?.();
-      }
+      onUnauthorized?.();
     }
     throw new ApiError(response.status, response.statusText, errorBody);
   }

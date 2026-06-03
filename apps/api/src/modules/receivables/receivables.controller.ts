@@ -65,17 +65,4 @@ export class ReceivablesController {
   assign(@Param('id') id: string, @Body() body: { authorizationId: string }) {
     return this.receivablesService.assign(id, body.authorizationId);
   }
-
-  @Post(':id/prepare-assignment')
-  prepareAssignment(@Param('id') id: string) {
-    return this.receivablesService.prepareAssignment(id);
-  }
-
-  @Post(':id/submit-assignment')
-  submitAssignment(
-    @Param('id') id: string,
-    @Body() body: { unsignedXdr: string; signatureHex: string },
-  ) {
-    return this.receivablesService.submitAssignment(id, body);
-  }
 }

@@ -5,11 +5,7 @@ import { StorageService } from './storage.interface';
 export class S3Service implements StorageService {
   private readonly logger = new Logger(S3Service.name);
 
-  async upload(
-    key: string,
-    file: Buffer,
-    contentType: string,
-  ): Promise<string> {
+  async upload(key: string, file: Buffer, contentType: string): Promise<string> {
     this.logger.log(`upload called for key: ${key}`);
     // TODO: implement AWS S3 SDK integration
     return `https://s3.example.com/${key}`;

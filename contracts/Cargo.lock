@@ -808,14 +808,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
-name = "liquidity-pool"
-version = "0.1.0"
-dependencies = [
- "mock-brlt",
- "soroban-sdk",
-]
-
-[[package]]
 name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -828,21 +820,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
-name = "mock-brlt"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
- "stellar-macros",
- "stellar-tokens",
-]
-
-[[package]]
 name = "nfe-contract"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
- "stellar-macros",
- "stellar-tokens",
 ]
 
 [[package]]
@@ -1436,17 +1417,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
-name = "stellar-macros"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2adde9cefb70ec85d5ba5f9329a9bb5a37203e5cfed96a982eac5ec831530f28"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "stellar-strkey"
 version = "0.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1455,15 +1425,6 @@ dependencies = [
  "crate-git-revision",
  "data-encoding",
  "thiserror",
-]
-
-[[package]]
-name = "stellar-tokens"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a310cb2e0a4693e6aff195d00e47c27c953a29a61a12a99f797104bbee727256"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]

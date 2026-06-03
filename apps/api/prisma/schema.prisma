@@ -86,7 +86,6 @@ model User {
   investments           Investment[] @relation("UserInvestments")
   auditLogs             AuditLog[]   @relation("UserAuditLogs")
   financialAuthorizations FinancialAuthorization[] @relation("UserFinancialAuthorizations")
-  transactions          Transaction[] @relation("UserTransactions")
 }
 
 model FinancialAuthorization {
@@ -147,19 +146,4 @@ model Investment {
   investor       User       @relation("UserInvestments", fields: [investorUserId], references: [id])
 
   @@index([investorUserId])
-}
-
-model Transaction {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String   // "DEPOSIT" (Aporte PIX) ou "WITHDRAWAL" (Resgate PIX)
-  amount      Float
-  status      String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
-  pixKey      String?  // Necessário para resgates
-  txHash      String?  // Hash da transação Stellar correspondente (Mint/Burn)
-  approvedBy  String?  // ID do operador que aprovou
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user        User     @relation("UserTransactions", fields: [userId], references: [id])
 }
