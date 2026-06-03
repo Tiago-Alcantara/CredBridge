@@ -4,7 +4,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { Logo } from "@/components/primitives/Logo";
 import { fmtTxHash } from "@/lib/format";
 
-interface AppTopBarUser {
+export interface AppTopBarUser {
   name: string;
   initials: string;
   roleLabel: string;
@@ -13,9 +13,10 @@ interface AppTopBarUser {
 
 interface AppTopBarProps {
   user: AppTopBarUser;
+  onToggleSidebar?: () => void;
 }
 
-export function AppTopBar({ user }: AppTopBarProps) {
+export function AppTopBar({ user, onToggleSidebar }: AppTopBarProps) {
   const stellarDisplay = user.stellarAccountId
     ? fmtTxHash(user.stellarAccountId, 6)
     : "GA…X7Q";
@@ -23,13 +24,20 @@ export function AppTopBar({ user }: AppTopBarProps) {
   return (
     <nav className="appnav">
       <div className="wrap-wide">
+        <button
+          className="btn btn-ghost btn-sm js-sidebar-toggle appnav__menu"
+          aria-label="Abrir menu"
+          onClick={onToggleSidebar}
+        >
+          <Icon name="menu" size={16} />
+        </button>
         <Logo />
         <span className="badge neutral no-dot" style={{ marginLeft: 4 }}>
           {user.roleLabel}
         </span>
         <div style={{ flex: 1 }} />
         <div className="row" style={{ gap: 8 }}>
-          <div className="chip">
+          <div className="chip appnav__hide-sm">
             <span className="dot-live" />
             <span>Stellar</span>
             <span className="mono t-2" style={{ fontSize: 11 }}>{stellarDisplay}</span>
@@ -66,7 +74,7 @@ export function AppTopBar({ user }: AppTopBarProps) {
             >
               {user.initials}
             </div>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>{user.name}</span>
+            <span className="appnav__hide-sm" style={{ fontSize: 13, fontWeight: 500 }}>{user.name}</span>
           </div>
         </div>
       </div>

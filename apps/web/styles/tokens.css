@@ -494,15 +494,52 @@ p { margin: 0; }
 
 /* ── Sidebar nav ─────────────────────────── */
 .sidebar {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  z-index: 40;
   width: 240px;
+  height: calc(100vh - 64px);
   padding: 24px 16px;
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex-shrink: 0;
-  min-height: calc(100vh - 64px);
+  background: var(--bg);
+  transform: translateX(-100%);
+  transition: transform .25s ease;
+  overflow-y: auto;
 }
+.sidebar--open { transform: translateX(0); }
+
+.sidebar__overlay {
+  position: fixed;
+  inset: 64px 0 0 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.5);
+  border: 0;
+  cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    position: static;
+    top: auto;
+    height: auto;
+    min-height: calc(100vh - 64px);
+    flex-shrink: 0;
+    background: transparent;
+    transform: none;
+    transition: none;
+  }
+  .sidebar__overlay { display: none; }
+}
+
+.appnav__menu { display: inline-flex; }
+@media (min-width: 1024px) { .appnav__menu { display: none; } }
+
+.appnav__hide-sm { display: none; }
+@media (min-width: 640px) { .appnav__hide-sm { display: revert; } }
 .sidenav-group {
   font-family: var(--sans);
   font-size: 10px;
