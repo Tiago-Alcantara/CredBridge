@@ -1,7 +1,19 @@
 import { ConflictException } from '@nestjs/common';
-import { Account, Keypair } from '@stellar/stellar-sdk';
+import {
+  Account,
+  Asset,
+  Keypair,
+  Networks,
+  Operation,
+  TransactionBuilder,
+} from '@stellar/stellar-sdk';
 import { StellarService } from './stellar.service';
 import type { PrismaService } from '../prisma/prisma.service';
+
+const POOL_CONTRACT_ID =
+  'CDIMUPT2SBPGBR5DHFVQ3HK74DHL4TMVCQIXINJYV2SRHXRYUYQRBVC7';
+const BRLT_CONTRACT_ID =
+  'CBEZ5KHMHKXMVXL4UZGCFV2ZKDNB5YPFR7TZGX34D3QRBMFG25QQSQH';
 
 describe('StellarService', () => {
   const originalEnv = { ...process.env };
@@ -15,6 +27,8 @@ describe('StellarService', () => {
       STELLAR_NFE_CONTRACT_ID:
         'CDIMUPT2SBPGBR5DHFVQ3HK74DHL4TMVCQIXINJYV2SRHXRYUYQRBVC7',
       STELLAR_SECRET_KEY: Keypair.random().secret(),
+      STELLAR_POOL_CONTRACT_ID: POOL_CONTRACT_ID,
+      STELLAR_BRLT_TOKEN_ID: BRLT_CONTRACT_ID,
     };
   });
 
@@ -94,5 +108,174 @@ describe('StellarService', () => {
     await expect(
       service.prepareAssignment('receivable-1', pmeKeypair.publicKey()),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  describe('buildApproveTx', () => {
+    it('returns an UnsignedSorobanTx with the correct shape when env contract IDs are set', async () => {
+      const service = createService();
+      const investorKeypair = Keypair.random();
+      const investorAddress = investorKeypair.publicKey();
+
+      const expectedResult = {
+        xdr: 'mock-xdr-string',
+        hashToSign: 'a'.repeat(64),
+        signerPublicKey: investorAddress,
+      };
+
+      // Spy on the private helper so we don't need to mock the full Soroban simulation chain
+      jest
+        .spyOn(service as any, 'buildAndAssemble')
+        .mockResolvedValue(expectedResult);
+
+      // Stub horizon.ledgers() for the approve liveUntilLedger fetch
+      (service as any).horizon = {
+        ledgers: jest.fn().mockReturnValue({
+          order: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              call: jest
+                .fn()
+                .mockResolvedValue({ records: [{ sequence: 3000000 }] }),
+            }),
+          }),
+        }),
+      };
+
+      const result = await service.buildApproveTx(investorAddress, 100);
+
+      expect(result.signerPublicKey).toBe(investorAddress);
+      expect(result.xdr).toBe(expectedResult.xdr);
+      expect(result.hashToSign).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('throws when contract env vars are missing', async () => {
+      delete process.env.STELLAR_POOL_CONTRACT_ID;
+      const service = createService();
+
+      await expect(
+        service.buildApproveTx(Keypair.random().publicKey(), 100),
+      ).rejects.toThrow(
+        'STELLAR_POOL_CONTRACT_ID / STELLAR_BRLT_TOKEN_ID not configured',
+      );
+    });
+  });
+
+  describe('buildDepositTx', () => {
+    it('returns an UnsignedSorobanTx with the correct shape when env contract ID is set', async () => {
+      const service = createService();
+      const investorKeypair = Keypair.random();
+      const investorAddress = investorKeypair.publicKey();
+
+      const expectedResult = {
+        xdr: 'mock-deposit-xdr',
+        hashToSign: 'b'.repeat(64),
+        signerPublicKey: investorAddress,
+      };
+
+      jest
+        .spyOn(service as any, 'buildAndAssemble')
+        .mockResolvedValue(expectedResult);
+
+      const result = await service.buildDepositTx(investorAddress, 250);
+
+      expect(result.signerPublicKey).toBe(investorAddress);
+      expect(result.xdr).toBe(expectedResult.xdr);
+      expect(result.hashToSign).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('throws when STELLAR_POOL_CONTRACT_ID is missing', async () => {
+      delete process.env.STELLAR_POOL_CONTRACT_ID;
+      const service = createService();
+
+      await expect(
+        service.buildDepositTx(Keypair.random().publicKey(), 250),
+      ).rejects.toThrow('STELLAR_POOL_CONTRACT_ID not configured');
+    });
+  });
+
+  describe('submitSignedTx', () => {
+    /**
+     * Builds a minimal (non-Soroban) payment transaction signed by a throwaway keypair
+     * so that keypair.verify() will pass with the real ED25519 signature.
+     */
+    function buildSignedMinimalTx(signerKeypair: Keypair): {
+      xdr: string;
+      signatureHex: string;
+    } {
+      const account = new Account(signerKeypair.publicKey(), '0');
+      const tx = new TransactionBuilder(account, {
+        fee: '100',
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: Keypair.random().publicKey(),
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(30)
+        .build();
+
+      const txHash = tx.hash();
+      const signatureBytes = signerKeypair.sign(txHash);
+
+      return {
+        xdr: tx.toXDR(),
+        signatureHex: Buffer.from(signatureBytes).toString('hex'),
+      };
+    }
+
+    it('submits the transaction and returns the confirmed tx hash when the signature is valid', async () => {
+      const service = createService();
+      const signerKeypair = Keypair.random();
+      const { xdr: txXdr, signatureHex } = buildSignedMinimalTx(signerKeypair);
+      const expectedHash = 'confirmed-tx-hash-abc123';
+
+      (service as any).server = {
+        sendTransaction: jest
+          .fn()
+          .mockResolvedValue({ status: 'PENDING', hash: expectedHash }),
+        getTransaction: jest
+          .fn()
+          .mockResolvedValue({ status: 'SUCCESS' }),
+      };
+
+      const result = await service.submitSignedTx({
+        xdr: txXdr,
+        signerPublicKey: signerKeypair.publicKey(),
+        signatureHex,
+      });
+
+      expect(result).toBe(expectedHash);
+      expect((service as any).server.sendTransaction).toHaveBeenCalledTimes(1);
+      expect((service as any).server.getTransaction).toHaveBeenCalledWith(
+        expectedHash,
+      );
+    });
+
+    it('throws when the signature does not match the transaction hash', async () => {
+      const service = createService();
+      const signerKeypair = Keypair.random();
+      const { xdr: txXdr } = buildSignedMinimalTx(signerKeypair);
+
+      // Use a random 64-byte buffer as a deliberately wrong signature
+      const wrongSignatureHex = Buffer.alloc(64, 0x42).toString('hex');
+
+      (service as any).server = {
+        sendTransaction: jest.fn(),
+        getTransaction: jest.fn(),
+      };
+
+      await expect(
+        service.submitSignedTx({
+          xdr: txXdr,
+          signerPublicKey: signerKeypair.publicKey(),
+          signatureHex: wrongSignatureHex,
+        }),
+      ).rejects.toThrow('Signature does not match transaction hash');
+
+      // sendTransaction should never be called for an invalid signature
+      expect((service as any).server.sendTransaction).not.toHaveBeenCalled();
+    });
   });
 });

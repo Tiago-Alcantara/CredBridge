@@ -20,6 +20,7 @@ import type {
   PayPmeInput,
   TokenizeNfeInput,
   TransferNftToInvestorInput,
+  UnsignedSorobanTx,
 } from './blockchain.interface';
 
 const NETWORK_PASSPHRASE =
@@ -956,5 +957,161 @@ export class StellarService implements BlockchainService {
         nativeToScVal(amountInStroops, { type: 'i128' }),
       ],
     );
+  }
+
+  /**
+   * Builds and assembles a simulated Soroban transaction ready for signing by a Privy wallet.
+   * Uses the investor's address as the source account (they pay fees and provide auth).
+   */
+  private async buildAndAssemble(
+    investorAddress: string,
+    contractId: string,
+    method: string,
+    args: xdr.ScVal[],
+  ): Promise<UnsignedSorobanTx> {
+    if (!this.server) {
+      throw new Error('Stellar RPC server not configured');
+    }
+
+    const account = await this.server.getAccount(investorAddress);
+    const contract = new Contract(contractId);
+
+    let tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call(method, ...args))
+      .setTimeout(180)
+      .build();
+
+    const sim = await this.server.simulateTransaction(tx);
+    if (!rpc.Api.isSimulationSuccess(sim)) {
+      throw new Error(
+        `Simulation failed for ${method}: ${JSON.stringify(sim)}`,
+      );
+    }
+
+    tx = rpc.assembleTransaction(tx, sim).build();
+
+    return {
+      xdr: tx.toXDR(),
+      hashToSign: tx.hash().toString('hex'),
+      signerPublicKey: investorAddress,
+    };
+  }
+
+  async buildApproveTx(
+    investorAddress: string,
+    amountBrl: number,
+  ): Promise<UnsignedSorobanTx> {
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!poolContractId || !brltContractId) {
+      throw new Error(
+        'STELLAR_POOL_CONTRACT_ID / STELLAR_BRLT_TOKEN_ID not configured',
+      );
+    }
+
+    // SEP-41 tokens use 7 decimal places (stroops)
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    const latestLedgers = await this.horizon
+      .ledgers()
+      .order('desc')
+      .limit(1)
+      .call();
+    const currentLedger = latestLedgers.records[0]?.sequence ?? 3000000;
+    const liveUntilLedger = currentLedger + 100000;
+
+    this.logger.log(
+      `buildApproveTx — investor ${investorAddress}, amount ${amountBrl}`,
+    );
+
+    return this.buildAndAssemble(investorAddress, brltContractId, 'approve', [
+      nativeToScVal(investorAddress, { type: 'address' }),
+      nativeToScVal(poolContractId, { type: 'address' }),
+      nativeToScVal(amountInStroops, { type: 'i128' }),
+      nativeToScVal(liveUntilLedger, { type: 'u32' }),
+    ]);
+  }
+
+  async buildDepositTx(
+    investorAddress: string,
+    amountBrl: number,
+  ): Promise<UnsignedSorobanTx> {
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    // SEP-41 tokens use 7 decimal places (stroops)
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    this.logger.log(
+      `buildDepositTx — investor ${investorAddress}, amount ${amountBrl}`,
+    );
+
+    return this.buildAndAssemble(investorAddress, poolContractId, 'deposit', [
+      nativeToScVal(investorAddress, { type: 'address' }),
+      nativeToScVal(amountInStroops, { type: 'i128' }),
+    ]);
+  }
+
+  async submitSignedTx(input: {
+    xdr: string;
+    signerPublicKey: string;
+    signatureHex: string;
+  }): Promise<string> {
+    if (!this.server) {
+      throw new Error('Stellar RPC server not configured');
+    }
+
+    const tx = TransactionBuilder.fromXDR(
+      input.xdr,
+      NETWORK_PASSPHRASE,
+    ) as import('@stellar/stellar-sdk').Transaction;
+
+    const keypair = Keypair.fromPublicKey(input.signerPublicKey);
+    const signature = Buffer.from(
+      input.signatureHex.replace(/^0x/, ''),
+      'hex',
+    );
+
+    if (!keypair.verify(tx.hash(), signature)) {
+      throw new Error('Signature does not match transaction hash');
+    }
+
+    tx.addDecoratedSignature(
+      new xdr.DecoratedSignature({
+        hint: keypair.signatureHint(),
+        signature,
+      }),
+    );
+
+    const sendResult = await this.server.sendTransaction(tx as any);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(
+        `sendTransaction failed: ${JSON.stringify(sendResult.errorResult)}`,
+      );
+    }
+
+    let getResult = await this.server.getTransaction(sendResult.hash);
+    let attempts = 0;
+    while (getResult.status === 'NOT_FOUND' && attempts < 30) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      getResult = await this.server.getTransaction(sendResult.hash);
+      attempts += 1;
+    }
+
+    if (getResult.status !== 'SUCCESS') {
+      throw new Error(
+        `Transaction did not succeed: ${getResult.status}`,
+      );
+    }
+
+    this.logger.log(
+      `submitSignedTx confirmed — hash ${sendResult.hash}`,
+    );
+    return sendResult.hash;
   }
 }
