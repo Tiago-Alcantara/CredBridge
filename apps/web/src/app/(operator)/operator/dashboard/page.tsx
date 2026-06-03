@@ -16,6 +16,7 @@ import {
   useCreateDeposit,
 } from "@/lib/api/admin";
 import { useToast } from "@/providers/ToastProvider";
+import { usePoolStatus, useInvestorShares } from "@/lib/api/pool";
 
 interface AdminReceivable extends Receivable {
   user?: {
@@ -26,15 +27,17 @@ interface AdminReceivable extends Receivable {
 }
 
 const stellarExpertContractBaseUrl = "https://stellar.expert/explorer/testnet/contract";
-const poolContractId = "CASSTE2CZFG72SBGCPD7YOXCRQC3WSMDS7QHRN6DKVNEZWVJM3EXXXWG";
-const brltTokenContractId = "CCUPQSBG3C4BYYZC6ZUHUFYICHKMNW436MXYFP43UUCP34KXCKNOUVZO";
-const poolBrltBalance = "0 BRLT";
 
 export default function OperatorDashboardPage() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = searchParams.get("tab") || "dashboard";
+
+  const poolTabActive = activeTab === "pool-status";
+  const { data: poolStatus, isFetching: poolFetching, isError: poolError, refetch: refetchPool } = usePoolStatus(poolTabActive);
+  const [investorAddress, setInvestorAddress] = useState("");
+  const { data: investorShares, isFetching: sharesFetching, isError: sharesError, refetch: refetchShares } = useInvestorShares(investorAddress.trim());
 
   const { data: rawReceivables = [], isLoading: loadingReceivables } = usePendingReceivables();
   const receivables = rawReceivables as AdminReceivable[];
@@ -362,60 +365,77 @@ export default function OperatorDashboardPage() {
       {/* Pool Status Tab */}
       {activeTab === "pool-status" && (
         <div className="card" style={{ padding: 24 }}>
-          <div style={{ marginBottom: 20 }}>
-            <h3>Situação pool</h3>
-            <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-              Consulta rápida dos contratos usados pela pool na Stellar testnet.
-            </p>
+          <div className="row between" style={{ marginBottom: 20 }}>
+            <div>
+              <h3>Situação da pool</h3>
+              <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>Dados lidos diretamente do contrato na Stellar testnet.</p>
+            </div>
+            <button className="btn btn-ghost btn-sm" disabled={poolFetching} onClick={() => refetchPool()}>
+              <Icon name="zap" size={14} /> {poolFetching ? "Atualizando..." : "Atualizar"}
+            </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-            <div
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--line-2)",
-                borderRadius: 8,
-                padding: 20,
-              }}
-            >
-              <div className="eyebrow" style={{ marginBottom: 10 }}>Token BRLT na pool</div>
-              <div className="kpi num" style={{ fontSize: 28, marginBottom: 12 }}>{poolBrltBalance}</div>
-              <div className="t-3" style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
-                {brltTokenContractId}
-              </div>
-              <a
-                className="btn btn-ghost btn-sm"
-                href={`${stellarExpertContractBaseUrl}/${brltTokenContractId}`}
-                rel="noreferrer"
-                target="_blank"
-                style={{ marginTop: 16 }}
-              >
-                Ver BRLT no Stellar Expert <Icon name="arrow_right" size={14} />
-              </a>
+          {poolError ? (
+            <div className="t-3" style={{ padding: 24, textAlign: "center", color: "var(--red)" }}>Falha ao ler o estado da pool on-chain.</div>
+          ) : !poolStatus ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+              <div className="skeleton" style={{ height: 110, borderRadius: 8 }} />
+              <div className="skeleton" style={{ height: 110, borderRadius: 8 }} />
+              <div className="skeleton" style={{ height: 110, borderRadius: 8 }} />
             </div>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 24 }}>
+                <MiniKpi label="NAV (patrimônio)" value={fmtBRL(poolStatus.nav.value)} sub="Caixa + principal aplicado" color="#00D4FF" icon="wallet" />
+                <MiniKpi label="Total de cotas" value={poolStatus.totalShares.value.toLocaleString("pt-BR")} sub="CBPOOL mintadas" color="#7B2FFF" icon="box" />
+                <MiniKpi label="Preço da cota" value={`${poolStatus.sharePrice.value.toFixed(4)} BRLT`} sub="NAV / total de cotas" color="#00FF94" icon="chart" />
+                <MiniKpi label="Caixa BRLT" value={fmtBRL(poolStatus.cashBalance.value)} sub="Disponível na pool" color="#00D4FF" icon="wallet" />
+                <MiniKpi label="Principal aplicado" value={fmtBRL(poolStatus.totalPrincipal.value)} sub="Em invoices ativas" color="#FFB020" icon="doc" />
+                <MiniKpi label="Status" value={poolStatus.paused ? "Pausada" : "Ativa"} sub={poolStatus.paused ? "Operações bloqueadas" : "Operando normalmente"} color={poolStatus.paused ? "#FF5577" : "#00FF94"} icon="shield" />
+              </div>
 
-            <div
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--line-2)",
-                borderRadius: 8,
-                padding: 20,
-              }}
-            >
-              <div className="eyebrow" style={{ marginBottom: 10 }}>ID do contrato da Pool</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>
-                {poolContractId}
+              <div style={{ borderTop: "1px solid var(--line-2)", paddingTop: 20, marginBottom: 24 }}>
+                <div className="eyebrow" style={{ marginBottom: 10 }}>Cotas por investidor</div>
+                <div className="row" style={{ gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                  <input type="text" className="input" placeholder="Endereço Stellar (G...)" value={investorAddress} onChange={(e) => setInvestorAddress(e.target.value)} style={{ flex: 1, minWidth: 280, padding: 10, background: "var(--surface)", border: "1px solid var(--line)", fontFamily: "monospace", fontSize: 13 }} />
+                  <button className="btn btn-violet btn-sm" disabled={sharesFetching || investorAddress.trim().length < 56} onClick={() => refetchShares()}>{sharesFetching ? "Buscando..." : "Buscar"}</button>
+                </div>
+                {sharesError ? (
+                  <div className="t-3" style={{ color: "var(--red)", fontSize: 13 }}>Falha ao buscar cotas (endereço válido?).</div>
+                ) : investorShares ? (
+                  <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>Cotas</div>
+                      <div className="kpi num" style={{ fontSize: 24 }}>{investorShares.shares.value.toLocaleString("pt-BR")}</div>
+                    </div>
+                    <div>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>Valor estimado</div>
+                      <div className="kpi num" style={{ fontSize: 24 }}>{fmtBRL(investorShares.estimatedValueBrl)}</div>
+                    </div>
+                    <a className="btn btn-ghost btn-sm" href={`https://stellar.expert/explorer/testnet/account/${investorShares.address}`} rel="noreferrer" target="_blank" style={{ gridColumn: "1 / -1", justifySelf: "start" }}>Ver no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                  </div>
+                ) : null}
               </div>
-              <a
-                className="btn btn-violet btn-sm"
-                href={`${stellarExpertContractBaseUrl}/${poolContractId}`}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Ver Pool no Stellar Expert <Icon name="arrow_right" size={14} />
-              </a>
-            </div>
-          </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20 }}>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>Contrato da Pool</div>
+                  <div className="mono" style={{ fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>{poolStatus.poolContractId}</div>
+                  <a className="btn btn-violet btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.poolContractId}`} rel="noreferrer" target="_blank">Ver Pool no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                </div>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20 }}>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>Token BRLT</div>
+                  <div className="mono" style={{ fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>{poolStatus.brltTokenId}</div>
+                  <a className="btn btn-ghost btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.brltTokenId}`} rel="noreferrer" target="_blank">Ver BRLT no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                </div>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20 }}>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>Token de cotas (CBPOOL)</div>
+                  <div className="mono" style={{ fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>{poolStatus.shareTokenId}</div>
+                  <a className="btn btn-ghost btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.shareTokenId}`} rel="noreferrer" target="_blank">Ver CBPOOL no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
