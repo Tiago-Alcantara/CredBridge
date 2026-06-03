@@ -290,4 +290,12 @@ export class AdminService {
 
     return updated;
   }
+
+  getPoolStatus() {
+    return this.stellar.getPoolStatus();
+  }
+
+  getInvestorShares(address: string) {
+    return this.stellar.getInvestorShares(address);
+  }
 }

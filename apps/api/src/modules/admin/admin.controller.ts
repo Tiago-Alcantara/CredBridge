@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -6,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -82,5 +84,20 @@ export class AdminController {
   ) {
     assertOperator(req);
     return this.service.approveTransaction(id, req.user.userId, body.status);
+  }
+
+  @Get('pool/status')
+  getPoolStatus(@Req() req: AuthRequest) {
+    assertOperator(req);
+    return this.service.getPoolStatus();
+  }
+
+  @Get('pool/shares')
+  getInvestorShares(@Req() req: AuthRequest, @Query('address') address: string) {
+    assertOperator(req);
+    if (!address || !/^G[A-Z2-7]{55}$/.test(address)) {
+      throw new BadRequestException('Endereço Stellar inválido');
+    }
+    return this.service.getInvestorShares(address);
   }
 }
