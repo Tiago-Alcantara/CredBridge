@@ -1,11 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import { useUser } from "@privy-io/react-auth";
+import { useSignRawHash } from "@privy-io/react-auth/extended-chains";
 import { Icon } from "../primitives/Icon";
 import { fmtBRL } from "@/lib/format";
-import { useFinalizeDeposit, type InvestorTransaction } from "@/lib/api/investments";
+import { type InvestorTransaction } from "@/lib/api/investments";
 import { useToast } from "@/providers/ToastProvider";
-import { useFinancialAuthorization } from "@/lib/financial-actions/useFinancialAuthorization";
+import { useGetWallet } from "@/lib/api/wallet";
+import { runOnChainDeposit } from "@/lib/stellar/sign-deposit";
+
+interface LinkedAccount {
+  type?: string;
+  address?: string;
+  chainType?: string;
+  chain_type?: string;
+}
+
+function findPrivyStellarWalletAddress(
+  linkedAccounts: LinkedAccount[] | undefined,
+): string | null {
+  const stellarWallet = linkedAccounts?.find(
+    (linkedAccount) =>
+      linkedAccount.type === "wallet" &&
+      (linkedAccount.chainType === "stellar" ||
+        linkedAccount.chain_type === "stellar") &&
+      typeof linkedAccount.address === "string",
+  );
+
+  return stellarWallet?.address ?? null;
+}
 
 interface FinalizeAssignmentModalProps {
   isOpen: boolean;
@@ -27,52 +51,44 @@ export function FinalizeAssignmentModal({
   const { showToast } = useToast();
   const [signingStep, setSigningStep] = useState<SigningStep>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const finalizeDepositMut = useFinalizeDeposit();
-  const { authorize } = useFinancialAuthorization(userEmail);
+
+  const { data: wallet } = useGetWallet();
+  const { user } = useUser();
+  const { signRawHash } = useSignRawHash();
 
   if (!isOpen || !transaction) return null;
+
+  function resolvePrivyAddress(): string {
+    const privyAddress =
+      wallet?.walletType === "privy_stellar"
+        ? wallet.contractId
+        : findPrivyStellarWalletAddress(
+            user?.linkedAccounts as LinkedAccount[] | undefined,
+          );
+
+    if (!privyAddress) {
+      throw new Error("Carteira Stellar Privy não encontrada");
+    }
+
+    return privyAddress;
+  }
 
   const handleFinalize = async () => {
     try {
       setErrorMessage(null);
       setSigningStep("approve_brlt");
-
-      // Etapa 1: Autorizar BRLT para o contrato da Pool via Privy
-      await authorize({
-        operation: "investor.deposit",
-        resourceId: "CBPOOL_CONTRACT",
-        amount: transaction.amount.toFixed(2),
+      const privyAddress = resolvePrivyAddress();
+      await runOnChainDeposit({
+        transactionId: transaction.id,
+        privyAddress,
+        signRawHash,
+        onStage: (stage) => setSigningStep(stage === "approve" ? "approve_brlt" : "deposit_pool"),
       });
-
-      // Simula uma transição suave
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-
-      setSigningStep("deposit_pool");
-
-      // Etapa 2: Depositar na Pool e mintar cotas CBPOOL
-      const authorizationId = await authorize({
-        operation: "investment.purchase",
-        resourceId: "CBPOOL_CONTRACT",
-        amount: transaction.amount.toFixed(2),
-      });
-
-      // Simula a submissão e aprovação on-chain Stellar
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Hash de transação fictício porém de formato idêntico ao real da Stellar
-      const stellarTxHash = "t" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-
-      // Conclui na API enviando o hash gerado
-      await finalizeDepositMut.mutateAsync({
-        id: transaction.id,
-        txHash: stellarTxHash,
-      });
-
       setSigningStep("success");
       showToast("Cotas CBPOOL emitidas com sucesso na sua carteira!", "success");
     } catch (err: any) {
       setSigningStep("error");
-      setErrorMessage(err.message || "Erro ao assinar transações Web3.");
+      setErrorMessage(err?.message || "Erro ao assinar transações on-chain.");
       showToast("Falha na assinatura on-chain via Privy.", "error");
     }
   };

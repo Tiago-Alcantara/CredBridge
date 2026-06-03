@@ -32,7 +32,7 @@ export default function InvestorDashboardPage() {
 
   const { data: pool = [], isLoading: loadingPool } = useInvestorPool();
   const { data: poolStats, isLoading: loadingPoolStats } = useInvestorStats();
-  const { data: positions = [], isLoading: loadingPositions } = useInvestorPositions();
+  const { data: positions = [], isLoading: loadingPositions, refetch: refetchPositions } = useInvestorPositions();
   const { data: posStats, isLoading: loadingPosStats } = useInvestorPositionStats();
   const { data: me } = useMe();
   const { data: transactions = [], refetch: refetchTransactions } = useInvestorTransactions();
@@ -386,6 +386,7 @@ export default function InvestorDashboardPage() {
         }}
         onSuccess={() => {
           refetchTransactions();
+          refetchPositions();
           setView("mine");
         }}
       />
