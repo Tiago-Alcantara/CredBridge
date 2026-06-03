@@ -25,6 +25,7 @@ import type {
   TokenizeNfeInput,
   TransferNftToInvestorInput,
   UnsignedSorobanTx,
+  WalletBalance,
 } from './blockchain.interface';
 
 const NETWORK_PASSPHRASE =
@@ -1244,6 +1245,31 @@ export class StellarService implements BlockchainService {
       address,
       shares: { raw: balanceRaw.toString(), value: sharesValue },
       estimatedValueBrl: sharesValue * sharePriceValue,
+    };
+  }
+
+  async getBrltBalance(address: string): Promise<WalletBalance> {
+    const brltId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!brltId) {
+      throw new Error('STELLAR_BRLT_TOKEN_ID not configured');
+    }
+
+    // Leituras independentes — dispara em paralelo.
+    const [decimalsRaw, balanceRaw] = await Promise.all([
+      this.simulateRead(brltId, 'decimals', []),
+      this.simulateRead(brltId, 'balance', [
+        nativeToScVal(address, { type: 'address' }),
+      ]) as Promise<bigint>,
+    ]);
+    const decimals = Number(decimalsRaw);
+
+    return {
+      address,
+      tokenId: brltId,
+      balance: {
+        raw: balanceRaw.toString(),
+        value: Number(balanceRaw) / 10 ** decimals,
+      },
     };
   }
 }

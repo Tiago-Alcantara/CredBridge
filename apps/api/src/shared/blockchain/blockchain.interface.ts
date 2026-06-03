@@ -69,6 +69,12 @@ export interface InvestorShares {
   estimatedValueBrl: number;
 }
 
+export interface WalletBalance {
+  address: string;
+  tokenId: string;
+  balance: Scaled;
+}
+
 export interface BlockchainService {
   registerProof(hash: string): Promise<string>;
   tokenizeNfe(data: TokenizeNfeInput): Promise<string>;
@@ -114,6 +120,8 @@ export interface BlockchainService {
   getPoolStatus(): Promise<PoolStatus>;
   /** Lê o saldo de cotas (share token) de um endereço Stellar. */
   getInvestorShares(address: string): Promise<InvestorShares>;
+  /** Lê o saldo de BRLT (BRL Digital) de um endereço Stellar. */
+  getBrltBalance(address: string): Promise<WalletBalance>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');

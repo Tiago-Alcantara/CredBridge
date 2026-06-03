@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/components/primitives/Icon";
 import { MiniKpi } from "@/components/patterns/MiniKpi";
 import { StellarWalletAddress } from "@/components/auth/StellarWalletAddress";
@@ -13,9 +14,10 @@ import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import { useReceivables } from "@/lib/api/receivables";
+import { useReceivables, receivableQueryKeys } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
-import { useAuditLog } from "@/lib/api/audit";
+import { useAuditLog, auditQueryKeys } from "@/lib/api/audit";
+import { useWalletBalance, walletQueryKeys } from "@/lib/api/wallet";
 import type { Receivable } from "@/types";
 import type { AuditEvent } from "@credbridge/types";
 
@@ -85,10 +87,31 @@ function auditToTimeline(e: AuditEvent): TimelineItem {
 
 export default function PmeDashboardPage() {
   const { t } = useTranslation("pt");
+  const queryClient = useQueryClient();
   const { data: receivables, isLoading, isError } = useReceivables();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
+  const {
+    data: balance,
+    isLoading: balanceLoading,
+    isError: balanceError,
+  } = useWalletBalance();
   const [offrampOpen, setOfframpOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: receivableQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: walletQueryKeys.balance }),
+        queryClient.invalidateQueries({ queryKey: ["me"] }),
+        queryClient.invalidateQueries({ queryKey: auditQueryKeys.me }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const invoiceRows: InvoiceRow[] = receivables?.map(toInvoiceRow) ?? [];
 
@@ -128,6 +151,9 @@ export default function PmeDashboardPage() {
           <h2 style={{ fontSize: 32 }}>Sua liquidez hoje</h2>
         </div>
         <div className="row" style={{ gap: 8 }}>
+          <button className="btn btn-ghost" onClick={handleRefresh} disabled={refreshing}>
+            <Icon name="refresh" size={14} className={refreshing ? "spinning" : undefined} /> Atualizar
+          </button>
           <button className="btn btn-ghost">
             <Icon name="download" size={14} /> Extrato
           </button>
@@ -153,7 +179,12 @@ export default function PmeDashboardPage() {
             {t("dash_avail")}
           </div>
           <div className="kpi kpi-lg num">
-            <span className="unit">R$</span>—
+            <span className="unit">R$</span>
+            {balanceLoading
+              ? "…"
+              : balanceError || balance == null
+              ? "—"
+              : balance.balance.value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="row" style={{ gap: 10, marginTop: 16 }}>
             <button className="btn btn-primary" onClick={() => setOfframpOpen(true)} >
@@ -175,7 +206,13 @@ export default function PmeDashboardPage() {
               <span className="dot-live" />
               <span>BRL Digital · Stellar</span>
             </span>
-            <span className="mono">—</span>
+            <span className="mono">
+              {balanceLoading
+                ? "…"
+                : balanceError || balance == null
+                ? "—"
+                : `${balance.balance.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} BRLT`}
+            </span>
           </div>
         </div>
 
