@@ -160,29 +160,74 @@ export class InvestmentsService {
     });
   }
 
-  async finalizeDeposit(transactionId: string, investorUserId: string, txHash: string) {
-    const transaction = await this.prisma.transaction.findFirst({
-      where: {
-        id: transactionId,
-        userId: investorUserId,
-      },
-    });
+  async finalizeDeposit(transactionId: string, investorUserId: string, txHash: string): Promise<never> {
+    void transactionId;
+    void investorUserId;
+    void txHash;
+    throw new BadRequestException('finalizeDeposit is deprecated — use submitDepositStage via /investments/deposit/:id/onchain/submit');
+  }
 
+  private async resolveInvestorAddress(investorUserId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: investorUserId },
+      select: { privyStellarWalletAddress: true, stellarWalletId: true },
+    });
+    const address = user?.privyStellarWalletAddress ?? user?.stellarWalletId;
+    if (!address) {
+      throw new BadRequestException('Investidor não possui carteira Stellar configurada');
+    }
+    return address;
+  }
+
+  private async loadApprovedDeposit(transactionId: string, investorUserId: string) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id: transactionId, userId: investorUserId },
+    });
     if (!transaction) {
       throw new NotFoundException('Transação não encontrada');
     }
-
+    if (transaction.type !== 'DEPOSIT') {
+      throw new BadRequestException('Transação não é um depósito');
+    }
     if (transaction.status !== 'APPROVED') {
       throw new BadRequestException('Esta transação ainda não foi aprovada pelo admin');
     }
+    return transaction;
+  }
 
-    // Atualiza a transação original para COMPLETED e salva o hash da transação Soroban do depósito real
+  async buildDepositStage(
+    transactionId: string,
+    investorUserId: string,
+    stage: 'approve' | 'deposit',
+  ) {
+    const transaction = await this.loadApprovedDeposit(transactionId, investorUserId);
+    const investorAddress = await this.resolveInvestorAddress(investorUserId);
+    return stage === 'approve'
+      ? this.blockchain.buildApproveTx(investorAddress, transaction.amount)
+      : this.blockchain.buildDepositTx(investorAddress, transaction.amount);
+  }
+
+  async submitDepositStage(
+    transactionId: string,
+    investorUserId: string,
+    dto: { stage: 'approve' | 'deposit'; xdr: string; signature: string },
+  ) {
+    const transaction = await this.loadApprovedDeposit(transactionId, investorUserId);
+    const investorAddress = await this.resolveInvestorAddress(investorUserId);
+
+    const hash = await this.blockchain.submitSignedTx({
+      xdr: dto.xdr,
+      signerPublicKey: investorAddress,
+      signatureHex: dto.signature,
+    });
+
+    if (dto.stage === 'approve') {
+      return { hash, status: transaction.status };
+    }
+
     const updated = await this.prisma.transaction.update({
       where: { id: transactionId },
-      data: {
-        status: 'COMPLETED',
-        txHash: txHash,
-      },
+      data: { status: 'COMPLETED', txHash: hash },
     });
 
     await this.prisma.auditLog.create({
@@ -191,11 +236,11 @@ export class InvestmentsService {
         entityId: transactionId,
         entityType: 'transaction',
         userId: investorUserId,
-        txHash: txHash,
+        txHash: hash,
         metadata: { amount: transaction.amount },
       },
     });
 
-    return updated;
+    return { hash, status: updated.status };
   }
 }

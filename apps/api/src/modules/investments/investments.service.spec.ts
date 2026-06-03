@@ -43,6 +43,12 @@ describe('InvestmentsService', () => {
   let service: InvestmentsService;
   let repo: jest.Mocked<InvestmentsRepository>;
   let blockchain: jest.Mocked<BlockchainService>;
+  let prisma: {
+    $transaction: jest.Mock;
+    transaction: { findFirst: jest.Mock; update: jest.Mock };
+    user: { findUnique: jest.Mock };
+    auditLog: { create: jest.Mock };
+  };
   let financialAuthorizations: jest.Mocked<
     Pick<FinancialAuthorizationsService, 'consume'>
   >;
@@ -63,6 +69,9 @@ describe('InvestmentsService', () => {
     const blockchainMock: Partial<jest.Mocked<BlockchainService>> = {
       chargeInvestor: jest.fn().mockResolvedValue('charge-tx-hash'),
       transferNftToInvestor: jest.fn().mockResolvedValue('nft-tx-hash'),
+      buildApproveTx: jest.fn(),
+      buildDepositTx: jest.fn(),
+      submitSignedTx: jest.fn(),
     };
 
     const financialAuthorizationsMock = {
@@ -73,6 +82,16 @@ describe('InvestmentsService', () => {
       $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn(txClient),
       ),
+      transaction: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn(),
+      },
+      auditLog: {
+        create: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -91,6 +110,7 @@ describe('InvestmentsService', () => {
     service = module.get(InvestmentsService);
     repo = module.get(InvestmentsRepository);
     blockchain = module.get(BLOCKCHAIN_SERVICE);
+    prisma = module.get(PrismaService);
     financialAuthorizations = module.get(FinancialAuthorizationsService);
   });
 
@@ -314,6 +334,92 @@ describe('InvestmentsService', () => {
         expectedReturn: 300,
         activePositions: 1,
       });
+    });
+  });
+
+  describe('submitDepositStage', () => {
+    const approvedTx = {
+      id: 'tx1',
+      userId: 'inv1',
+      amount: 500,
+      status: 'APPROVED',
+      type: 'DEPOSIT',
+    };
+    const investorUser = {
+      privyStellarWalletAddress: 'GINV...',
+      stellarWalletId: null,
+    };
+
+    it('submits on-chain and marks transaction COMPLETED with the RPC hash when stage is deposit', async () => {
+      prisma.transaction.findFirst.mockResolvedValue(approvedTx);
+      prisma.user.findUnique.mockResolvedValue(investorUser);
+      prisma.transaction.update.mockResolvedValue({
+        ...approvedTx,
+        status: 'COMPLETED',
+        txHash: 'realhash',
+      });
+      prisma.auditLog.create.mockResolvedValue({});
+      blockchain.submitSignedTx.mockResolvedValue('realhash');
+
+      const result = await service.submitDepositStage('tx1', 'inv1', {
+        stage: 'deposit',
+        xdr: 'x',
+        signature: 'ab',
+      });
+
+      expect(blockchain.submitSignedTx).toHaveBeenCalledWith({
+        xdr: 'x',
+        signerPublicKey: 'GINV...',
+        signatureHex: 'ab',
+      });
+      expect(prisma.transaction.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'COMPLETED', txHash: 'realhash' }),
+        }),
+      );
+      expect(result.status).toBe('COMPLETED');
+    });
+
+    it('submits on-chain but does NOT mark transaction COMPLETED when stage is approve', async () => {
+      prisma.transaction.findFirst.mockResolvedValue(approvedTx);
+      prisma.user.findUnique.mockResolvedValue(investorUser);
+      blockchain.submitSignedTx.mockResolvedValue('approvehash');
+
+      const result = await service.submitDepositStage('tx1', 'inv1', {
+        stage: 'approve',
+        xdr: 'xdr-approve',
+        signature: 'cd',
+      });
+
+      expect(blockchain.submitSignedTx).toHaveBeenCalledWith({
+        xdr: 'xdr-approve',
+        signerPublicKey: 'GINV...',
+        signatureHex: 'cd',
+      });
+      expect(prisma.transaction.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'COMPLETED' }),
+        }),
+      );
+      expect(result.status).toBe('APPROVED');
+    });
+
+    it('throws BadRequestException when transaction is not in APPROVED status', async () => {
+      prisma.transaction.findFirst.mockResolvedValue({
+        ...approvedTx,
+        status: 'PENDING_PAYMENT',
+      });
+      prisma.user.findUnique.mockResolvedValue(investorUser);
+
+      await expect(
+        service.submitDepositStage('tx1', 'inv1', {
+          stage: 'deposit',
+          xdr: 'x',
+          signature: 'ab',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(blockchain.submitSignedTx).not.toHaveBeenCalled();
     });
   });
 });
