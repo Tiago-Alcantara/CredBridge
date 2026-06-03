@@ -29,6 +29,8 @@ export const metadata: Metadata = {
   description: "Plataforma de antecipação de recebíveis com liquidação on-chain via Stellar",
 };
 
+export const viewport = { width: "device-width", initialScale: 1 };
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
