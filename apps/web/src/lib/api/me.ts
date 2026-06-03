@@ -16,7 +16,6 @@ export interface MeResponse {
   riskProfile: string | null;
   operationalLimit: number | null;
   stellarWalletId: string | null;
-  privyUserId: string | null;
   privyStellarWalletAddress: string | null;
   privyWalletStatus: string | null;
   createdAt: string;

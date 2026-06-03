@@ -7,27 +7,10 @@ import {
   useCreateFinancialAuthorizationChallenge,
   useVerifyFinancialAuthorization,
 } from '@/lib/api/financial-authorizations';
-
-interface LinkedAccount {
-  type?: string;
-  address?: string;
-  chainType?: string;
-  chain_type?: string;
-}
-
-function findPrivyStellarWalletAddress(
-  linkedAccounts: LinkedAccount[] | undefined,
-): string | null {
-  const stellarWallet = linkedAccounts?.find(
-    (linkedAccount) =>
-      linkedAccount.type === 'wallet' &&
-      (linkedAccount.chainType === 'stellar' ||
-        linkedAccount.chain_type === 'stellar') &&
-      typeof linkedAccount.address === 'string',
-  );
-
-  return stellarWallet?.address ?? null;
-}
+import {
+  type LinkedAccount,
+  findPrivyStellarWalletAddress,
+} from '@/lib/stellar/wallet-address';
 
 export function useFinancialAuthorization(_userEmail?: string | null) {
   const { data: wallet } = useGetWallet();

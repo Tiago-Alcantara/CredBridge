@@ -11,7 +11,10 @@ export class KycProviderService implements KycService {
     return { status: 'approved', verifiedAt: new Date().toISOString() };
   }
 
-  async verifyCnpj(cnpj: string, companyName: string): Promise<KycVerificationResult> {
+  async verifyCnpj(
+    cnpj: string,
+    companyName: string,
+  ): Promise<KycVerificationResult> {
     this.logger.log(`verifyCnpj called for CNPJ ending in: ${cnpj.slice(-4)}`);
     // TODO: implement KYC provider integration
     return { status: 'approved', verifiedAt: new Date().toISOString() };

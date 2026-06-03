@@ -17,6 +17,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { SetRoleDto } from './dto/set-role.dto';
 import { PrivyAuthService } from './privy-auth.service';
+import { StellarService } from '../../shared/blockchain/stellar.service';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly privyAuth: PrivyAuthService,
+    private readonly stellarService: StellarService,
   ) {
     this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
     this.googleClient = new OAuth2Client(this.googleClientId);
@@ -117,15 +119,9 @@ export class AuthService {
           });
         }
       } else {
-        user = await this.prisma.user.create({
-          data: {
-            email,
-            googleId,
-            provider: 'google',
-            name,
-            role: null,
-          },
-        });
+        throw new UnauthorizedException(
+          'Seu e-mail não está cadastrado na plataforma. Por favor, entre em contato com o administrador.',
+        );
       }
     }
 
@@ -172,14 +168,39 @@ export class AuthService {
           data: privyUserData,
         });
       } else {
-        user = await this.prisma.user.create({
-          data: {
-            email: identity.email,
-            ...privyUserData,
-            role: null,
-          },
-        });
+        console.error(
+          `AUTH 401: Email ${identity.email} is not in the platform whitelist.`,
+        );
+        throw new UnauthorizedException(
+          'Seu e-mail não está cadastrado na plataforma. Por favor, entre em contato com o administrador.',
+        );
       }
+    }
+
+    // Keep Privy Stellar wallets usable on testnet without blocking login.
+    if (
+      identity.stellarWalletAddress &&
+      process.env.STELLAR_NETWORK !== 'mainnet'
+    ) {
+      const walletAddress = identity.stellarWalletAddress;
+      this.logger.log(
+        `Checking Privy Stellar wallet testnet balance: ${walletAddress}`,
+      );
+      this.stellarService
+        .fundAccountFromPlatform(walletAddress, '1.0')
+        .then((txHash) => {
+          if (txHash) {
+            this.logger.log(
+              `Successfully funded Privy wallet ${walletAddress} via platform wallet: ${txHash}`,
+            );
+          }
+        })
+        .catch((err) => {
+          this.logger.error(
+            `Error funding Privy wallet ${walletAddress} via platform wallet:`,
+            err,
+          );
+        });
     }
 
     const tokenResult = await this.issueToken(user.id, user.email, user.role);

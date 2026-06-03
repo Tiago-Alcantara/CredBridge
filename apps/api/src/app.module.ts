@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { StellarWalletModule } from './modules/stellar-wallet/stellar-wallet.module';
 import { AnchorModule } from './modules/anchor/anchor.module';
 import { FinancialAuthorizationsModule } from './modules/financial-authorizations/financial-authorizations.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { FinancialAuthorizationsModule } from './modules/financial-authorization
     StellarWalletModule,
     AnchorModule,
     FinancialAuthorizationsModule,
+    AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

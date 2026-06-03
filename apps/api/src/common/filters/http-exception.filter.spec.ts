@@ -26,9 +26,15 @@ describe('AllExceptionsFilter', () => {
       const statusFn = jest.fn().mockReturnThis();
       const jsonFn = jest.fn();
       const ctx = makeCtx(statusFn, jsonFn);
-      filter.catch(new HttpException('Email already registered', HttpStatus.CONFLICT), ctx);
+      filter.catch(
+        new HttpException('Email already registered', HttpStatus.CONFLICT),
+        ctx,
+      );
       expect(statusFn).toHaveBeenCalledWith(409);
-      expect(jsonFn).toHaveBeenCalledWith({ statusCode: 409, message: 'Email already registered' });
+      expect(jsonFn).toHaveBeenCalledWith({
+        statusCode: 409,
+        message: 'Email already registered',
+      });
     });
 
     it('returns generic message for unexpected 5xx errors', () => {
@@ -38,7 +44,10 @@ describe('AllExceptionsFilter', () => {
       const ctx = makeCtx(statusFn, jsonFn);
       filter.catch(new Error('DB connection failed'), ctx);
       expect(statusFn).toHaveBeenCalledWith(500);
-      expect(jsonFn).toHaveBeenCalledWith({ statusCode: 500, message: 'Internal server error' });
+      expect(jsonFn).toHaveBeenCalledWith({
+        statusCode: 500,
+        message: 'Internal server error',
+      });
     });
 
     it('hides internal message for HttpException 5xx', () => {
@@ -46,9 +55,15 @@ describe('AllExceptionsFilter', () => {
       const statusFn = jest.fn().mockReturnThis();
       const jsonFn = jest.fn();
       const ctx = makeCtx(statusFn, jsonFn);
-      filter.catch(new HttpException('DB error details', HttpStatus.INTERNAL_SERVER_ERROR), ctx);
+      filter.catch(
+        new HttpException('DB error details', HttpStatus.INTERNAL_SERVER_ERROR),
+        ctx,
+      );
       expect(statusFn).toHaveBeenCalledWith(500);
-      expect(jsonFn).toHaveBeenCalledWith({ statusCode: 500, message: 'Internal server error' });
+      expect(jsonFn).toHaveBeenCalledWith({
+        statusCode: 500,
+        message: 'Internal server error',
+      });
     });
 
     it('returns first message from validation array', () => {
@@ -56,10 +71,19 @@ describe('AllExceptionsFilter', () => {
       const statusFn = jest.fn().mockReturnThis();
       const jsonFn = jest.fn();
       const ctx = makeCtx(statusFn, jsonFn);
-      const exc = new HttpException({ message: ['field is required', 'must be a string'], error: 'Bad Request' }, HttpStatus.BAD_REQUEST);
+      const exc = new HttpException(
+        {
+          message: ['field is required', 'must be a string'],
+          error: 'Bad Request',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
       filter.catch(exc, ctx);
       expect(statusFn).toHaveBeenCalledWith(400);
-      expect(jsonFn).toHaveBeenCalledWith({ statusCode: 400, message: 'field is required' });
+      expect(jsonFn).toHaveBeenCalledWith({
+        statusCode: 400,
+        message: 'field is required',
+      });
     });
   });
 

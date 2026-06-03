@@ -4,7 +4,7 @@ import { setAccessToken } from "./auth-storage";
 export interface PrivySessionUser {
   id: string;
   email: string;
-  role: "pme" | "investor" | null;
+  role: "pme" | "investor" | "operator" | null;
   privyStellarWalletAddress: string | null;
   privyWalletStatus: string | null;
 }
