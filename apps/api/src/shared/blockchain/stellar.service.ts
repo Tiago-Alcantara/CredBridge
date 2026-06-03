@@ -1143,7 +1143,7 @@ export class StellarService implements BlockchainService {
     if (!rpc.Api.isSimulationSuccess(sim)) {
       throw new Error(`Simulation failed for ${method}: ${JSON.stringify(sim)}`);
     }
-    if (!sim.result?.retval) {
+    if (sim.result == null || sim.result.retval == null) {
       throw new Error(`No return value from ${method}`);
     }
     return scValToNative(sim.result.retval);
@@ -1164,18 +1164,16 @@ export class StellarService implements BlockchainService {
       total_shares: bigint;
       paused: boolean;
     };
-    const navRaw = (await this.simulateRead(poolId, 'get_nav', [])) as bigint;
-    const sharePriceRaw = (await this.simulateRead(
-      poolId,
-      'get_share_price',
-      [],
-    )) as bigint;
-    const brltDecimals = Number(
-      await this.simulateRead(state.asset_address, 'decimals', []),
-    );
-    const shareDecimals = Number(
-      await this.simulateRead(state.share_token_address, 'decimals', []),
-    );
+    // Estas leituras são independentes entre si — dispara em paralelo.
+    const [navRaw, sharePriceRaw, brltDecimalsRaw, shareDecimalsRaw] =
+      await Promise.all([
+        this.simulateRead(poolId, 'get_nav', []) as Promise<bigint>,
+        this.simulateRead(poolId, 'get_share_price', []) as Promise<bigint>,
+        this.simulateRead(state.asset_address, 'decimals', []),
+        this.simulateRead(state.share_token_address, 'decimals', []),
+      ]);
+    const brltDecimals = Number(brltDecimalsRaw);
+    const shareDecimals = Number(shareDecimalsRaw);
 
     const cashRaw = navRaw - state.total_principal;
     const toScaled = (raw: bigint, decimals: number): Scaled => ({
@@ -1196,6 +1194,7 @@ export class StellarService implements BlockchainService {
       cashBalance: toScaled(cashRaw, brltDecimals),
       totalPrincipal: toScaled(state.total_principal, brltDecimals),
       totalShares: toScaled(state.total_shares, shareDecimals),
+      // sharePrice é ponto-fixo de 9 casas (PRICE_SCALE do contrato), não decimais SEP-41.
       sharePrice: {
         raw: sharePriceRaw.toString(),
         value: Number(sharePriceRaw) / 1e9,
@@ -1212,19 +1211,15 @@ export class StellarService implements BlockchainService {
     const state = (await this.simulateRead(poolId, 'get_pool_state', [])) as {
       share_token_address: string;
     };
-    const shareDecimals = Number(
-      await this.simulateRead(state.share_token_address, 'decimals', []),
-    );
-    const sharePriceRaw = (await this.simulateRead(
-      poolId,
-      'get_share_price',
-      [],
-    )) as bigint;
-    const balanceRaw = (await this.simulateRead(
-      state.share_token_address,
-      'balance',
-      [nativeToScVal(address, { type: 'address' })],
-    )) as bigint;
+    // Leituras independentes — dispara em paralelo.
+    const [shareDecimalsRaw, sharePriceRaw, balanceRaw] = await Promise.all([
+      this.simulateRead(state.share_token_address, 'decimals', []),
+      this.simulateRead(poolId, 'get_share_price', []) as Promise<bigint>,
+      this.simulateRead(state.share_token_address, 'balance', [
+        nativeToScVal(address, { type: 'address' }),
+      ]) as Promise<bigint>,
+    ]);
+    const shareDecimals = Number(shareDecimalsRaw);
 
     const sharesValue = Number(balanceRaw) / 10 ** shareDecimals;
     const sharePriceValue = Number(sharePriceRaw) / 1e9;
