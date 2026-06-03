@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -113,7 +113,11 @@ export class StellarService implements BlockchainService {
       );
     }
 
-    const xmlHashBytes = this.toBytes32(data.xmlHash);
+    // (B) Sem XML, deriva um hash único e determinístico da key (UUID) em vez de
+    // 32 bytes zero — senão toda NF-e sem XML colidiria no contrato (AlreadyExists).
+    const xmlHashBytes = data.xmlHash
+      ? this.toBytes32(data.xmlHash)
+      : createHash('sha256').update(data.key).digest();
     const valueInCentavos = BigInt(Math.round(data.value * 100));
     const dueDateUnix = BigInt(Math.floor(data.dueDate.getTime() / 1000));
     const platformAddress = platformKeypair.publicKey();
@@ -121,20 +125,32 @@ export class StellarService implements BlockchainService {
     // Step 1: tokenize with PME as owner, platform authorizes
     this.logger.log(`Tokenizing NF ${data.key} — owner: ${pmeAddress}`);
     this.logger.log(`data.xmlHash: ${data.xmlHash}`);
-    const mintHash = await this.invokeContract(
-      server,
-      platformKeypair,
-      contractId,
-      'tokenize_nfe',
-      [
-        nativeToScVal(data.key, { type: 'string' }),
-        nativeToScVal(valueInCentavos, { type: 'i128' }),
-        nativeToScVal(dueDateUnix, { type: 'u64' }),
-        xdr.ScVal.scvBytes(xmlHashBytes),
-        nativeToScVal(pmeAddress, { type: 'address' }),
-        nativeToScVal(platformAddress, { type: 'address' }),
-      ],
-    );
+    let mintHash: string;
+    try {
+      mintHash = await this.invokeContract(
+        server,
+        platformKeypair,
+        contractId,
+        'tokenize_nfe',
+        [
+          nativeToScVal(data.key, { type: 'string' }),
+          nativeToScVal(valueInCentavos, { type: 'i128' }),
+          nativeToScVal(dueDateUnix, { type: 'u64' }),
+          xdr.ScVal.scvBytes(xmlHashBytes),
+          nativeToScVal(pmeAddress, { type: 'address' }),
+          nativeToScVal(platformAddress, { type: 'address' }),
+        ],
+      );
+    } catch (error) {
+      // (A) AlreadyExists (Error(Contract, #1)): key ou hash XML já tokenizado on-chain.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Error(Contract, #1)')) {
+        throw new ConflictException(
+          'Esta NF-e já foi tokenizada on-chain (key ou hash XML já existe).',
+        );
+      }
+      throw error;
+    }
     this.logger.log(`NF tokenized — txHash: ${mintHash}`);
 
     return mintHash;
