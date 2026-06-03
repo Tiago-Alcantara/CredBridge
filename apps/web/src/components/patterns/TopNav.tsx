@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/primitives/Icon";
 import { Logo } from "@/components/primitives/Logo";
@@ -14,6 +15,7 @@ interface TopNavProps {
 
 export function TopNav({ lang = "pt", activePath }: TopNavProps) {
   const { t } = useTranslation(lang);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const navLinks = [
     { href: "/",                       label: t("nav_product") },
@@ -24,27 +26,39 @@ export function TopNav({ lang = "pt", activePath }: TopNavProps) {
   ];
 
   return (
-    <nav className="appnav">
+    <nav className="appnav" style={{ position: "relative" }}>
       <div className="wrap-wide">
         <Logo />
-        <div className="appnav-links" style={{ marginLeft: 24 }}>
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`appnav-link ${activePath === link.href ? "active" : ""}`}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm js-nav-toggle topnav__menu-btn"
+          aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <Icon name="menu" size={16} />
+        </button>
+        <div className={`topnav__links ${menuOpen ? "topnav__links--open" : ""}`.trim()}>
+          <div className="appnav-links" style={{ marginLeft: 24 }}>
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`appnav-link ${activePath === link.href ? "active" : ""}`}
+                onClick={() => setMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <div style={{ flex: 1 }} />
+          <Link className="appnav-link" href="/login" onClick={() => setMenuOpen(false)}>
+            {t("nav_login")}
+          </Link>
+          <Link className="btn btn-primary btn-sm" href="/login" onClick={() => setMenuOpen(false)}>
+            {t("cta_antecipar")} <Icon name="arrow_right" size={14} />
+          </Link>
         </div>
-        <div style={{ flex: 1 }} />
-        <Link className="appnav-link" href="/login">
-          {t("nav_login")}
-        </Link>
-        <Link className="btn btn-primary btn-sm" href="/login">
-          {t("cta_antecipar")} <Icon name="arrow_right" size={14} />
-        </Link>
       </div>
     </nav>
   );

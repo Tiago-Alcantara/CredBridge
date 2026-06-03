@@ -25,10 +25,8 @@ export function LandingFooter() {
     <footer style={{ borderTop: "1px solid var(--line)", padding: "48px 0 40px" }}>
       <div className="wrap-wide">
         <div
+          className="grid-kpi"
           style={{
-            display: "grid",
-            gridTemplateColumns: "1.4fr 1fr 1fr 1fr",
-            gap: 40,
             marginBottom: 40,
           }}
         >

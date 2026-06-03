@@ -42,13 +42,7 @@ export function Audiences() {
         <h2 style={{ marginBottom: 56, whiteSpace: "pre-line" }}>
           {t("audiences_title")}
         </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 20,
-          }}
-        >
+        <div className="grid-2">
           {cards.map((c, i) => (
             <div
               key={i}
