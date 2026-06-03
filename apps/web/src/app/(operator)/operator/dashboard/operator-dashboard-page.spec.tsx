@@ -57,6 +57,35 @@ vi.mock("@/lib/api/admin", () => ({
   useCreateDeposit: () => ({ mutateAsync: vi.fn() }),
 }));
 
+vi.mock("@/lib/api/pool", () => ({
+  usePoolStatus: () => ({
+    data: {
+      poolContractId: "CASSTE2CZFG72SBGCPD7YOXCRQC3WSMDS7QHRN6DKVNEZWVJM3EXXXWG",
+      brltTokenId: "CCUPQSBG3C4BYYZC6ZUHUFYICHKMNW436MXYFP43UUCP34KXCKNOUVZO",
+      shareTokenId: "CC6H2472IJEG5RLPH4N25R3TUEYZRQB2R3DRIC6LCTIHKSXDE6PGG5IL",
+      admin: "GBULNNLMRUAKRHILF6FCXF34VLOJF7I24UYYXU5UPOX4RURVFDMIMZVB",
+      operator: "GBULNNLMRUAKRHILF6FCXF34VLOJF7I24UYYXU5UPOX4RURVFDMIMZVB",
+      paused: false,
+      brltDecimals: 7,
+      shareDecimals: 7,
+      nav: { raw: "2220000000", value: 222 },
+      cashBalance: { raw: "2220000000", value: 222 },
+      totalPrincipal: { raw: "0", value: 0 },
+      totalShares: { raw: "2220000000", value: 222 },
+      sharePrice: { raw: "1000000000", value: 1 },
+    },
+    isFetching: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useInvestorShares: () => ({
+    data: undefined,
+    isFetching: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 vi.mock("@/providers/ToastProvider", () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
@@ -75,14 +104,15 @@ describe("OperatorDashboardPage", () => {
     );
   });
 
-  it("shows pool status cards with BRLT balance and contract links", () => {
+  it("shows live pool status cards and contract links", () => {
     render(<OperatorDashboardPage />);
 
-    expect(screen.getByRole("heading", { name: "Situação pool" })).toBeInTheDocument();
-    expect(screen.getByText("Token BRLT na pool")).toBeInTheDocument();
-    expect(screen.getByText("0 BRLT")).toBeInTheDocument();
-    expect(screen.getByText("ID do contrato da Pool")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Situação da pool" })).toBeInTheDocument();
+    expect(screen.getByText("NAV (patrimônio)")).toBeInTheDocument();
+    expect(screen.getByText("Total de cotas")).toBeInTheDocument();
+    expect(screen.getByText("Contrato da Pool")).toBeInTheDocument();
     expect(screen.getByText("CASSTE2CZFG72SBGCPD7YOXCRQC3WSMDS7QHRN6DKVNEZWVJM3EXXXWG")).toBeInTheDocument();
+    expect(screen.getByText("Cotas por investidor")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver Pool no Stellar Expert" })).toHaveAttribute(
       "href",
       "https://stellar.expert/explorer/testnet/contract/CASSTE2CZFG72SBGCPD7YOXCRQC3WSMDS7QHRN6DKVNEZWVJM3EXXXWG",
