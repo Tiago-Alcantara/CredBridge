@@ -33,6 +33,8 @@ const TESOURO_ISSUER =
   'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4';
 const TESOURO = new Asset('TESOURO', TESOURO_ISSUER);
 const TX_TIMEOUT_SECONDS = 30;
+/** Validity window for client-signed (Privy) Soroban txs — wider than TX_TIMEOUT_SECONDS because the user signs in a wallet UI between build and submit. */
+const CLIENT_SIGNED_TX_TIMEOUT_SECONDS = 180;
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 60_000;
 const MINIMUM_TESTNET_XLM_BALANCE = 1.0;
@@ -981,7 +983,7 @@ export class StellarService implements BlockchainService {
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(contract.call(method, ...args))
-      .setTimeout(180)
+      .setTimeout(CLIENT_SIGNED_TX_TIMEOUT_SECONDS)
       .build();
 
     const sim = await this.server.simulateTransaction(tx);
@@ -1004,6 +1006,10 @@ export class StellarService implements BlockchainService {
     investorAddress: string,
     amountBrl: number,
   ): Promise<UnsignedSorobanTx> {
+    this.logger.log(
+      `buildApproveTx — investor ${investorAddress}, amount ${amountBrl}`,
+    );
+
     const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
     const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
     if (!poolContractId || !brltContractId) {
@@ -1022,10 +1028,6 @@ export class StellarService implements BlockchainService {
       .call();
     const currentLedger = latestLedgers.records[0]?.sequence ?? 3000000;
     const liveUntilLedger = currentLedger + 100000;
-
-    this.logger.log(
-      `buildApproveTx — investor ${investorAddress}, amount ${amountBrl}`,
-    );
 
     return this.buildAndAssemble(investorAddress, brltContractId, 'approve', [
       nativeToScVal(investorAddress, { type: 'address' }),
@@ -1095,23 +1097,8 @@ export class StellarService implements BlockchainService {
       );
     }
 
-    let getResult = await this.server.getTransaction(sendResult.hash);
-    let attempts = 0;
-    while (getResult.status === 'NOT_FOUND' && attempts < 30) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      getResult = await this.server.getTransaction(sendResult.hash);
-      attempts += 1;
-    }
-
-    if (getResult.status !== 'SUCCESS') {
-      throw new Error(
-        `Transaction did not succeed: ${getResult.status}`,
-      );
-    }
-
-    this.logger.log(
-      `submitSignedTx confirmed — hash ${sendResult.hash}`,
-    );
+    await this.waitForConfirmation(sendResult.hash, this.server);
+    this.logger.log(`submitSignedTx confirmed — hash ${sendResult.hash}`);
     return sendResult.hash;
   }
 }

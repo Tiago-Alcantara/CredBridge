@@ -123,7 +123,7 @@ describe('StellarService', () => {
       };
 
       // Spy on the private helper so we don't need to mock the full Soroban simulation chain
-      jest
+      const buildAndAssembleSpy = jest
         .spyOn(service as any, 'buildAndAssemble')
         .mockResolvedValue(expectedResult);
 
@@ -145,6 +145,14 @@ describe('StellarService', () => {
       expect(result.signerPublicKey).toBe(investorAddress);
       expect(result.xdr).toBe(expectedResult.xdr);
       expect(result.hashToSign).toMatch(/^[0-9a-f]{64}$/);
+
+      expect(buildAndAssembleSpy).toHaveBeenCalledWith(
+        investorAddress,
+        BRLT_CONTRACT_ID,
+        'approve',
+        expect.any(Array),
+      );
+      expect(buildAndAssembleSpy.mock.calls[0][3]).toHaveLength(4);
     });
 
     it('throws when contract env vars are missing', async () => {
@@ -171,7 +179,7 @@ describe('StellarService', () => {
         signerPublicKey: investorAddress,
       };
 
-      jest
+      const buildAndAssembleSpy = jest
         .spyOn(service as any, 'buildAndAssemble')
         .mockResolvedValue(expectedResult);
 
@@ -180,6 +188,14 @@ describe('StellarService', () => {
       expect(result.signerPublicKey).toBe(investorAddress);
       expect(result.xdr).toBe(expectedResult.xdr);
       expect(result.hashToSign).toMatch(/^[0-9a-f]{64}$/);
+
+      expect(buildAndAssembleSpy).toHaveBeenCalledWith(
+        investorAddress,
+        POOL_CONTRACT_ID,
+        'deposit',
+        expect.any(Array),
+      );
+      expect(buildAndAssembleSpy.mock.calls[0][3]).toHaveLength(2);
     });
 
     it('throws when STELLAR_POOL_CONTRACT_ID is missing', async () => {
