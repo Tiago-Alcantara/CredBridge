@@ -217,6 +217,18 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
         })}
       </tbody>
     </table>
+
+    <CessaoModal
+      isOpen={!!selectedRowForCessao}
+      onClose={() => setSelectedRowForCessao(null)}
+      receivableId={selectedRowForCessao?.id ?? ""}
+      nfeNumber={selectedRowForCessao?.nfe ?? ""}
+      sacado={selectedRowForCessao?.sacado ?? ""}
+      valor={selectedRowForCessao?.valor ?? 0}
+      desagio={selectedRowForCessao?.desagio ?? 0}
+      liquido={selectedRowForCessao?.liquido ?? 0}
+      userEmail={userEmail}
+    />
     </div>
   );
 }
