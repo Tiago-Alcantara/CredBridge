@@ -225,6 +225,6 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
       liquido={selectedRowForCessao?.liquido ?? 0}
       userEmail={userEmail}
     />
-  </>
-);
+    </div>
+  );
 }
