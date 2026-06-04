@@ -17,20 +17,3 @@ export function useGetWallet(enabled = true) {
     enabled,
   });
 }
-
-export interface WalletBalance {
-  address: string;
-  tokenId: string;
-  balance: { raw: string; value: number };
-}
-
-export const walletQueryKeys = {
-  balance: ['wallet', 'balance'] as const,
-};
-
-export function useWalletBalance() {
-  return useQuery<WalletBalance | null>({
-    queryKey: walletQueryKeys.balance,
-    queryFn: () => apiFetch<WalletBalance | null>('/wallet/balance'),
-  });
-}

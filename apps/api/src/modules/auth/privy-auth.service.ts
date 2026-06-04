@@ -42,10 +42,6 @@ export class PrivyAuthService {
       const user = await this.privyClient.users()._get(claims.user_id);
       const email = this.findEmailAddress(user.linked_accounts);
       if (!email) {
-        console.error(
-          `AUTH 401: Privy account has no verified email address. Linked accounts:`,
-          JSON.stringify(user.linked_accounts),
-        );
         throw new UnauthorizedException(
           'Privy account must have a verified email address',
         );
@@ -55,10 +51,6 @@ export class PrivyAuthService {
         user.linked_accounts,
       );
       if (!stellarWalletAddress) {
-        console.error(
-          `AUTH 401: Privy account missing Stellar wallet. Linked accounts:`,
-          JSON.stringify(user.linked_accounts),
-        );
         throw new UnauthorizedException(
           'Privy Stellar embedded wallet must be created before session exchange',
         );

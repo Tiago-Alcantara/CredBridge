@@ -1,15 +1,16 @@
-[workspace]
-resolver = "2"
-members = [
-    "nfe_tokenization",
-    "liquidity_pool",
-    "mock_brlt",
-]
+[package]
+name = "nfe-contract"
+version = "0.1.0"
+edition = "2021"
 
-[workspace.dependencies]
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
 soroban-sdk = "22.0.0"
-stellar-tokens = "=0.4.0"
-stellar-macros = "=0.4.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "22.0.0", features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"

@@ -15,10 +15,6 @@ import {
   BLOCKCHAIN_SERVICE,
   type BlockchainService,
 } from '../../shared/blockchain/blockchain.interface';
-import {
-  type DepositStage,
-  type SubmitDepositStageDto,
-} from './dto/onchain-deposit.dto';
 
 const DISCOUNT_RATE = 0.03;
 const ALLOWED_STATUSES = new Set(['active']);
@@ -126,118 +122,5 @@ export class InvestmentsService {
 
   getMyStats(investorUserId: string) {
     return this.repo.getStatsByInvestor(investorUserId);
-  }
-
-  async findMyTransactions(investorUserId: string) {
-    return this.prisma.transaction.findMany({
-      where: {
-        userId: investorUserId,
-        status: {
-          in: ['PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'APPROVED'],
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async markAsPaid(transactionId: string, investorUserId: string) {
-    const transaction = await this.prisma.transaction.findFirst({
-      where: {
-        id: transactionId,
-        userId: investorUserId,
-      },
-    });
-
-    if (!transaction) {
-      throw new NotFoundException('Transação não encontrada');
-    }
-
-    if (transaction.status !== 'PENDING_PAYMENT') {
-      throw new BadRequestException('Esta transação não está pendente de pagamento');
-    }
-
-    return this.prisma.transaction.update({
-      where: { id: transactionId },
-      data: {
-        status: 'PAYMENT_SUBMITTED',
-      },
-    });
-  }
-
-  private async resolveInvestorAddress(investorUserId: string): Promise<string> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: investorUserId },
-      select: { privyStellarWalletAddress: true, stellarWalletId: true },
-    });
-    const address = user?.privyStellarWalletAddress ?? user?.stellarWalletId;
-    if (!address) {
-      throw new BadRequestException('Investidor não possui carteira Stellar configurada');
-    }
-    return address;
-  }
-
-  private async loadApprovedDeposit(transactionId: string, investorUserId: string) {
-    const transaction = await this.prisma.transaction.findFirst({
-      where: { id: transactionId, userId: investorUserId },
-    });
-    if (!transaction) {
-      throw new NotFoundException('Transação não encontrada');
-    }
-    if (transaction.type !== 'DEPOSIT') {
-      throw new BadRequestException('Transação não é um depósito');
-    }
-    if (transaction.status !== 'APPROVED') {
-      throw new BadRequestException('Esta transação ainda não foi aprovada pelo admin');
-    }
-    return transaction;
-  }
-
-  async buildDepositStage(
-    transactionId: string,
-    investorUserId: string,
-    stage: DepositStage,
-  ) {
-    const transaction = await this.loadApprovedDeposit(transactionId, investorUserId);
-    const investorAddress = await this.resolveInvestorAddress(investorUserId);
-    return stage === 'approve'
-      ? this.blockchain.buildApproveTx(investorAddress, transaction.amount)
-      : this.blockchain.buildDepositTx(investorAddress, transaction.amount);
-  }
-
-  async submitDepositStage(
-    transactionId: string,
-    investorUserId: string,
-    dto: SubmitDepositStageDto,
-  ) {
-    const transaction = await this.loadApprovedDeposit(transactionId, investorUserId);
-    const investorAddress = await this.resolveInvestorAddress(investorUserId);
-
-    const hash = await this.blockchain.submitSignedTx({
-      xdr: dto.xdr,
-      signerPublicKey: investorAddress,
-      signatureHex: dto.signature,
-    });
-
-    if (dto.stage === 'approve') {
-      return { hash, status: transaction.status };
-    }
-
-    const updated = await this.prisma.transaction.update({
-      where: { id: transactionId },
-      data: { status: 'COMPLETED', txHash: hash },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
-        event: 'pool.deposit_completed',
-        entityId: transactionId,
-        entityType: 'transaction',
-        userId: investorUserId,
-        txHash: hash,
-        metadata: { amount: transaction.amount },
-      },
-    });
-
-    return { hash, status: updated.status };
   }
 }
