@@ -1,27 +1,31 @@
-import { createHmac } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   Asset,
   Contract,
-  FeeBumpTransaction,
   Horizon,
   Keypair,
   Memo,
   Networks,
   Operation,
-  Transaction,
   TransactionBuilder,
   nativeToScVal,
   rpc,
+  scValToNative,
   xdr,
 } from '@stellar/stellar-sdk';
 import type {
   BlockchainService,
   ChargeInvestorInput,
+  InvestorShares,
   PayPmeInput,
+  PoolStatus,
+  Scaled,
   TokenizeNfeInput,
   TransferNftToInvestorInput,
+  UnsignedSorobanTx,
+  WalletBalance,
 } from './blockchain.interface';
 
 const NETWORK_PASSPHRASE =
@@ -29,46 +33,38 @@ const NETWORK_PASSPHRASE =
     ? Networks.PUBLIC
     : Networks.TESTNET;
 
-// Fee para operações Soroban — simulação retorna o mínimo necessário, mas um
-// valor generoso aqui evita rejeições por fee insuficiente antes da simulação.
-const SOROBAN_FEE = '100000'; // 0.01 XLM
-
-// Fee para operações clássicas Horizon (payment, changeTrust, createAccount).
-// 1 000 stroops = 0.0001 XLM — muito acima do mínimo (100 stroops) e suficiente
-// para prioridade mesmo em períodos de carga elevada na rede.
-const CLASSIC_FEE = '1000';
-
+const BASE_FEE = '1000000'; // 0.1 XLM — generous for Soroban ops
 const TESOURO_ISSUER =
   'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4';
 const TESOURO = new Asset('TESOURO', TESOURO_ISSUER);
 const TX_TIMEOUT_SECONDS = 30;
+/** Validity window for client-signed (Privy) Soroban txs — wider than TX_TIMEOUT_SECONDS because the user signs in a wallet UI between build and submit. */
+const CLIENT_SIGNED_TX_TIMEOUT_SECONDS = 180;
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 60_000;
+const MINIMUM_TESTNET_XLM_BALANCE = 1.0;
+
+type HorizonAccountResponse = Awaited<
+  ReturnType<Horizon.Server['loadAccount']>
+>;
 
 @Injectable()
 export class StellarService implements BlockchainService {
   private readonly logger = new Logger(StellarService.name);
-
-  // RPC é usado para chamadas Soroban; Horizon é usado para contas,
-  // payments clássicos, trustlines e submit de transações Stellar comuns.
   private readonly server: rpc.Server | undefined;
   private readonly horizon: Horizon.Server;
-
-  // platformKeypair representa a conta operacional da CredBridge.
-  // Tudo que for patrocínio, fee bump ou autorização da plataforma tende
-  // a passar por esta keypair.
   private readonly platformKeypair: Keypair | undefined;
   private readonly contractId: string | undefined;
-
-  // walletSecret deriva carteiras custodiais de forma determinística por usuário.
-  // Quem usa Privy não tem keypair local e precisa assinar fora deste serviço.
+  private readonly nfeContractId: string | undefined;
+  private readonly poolContractId: string | undefined;
+  private readonly brltContractId: string | undefined;
   private readonly walletSecret: string;
   private readonly isMainnet: boolean;
 
   constructor(private readonly prisma: PrismaService) {
     const rpcUrl = process.env.STELLAR_RPC_URL;
     const secretKey = process.env.STELLAR_SECRET_KEY;
-    const contractId = process.env.STELLAR_CONTRACT_ID;
+    const contractId = process.env.STELLAR_NFE_CONTRACT_ID;
     this.isMainnet = process.env.STELLAR_NETWORK === 'mainnet';
     const horizonUrl = this.isMainnet
       ? 'https://horizon.stellar.org'
@@ -77,15 +73,17 @@ export class StellarService implements BlockchainService {
     this.walletSecret = process.env.STELLAR_WALLET_SECRET ?? '';
     this.horizon = new Horizon.Server(horizonUrl);
 
-    // Sem estas variáveis, o serviço ainda instancia, mas bloqueia operações
-    // on-chain reais via requireContractConfig().
+    this.nfeContractId = contractId;
+    this.poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    this.brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    this.contractId = contractId;
+
     if (rpcUrl && secretKey && contractId) {
       this.server = new rpc.Server(rpcUrl, { allowHttp: true });
       this.platformKeypair = Keypair.fromSecret(secretKey);
-      this.contractId = contractId;
     } else {
       this.logger.warn(
-        'Stellar contract env vars missing (STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_CONTRACT_ID) — tokenization disabled',
+        'Stellar contract env vars missing (STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID) — tokenization disabled',
       );
     }
   }
@@ -96,10 +94,6 @@ export class StellarService implements BlockchainService {
   }
 
   async tokenizeNfe(data: TokenizeNfeInput): Promise<string> {
-    // Fluxo principal de tokenização:
-    // 1. localiza a carteira Stellar da PME;
-    // 2. chama o contrato para criar o registro da NF-e;
-    // 3. transfere a propriedade para a plataforma.
     this.logger.log(
       `tokenizeNfe — key: ${data.key}, value: ${data.value}, owner: ${data.ownerUserId}`,
     );
@@ -120,34 +114,57 @@ export class StellarService implements BlockchainService {
       );
     }
 
-    const xmlHashBytes = this.toBytes32(data.xmlHash);
+    // (B) Sem XML, deriva um hash único e determinístico da key (UUID) em vez de
+    // 32 bytes zero — senão toda NF-e sem XML colidiria no contrato (AlreadyExists).
+    const xmlHashBytes = data.xmlHash
+      ? this.toBytes32(data.xmlHash)
+      : createHash('sha256').update(data.key).digest();
     const valueInCentavos = BigInt(Math.round(data.value * 100));
     const dueDateUnix = BigInt(Math.floor(data.dueDate.getTime() / 1000));
     const platformAddress = platformKeypair.publicKey();
 
-    // Step 1: tokenize with PME as owner, platform authorizes.
-    // A plataforma assina porque o contrato espera esta autorização.
+    // Step 1: tokenize with PME as owner, platform authorizes
     this.logger.log(`Tokenizing NF ${data.key} — owner: ${pmeAddress}`);
-    const mintHash = await this.invokeContract(
-      server,
-      platformKeypair,
-      contractId,
-      'tokenize_nfe',
-      [
-        nativeToScVal(data.key, { type: 'string' }),
-        nativeToScVal(valueInCentavos, { type: 'i128' }),
-        nativeToScVal(dueDateUnix, { type: 'u64' }),
-        xdr.ScVal.scvBytes(xmlHashBytes),
-        nativeToScVal(pmeAddress, { type: 'address' }),
-        nativeToScVal(platformAddress, { type: 'address' }),
-      ],
-    );
+    this.logger.log(`data.xmlHash: ${data.xmlHash}`);
+    let mintHash: string;
+    try {
+      mintHash = await this.invokeContract(
+        server,
+        platformKeypair,
+        contractId,
+        'tokenize_nfe',
+        [
+          nativeToScVal(data.key, { type: 'string' }),
+          nativeToScVal(valueInCentavos, { type: 'i128' }),
+          nativeToScVal(dueDateUnix, { type: 'u64' }),
+          xdr.ScVal.scvBytes(xmlHashBytes),
+          nativeToScVal(pmeAddress, { type: 'address' }),
+          nativeToScVal(platformAddress, { type: 'address' }),
+        ],
+      );
+    } catch (error) {
+      // (A) AlreadyExists (Error(Contract, #1)): key ou hash XML já tokenizado on-chain.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Error(Contract, #1)')) {
+        throw new ConflictException(
+          'Esta NF-e já foi tokenizada on-chain (key ou hash XML já existe).',
+        );
+      }
+      throw error;
+    }
     this.logger.log(`NF tokenized — txHash: ${mintHash}`);
 
-    // Step 2: transfer ownership to platform (CredBridge receives the receivable).
-    // Depois disso, a plataforma consegue vender/transferir o recebível.
+    return mintHash;
+  }
+
+  async transferNftToPlatform(receivableKey: string): Promise<string> {
+    this.logger.log(`transferNftToPlatform — key: ${receivableKey}`);
+    const { server, platformKeypair, contractId } =
+      this.requireContractConfig();
+    const platformAddress = platformKeypair.publicKey();
+
     this.logger.log(
-      `Transferring NF ${data.key} ownership to platform: ${platformAddress}`,
+      `Transferring NF ${receivableKey} ownership to platform: ${platformAddress}`,
     );
     const transferHash = await this.invokeContract(
       server,
@@ -155,19 +172,130 @@ export class StellarService implements BlockchainService {
       contractId,
       'transfer_ownership',
       [
-        nativeToScVal(data.key, { type: 'string' }),
+        nativeToScVal(receivableKey, { type: 'string' }),
         nativeToScVal(platformAddress, { type: 'address' }),
         nativeToScVal(platformAddress, { type: 'address' }),
       ],
     );
-    this.logger.log(`Ownership transferred — txHash: ${transferHash}`);
+    this.logger.log(
+      `NF transferred to platform custody — txHash: ${transferHash}`,
+    );
+    return transferHash;
+  }
 
-    return mintHash;
+  async prepareAssignment(
+    receivableKey: string,
+    pmeAddress: string,
+  ): Promise<{ unsignedXdr: string; hashToSign: string }> {
+    this.logger.log(`Preparing assignment transaction for PME: ${pmeAddress}`);
+    const { server, platformKeypair, contractId } =
+      this.requireContractConfig();
+    const platformAddress = platformKeypair.publicKey();
+
+    const contract = new Contract(contractId);
+
+    // Carrega a conta do PME (como sourceAccount da inner transaction)
+    const pmeAccount = await this.horizon.loadAccount(pmeAddress);
+
+    // Constrói a transação Soroban interna
+    const operation = contract.call(
+      'transfer_ownership',
+      nativeToScVal(receivableKey, { type: 'string' }),
+      nativeToScVal(platformAddress, { type: 'address' }),
+    );
+
+    const tx = new TransactionBuilder(pmeAccount, {
+      fee: '100000', // Taxa básica simbólica para a transação interna
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(operation)
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    // Simula a transação para carregar os recursos exatos do Soroban
+    const simResult = await server.simulateTransaction(tx);
+    if (!rpc.Api.isSimulationSuccess(simResult)) {
+      const simulationError = JSON.stringify(simResult);
+      if (simulationError.includes('Error(Contract, #2)')) {
+        throw new ConflictException(
+          `Receivable ${receivableKey} is marked as tokenized locally, but was not found in the configured Stellar contract. Retokenize it or check STELLAR_NFE_CONTRACT_ID and STELLAR_NETWORK.`,
+        );
+      }
+
+      throw new Error(
+        `Soroban simulation failed for prepareAssignment: ${simulationError}`,
+      );
+    }
+
+    // Monta a transação com os parâmetros corretos da simulação
+    const assembledTx = rpc.assembleTransaction(tx, simResult).build();
+
+    // Calcula o hash exato da transação a ser assinado
+    const hashToSign = assembledTx.hash().toString('hex');
+
+    // Retorna a transação em base64 (XDR não assinado) e seu hash
+    return {
+      unsignedXdr: assembledTx.toXDR(),
+      hashToSign,
+    };
+  }
+
+  async submitSignedAssignment(
+    unsignedXdr: string,
+    signatureHex: string,
+    pmeAddress: string,
+  ): Promise<string> {
+    this.logger.log(`Submitting signed assignment transaction via Fee Bump`);
+    const { server, platformKeypair } = this.requireContractConfig();
+
+    // Decodifica a transação interna que já foi assinada pelo Privy do PME
+    const innerTx = TransactionBuilder.fromXDR(
+      unsignedXdr,
+      NETWORK_PASSPHRASE,
+    ) as any;
+
+    // Decodifica a assinatura em formato hex do Privy e a aplica de forma segura
+    const cleanSignature = signatureHex.replace(/^0x/, '');
+    let signatureBuffer = Buffer.from(cleanSignature, 'hex');
+
+    // Se a assinatura possuir bytes adicionais de recuperação (ex: 65 bytes da Privy/EVM),
+    // truncamos para obter exatamente a assinatura ED25519 pura de 64 bytes.
+    if (signatureBuffer.length > 64) {
+      signatureBuffer = signatureBuffer.subarray(0, 64);
+    }
+
+    // Adiciona a assinatura decodificada formatada em Base64 na transação interna
+    innerTx.addSignature(pmeAddress, signatureBuffer.toString('base64'));
+
+    // Constrói a transação Fee Bump patrocinada pela plataforma
+    const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+      platformKeypair,
+      BASE_FEE,
+      innerTx,
+      NETWORK_PASSPHRASE,
+    );
+
+    // Assina a transação Fee Bump externa com a chave privada da plataforma
+    feeBumpTx.sign(platformKeypair);
+
+    // Submete à Stellar RPC
+    const sendResult = await server.sendTransaction(feeBumpTx as any);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(
+        `Stellar RPC rejected Fee Bump assignment: ${JSON.stringify(sendResult.errorResult)}`,
+      );
+    }
+
+    // Aguarda confirmação no ledger
+    await this.waitForConfirmation(sendResult.hash, server);
+    this.logger.log(
+      `Assignment transaction confirmed on-chain — txHash: ${sendResult.hash}`,
+    );
+
+    return sendResult.hash;
   }
 
   async payPme(data: PayPmeInput): Promise<string> {
-    // Pagamento clássico via Horizon: plataforma envia TESOURO para a PME.
-    // A plataforma é a source e tem XLM para pagar a fee — sem Fee Bump necessário.
     const { platformKeypair } = this.requireContractConfig();
 
     const { publicKey: pmeAddress } = await this.ensureCustodialWalletForUser(
@@ -184,7 +312,7 @@ export class StellarService implements BlockchainService {
     );
 
     const tx = new TransactionBuilder(sourceAccount, {
-      fee: CLASSIC_FEE,
+      fee: BASE_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
@@ -207,8 +335,6 @@ export class StellarService implements BlockchainService {
   async transferNftToInvestor(
     data: TransferNftToInvestorInput,
   ): Promise<string> {
-    // Transferência Soroban do NFT/recebível para o investidor.
-    // A propriedade sai da plataforma e passa para a carteira do investidor.
     const { server, platformKeypair, contractId } =
       this.requireContractConfig();
 
@@ -236,20 +362,13 @@ export class StellarService implements BlockchainService {
   }
 
   async chargeInvestor(data: ChargeInvestorInput): Promise<string> {
-    // Cobra o investidor: carteira custodial do investidor envia TESOURO para
-    // a plataforma. Como a carteira é patrocinada e não tem XLM próprio para
-    // fees, a plataforma cobre via Fee Bump.
-    //
-    // Carteiras Privy não possuem keypair neste backend e não podem assinar
-    // este payment diretamente — o chamador deve tratar esse caso via Privy.
     const { platformKeypair } = this.requireContractConfig();
 
     const { publicKey: investorAddress, keypair: investorKeypair } =
       await this.ensureCustodialWalletForUser(data.investorUserId);
-
     if (!investorKeypair) {
       throw new Error(
-        `Investor ${data.investorUserId} uses a Privy wallet — payment must be signed by Privy`,
+        `Investor ${data.investorUserId} uses a Privy wallet; payment must be signed by Privy`,
       );
     }
 
@@ -259,13 +378,10 @@ export class StellarService implements BlockchainService {
       `chargeInvestor — ${amount} TESOURO from ${investorAddress} → platform memo=${data.memo}`,
     );
 
-    // Inner tx: investidor é o source e assina o envio de TESOURO.
-    // A fee declarada aqui é sobreposta pelo Fee Bump; o valor não importa
-    // para o custo real, mas precisa ser um número válido.
-    const investorAccount = await this.horizon.loadAccount(investorAddress);
+    const sourceAccount = await this.horizon.loadAccount(investorAddress);
 
-    const innerTx = new TransactionBuilder(investorAccount, {
-      fee: CLASSIC_FEE,
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
@@ -279,28 +395,16 @@ export class StellarService implements BlockchainService {
       .setTimeout(TX_TIMEOUT_SECONDS)
       .build();
 
-    innerTx.sign(investorKeypair);
-
-    // Fee Bump: plataforma paga a fee em XLM pelo investidor.
-    const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
-      platformKeypair,
-      CLASSIC_FEE,
-      innerTx,
-      NETWORK_PASSPHRASE,
-    );
-    feeBumpTx.sign(platformKeypair);
-
-    const res = await this.submitWithDetail(feeBumpTx, 'chargeInvestor');
+    tx.sign(investorKeypair);
+    const res = await this.submitWithDetail(tx, 'chargeInvestor');
     this.logger.log(`chargeInvestor confirmed — txHash: ${res.hash}`);
     return res.hash;
   }
 
   private async submitWithDetail(
-    tx: Transaction | FeeBumpTransaction,
+    tx: import('@stellar/stellar-sdk').Transaction,
     label: string,
   ): Promise<{ hash: string }> {
-    // Centraliza submit via Horizon e preserva detalhes úteis de erro.
-    // Aceita tanto transações clássicas quanto Fee Bump.
     try {
       return await this.horizon.submitTransaction(tx);
     } catch (err: unknown) {
@@ -350,96 +454,128 @@ export class StellarService implements BlockchainService {
   }
 
   async createCustodialWallet(googleId: string): Promise<string> {
-    // Cria ou encontra a carteira custodial derivada do Google ID.
-    // Testnet usa Friendbot; mainnet usa sponsorship da plataforma.
     if (!this.walletSecret) {
       throw new Error('STELLAR_WALLET_SECRET not configured');
     }
 
     const keypair = this.deriveKeypair(googleId);
     const publicKey = keypair.publicKey();
-    const { platformKeypair } = this.requireContractConfig();
 
-    const accountExists = await this.horizon
-      .loadAccount(publicKey)
-      .then(() => true)
-      .catch(() => false);
-
-    if (accountExists) {
+    let isNew = false;
+    try {
+      await this.horizon.loadAccount(publicKey);
       this.logger.log(`Custodial wallet already exists: ${publicKey}`);
-      return publicKey;
+    } catch {
+      try {
+        await this.fundAccountFromPlatform(publicKey, '5.0');
+        isNew = true;
+      } catch (err) {
+        this.logger.error(
+          `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
+        );
+      }
     }
 
-    if (!this.isMainnet) {
-      // ── TESTNET: usa Friendbot ──────────────────────────────────────────
-      this.logger.log(`Funding new testnet wallet via Friendbot: ${publicKey}`);
-      const res = await fetch(
-        `https://friendbot.stellar.org?addr=${publicKey}`,
-      );
-      if (!res.ok) {
-        throw new Error(`Friendbot failed (${res.status}) for ${publicKey}`);
-      }
+    if (isNew) {
       await this.establishTesourTrustline(keypair);
-    } else {
-      // ── MAINNET: plataforma patrocina criação + trustline ───────────────
-      this.logger.log(`Creating sponsored mainnet wallet: ${publicKey}`);
-      await this.createSponsoredAccount(platformKeypair, keypair);
     }
 
     return publicKey;
   }
 
-  private async createSponsoredAccount(
-    sponsorKeypair: Keypair,
-    newKeypair: Keypair,
-  ): Promise<void> {
-    // Sponsoring permanente: a plataforma assume as reservas mínimas da conta
-    // e da trustline TESOURO. A nova conta fica utilizável sem precisar de
-    // XLM próprio para reserva inicial ou fees.
-    //
-    // Operações e assinantes:
-    //   beginSponsoringFutureReserves → sponsor assina (source implícita)
-    //   createAccount                 → sponsor assina (source implícita)
-    //   changeTrust                   → nova conta assina (source explícita)
-    //   endSponsoringFutureReserves   → nova conta assina (source explícita)
-    const sponsorAccount = await this.horizon.loadAccount(
-      sponsorKeypair.publicKey(),
+  async fundAccountFromPlatform(
+    destination: string,
+    startingBalance: string = '1.0',
+  ): Promise<string | null> {
+    const { platformKeypair } = this.requireContractConfig();
+    const platformAddress = platformKeypair.publicKey();
+    const targetBalance = Number(startingBalance);
+
+    let destinationAccount: HorizonAccountResponse | null = null;
+    try {
+      destinationAccount = await this.horizon.loadAccount(destination);
+    } catch {
+      // Account does not exist, proceed to fund/create it
+    }
+
+    if (destinationAccount) {
+      const nativeBalanceLine = destinationAccount.balances.find(
+        (balance) => balance.asset_type === 'native',
+      );
+      const nativeBalance = Number(nativeBalanceLine?.balance ?? '0');
+
+      if (this.isMainnet || nativeBalance >= MINIMUM_TESTNET_XLM_BALANCE) {
+        this.logger.log(
+          `Account ${destination} already exists with ${nativeBalance} XLM — no funding needed.`,
+        );
+        return null;
+      }
+
+      const topUpAmount = targetBalance - nativeBalance;
+      if (topUpAmount <= 0) {
+        this.logger.log(
+          `Account ${destination} already has the target XLM balance — no funding needed.`,
+        );
+        return null;
+      }
+
+      this.logger.log(
+        `Topping up account ${destination} from ${nativeBalance} to ${targetBalance} XLM...`,
+      );
+
+      const sourceAccount = await this.horizon.loadAccount(platformAddress);
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(
+          Operation.payment({
+            destination,
+            asset: Asset.native(),
+            amount: topUpAmount.toFixed(7),
+          }),
+        )
+        .setTimeout(TX_TIMEOUT_SECONDS)
+        .build();
+
+      tx.sign(platformKeypair);
+      const res = await this.submitWithDetail(tx, 'fundAccountFromPlatform');
+      this.logger.log(
+        `Account ${destination} topped up successfully via platform — txHash: ${res.hash}`,
+      );
+      return res.hash;
+    }
+
+    if (this.isMainnet) {
+      throw new Error(
+        `Mainnet wallet creation for ${destination} requires manual funding`,
+      );
+    }
+
+    this.logger.log(
+      `Funding new account ${destination} from platform ${platformAddress} with ${startingBalance} XLM...`,
     );
 
-    const tx = new TransactionBuilder(sponsorAccount, {
-      fee: CLASSIC_FEE,
+    const sourceAccount = await this.horizon.loadAccount(platformAddress);
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
-        Operation.beginSponsoringFutureReserves({
-          sponsoredId: newKeypair.publicKey(),
-        }),
-      )
-      .addOperation(
         Operation.createAccount({
-          destination: newKeypair.publicKey(),
-          // Zero é válido porque o base reserve é coberto pelo sponsor ativo.
-          startingBalance: '0',
-        }),
-      )
-      .addOperation(
-        Operation.changeTrust({
-          asset: TESOURO,
-          source: newKeypair.publicKey(),
-        }),
-      )
-      .addOperation(
-        Operation.endSponsoringFutureReserves({
-          source: newKeypair.publicKey(),
+          destination,
+          startingBalance,
         }),
       )
       .setTimeout(TX_TIMEOUT_SECONDS)
       .build();
 
-    tx.sign(sponsorKeypair, newKeypair);
-
-    await this.submitWithDetail(tx, 'createSponsoredAccount');
-    this.logger.log(`Sponsored account created: ${newKeypair.publicKey()}`);
+    tx.sign(platformKeypair);
+    const res = await this.submitWithDetail(tx, 'fundAccountFromPlatform');
+    this.logger.log(
+      `Account ${destination} created successfully via platform — txHash: ${res.hash}`,
+    );
+    return res.hash;
   }
 
   private async invokeContract(
@@ -449,16 +585,13 @@ export class StellarService implements BlockchainService {
     method: string,
     args: xdr.ScVal[],
   ): Promise<string> {
-    // Caminho único para chamadas Soroban:
-    // monta a tx, simula para calcular recursos, monta a tx final,
-    // assina, envia via RPC e espera confirmação.
     const contract = new Contract(contractId);
     const sourceAccount = await this.horizon.loadAccount(
       signerKeypair.publicKey(),
     );
 
     const tx = new TransactionBuilder(sourceAccount, {
-      fee: SOROBAN_FEE,
+      fee: BASE_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(contract.call(method, ...args))
@@ -487,14 +620,11 @@ export class StellarService implements BlockchainService {
   }
 
   private async establishTesourTrustline(keypair: Keypair): Promise<void> {
-    // Trustline é obrigatória para receber TESOURO.
-    // Chamada apenas em testnet pós-Friendbot, onde a conta tem XLM próprio.
-    // Em mainnet patrocinada, a trustline já é criada em createSponsoredAccount().
     const publicKey = keypair.publicKey();
     try {
       const account = await this.horizon.loadAccount(publicKey);
       const tx = new TransactionBuilder(account, {
-        fee: CLASSIC_FEE,
+        fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
       })
         .addOperation(Operation.changeTrust({ asset: TESOURO }))
@@ -511,8 +641,6 @@ export class StellarService implements BlockchainService {
   }
 
   private deriveKeypair(seedSource: string): Keypair {
-    // Derivação determinística: o mesmo usuário gera sempre a mesma carteira.
-    // A segurança depende diretamente do STELLAR_WALLET_SECRET.
     const seed = createHmac('sha256', this.walletSecret)
       .update(seedSource)
       .digest();
@@ -522,9 +650,6 @@ export class StellarService implements BlockchainService {
   private async ensureCustodialWalletForUser(
     userId: string,
   ): Promise<{ publicKey: string; keypair: Keypair | null }> {
-    // Garante uma carteira utilizável para fluxos internos.
-    // Retorna keypair apenas quando a carteira é custodial; para Privy,
-    // retorna somente o endereço público (keypair: null).
     if (!this.walletSecret) {
       throw new Error('STELLAR_WALLET_SECRET not configured');
     }
@@ -542,7 +667,6 @@ export class StellarService implements BlockchainService {
       throw new Error(`User ${userId} not found`);
     }
 
-    // Carteira externa (Privy) — não custodial, sem keypair local.
     if (user.privyStellarWalletAddress) {
       return { publicKey: user.privyStellarWalletAddress, keypair: null };
     }
@@ -551,40 +675,24 @@ export class StellarService implements BlockchainService {
     const keypair = this.deriveKeypair(seedSource);
     const publicKey = keypair.publicKey();
 
-    // Sanity check: chave derivada deve bater com o que está no banco.
     if (user.stellarWalletId && user.stellarWalletId !== publicKey) {
       throw new Error(
         `Wallet mismatch for user ${userId} — stored ${user.stellarWalletId} vs derived ${publicKey}`,
       );
     }
 
-    const accountExists = await this.horizon
-      .loadAccount(publicKey)
-      .then(() => true)
-      .catch(() => false);
-
-    if (!accountExists) {
-      if (this.isMainnet) {
-        // Mainnet: plataforma patrocina criação + trustline.
-        this.logger.log(
-          `Creating sponsored mainnet wallet for user ${userId}: ${publicKey}`,
+    try {
+      await this.horizon.loadAccount(publicKey);
+    } catch {
+      try {
+        await this.fundAccountFromPlatform(publicKey, '5.0');
+      } catch (err) {
+        throw new Error(
+          `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
         );
-        const { platformKeypair } = this.requireContractConfig();
-        await this.createSponsoredAccount(platformKeypair, keypair);
-      } else {
-        // Testnet: Friendbot financia a conta com XLM de teste.
-        this.logger.log(`Funding testnet wallet via Friendbot: ${publicKey}`);
-        const res = await fetch(
-          `https://friendbot.stellar.org?addr=${publicKey}`,
-        );
-        if (!res.ok) {
-          throw new Error(`Friendbot failed (${res.status}) for ${publicKey}`);
-        }
-        await this.establishTesourTrustline(keypair);
       }
     }
 
-    // Persiste no banco se ainda não estava salvo.
     if (!user.stellarWalletId) {
       await this.prisma.user.update({
         where: { id: userId },
@@ -603,11 +711,9 @@ export class StellarService implements BlockchainService {
     platformKeypair: Keypair;
     contractId: string;
   } {
-    // Guard rail para impedir chamadas on-chain sem RPC, contrato ou chave
-    // operacional configurados.
     if (!this.server || !this.platformKeypair || !this.contractId) {
       throw new Error(
-        'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_CONTRACT_ID',
+        'Stellar contract not configured — set STELLAR_RPC_URL, STELLAR_SECRET_KEY, STELLAR_NFE_CONTRACT_ID',
       );
     }
     return {
@@ -621,8 +727,6 @@ export class StellarService implements BlockchainService {
     hash: string,
     server?: rpc.Server,
   ): Promise<void> {
-    // Soroban RPC pode retornar a hash antes da confirmação final.
-    // Este polling transforma "enviado" em "confirmado ou falhou".
     const s = server ?? this.requireContractConfig().server;
     const deadline = Date.now() + POLL_DEADLINE_MS;
     while (Date.now() < deadline) {
@@ -639,10 +743,533 @@ export class StellarService implements BlockchainService {
   }
 
   private toBytes32(hexHash: string | null): Buffer {
-    // O contrato espera um bytes32. Quando não há hash de XML,
-    // usamos zero bytes para manter o formato do argumento.
     if (!hexHash) return Buffer.alloc(32);
     const clean = hexHash.replace(/^0x/, '').padEnd(64, '0').slice(0, 64);
     return Buffer.from(clean, 'hex');
+  }
+
+  async depositToPool(
+    investorUserId: string,
+    amountBrl: number,
+  ): Promise<string> {
+    this.logger.log(
+      `depositToPool — investor: ${investorUserId}, amount: ${amountBrl}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (
+      !poolContractId ||
+      !brltContractId ||
+      !this.server ||
+      !this.platformKeypair
+    ) {
+      this.logger.warn(
+        'STELLAR_POOL_CONTRACT_ID, BRLT or credentials not configured — returning mock tx hash',
+      );
+      return `stellar-mock-pool-deposit-${Date.now()}`;
+    }
+
+    const { publicKey: investorAddress, keypair: investorKeypair } =
+      await this.ensureCustodialWalletForUser(investorUserId);
+
+    if (!investorKeypair) {
+      throw new Error(
+        `Custodial keypair for investor ${investorUserId} not available to sign transaction`,
+      );
+    }
+
+    // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    // Passo 1: Mint de BRLT da plataforma para a carteira do Investidor
+    this.logger.log(
+      `Step 1: Minting ${amountBrl} BRLT to investor ${investorAddress}...`,
+    );
+    await this.invokeContract(
+      this.server,
+      this.platformKeypair,
+      brltContractId,
+      'mint',
+      [
+        nativeToScVal(this.platformKeypair.publicKey(), { type: 'address' }), // admin
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+
+    // Obter ledger atual para expiração do approve
+    const latestLedgers = await this.horizon
+      .ledgers()
+      .order('desc')
+      .limit(1)
+      .call();
+    const currentLedger = latestLedgers.records[0]?.sequence ?? 3000000;
+    const liveUntilLedger = currentLedger + 100000;
+
+    // Passo 2: Approve do Investidor para a Pool gastar o BRLT dele
+    this.logger.log(
+      `Step 2: Approving Pool to spend ${amountBrl} BRLT from investor...`,
+    );
+    await this.invokeContract(
+      this.server,
+      investorKeypair, // <-- Assinado pelo investidor
+      brltContractId,
+      'approve',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(poolContractId, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+        nativeToScVal(liveUntilLedger, { type: 'u32' }),
+      ],
+    );
+
+    // Passo 3: Deposit do Investidor na Pool
+    this.logger.log(
+      `Step 3: Depositing ${amountBrl} BRLT from investor to Pool...`,
+    );
+    const txHash = await this.invokeContract(
+      this.server,
+      investorKeypair, // <-- Assinado pelo investidor
+      poolContractId,
+      'deposit',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+
+    this.logger.log(
+      `Deposit sequence completed successfully — txHash: ${txHash}`,
+    );
+    return txHash;
+  }
+
+  async withdrawFromPool(
+    investorUserId: string,
+    shareAmount: number,
+  ): Promise<string> {
+    this.logger.log(
+      `withdrawFromPool — investor: ${investorUserId}, shares: ${shareAmount}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId || !this.server || !this.platformKeypair) {
+      this.logger.warn(
+        'STELLAR_POOL_CONTRACT_ID or credentials not configured — returning mock tx hash',
+      );
+      return `stellar-mock-pool-withdraw-${Date.now()}`;
+    }
+
+    const { publicKey: investorAddress, keypair: investorKeypair } =
+      await this.ensureCustodialWalletForUser(investorUserId);
+
+    if (!investorKeypair) {
+      throw new Error(
+        `Custodial keypair for investor ${investorUserId} not available to sign transaction`,
+      );
+    }
+
+    // A precisão padrão das cotas é de 7 casas decimais
+    const sharesInStroops = BigInt(Math.round(shareAmount * 10_000_000));
+
+    return this.invokeContract(
+      this.server,
+      investorKeypair, // <-- Assinado pelo investidor
+      poolContractId,
+      'withdraw',
+      [
+        nativeToScVal(investorAddress, { type: 'address' }),
+        nativeToScVal(sharesInStroops, { type: 'i128' }),
+      ],
+    );
+  }
+
+  async settleInvoiceInPool(
+    invoiceHash: string,
+    advanceAmountBrl: number,
+  ): Promise<string> {
+    this.logger.log(
+      `settleInvoiceInPool — invoiceHash: ${invoiceHash}, amount: ${advanceAmountBrl}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId || !this.server || !this.platformKeypair) {
+      this.logger.warn(
+        'STELLAR_POOL_CONTRACT_ID or credentials not configured — returning mock tx hash',
+      );
+      return `stellar-mock-pool-settlement-${Date.now()}`;
+    }
+
+    // A precisão padrão do BRLT é de 7 casas decimais
+    const amountInStroops = BigInt(Math.round(advanceAmountBrl * 10_000_000));
+    const cleanHashBytes = this.toBytes32(invoiceHash);
+
+    return this.invokeContract(
+      this.server,
+      this.platformKeypair,
+      poolContractId,
+      'settle_invoice_in_pool',
+      [
+        nativeToScVal(this.platformKeypair.publicKey(), { type: 'address' }),
+        xdr.ScVal.scvBytes(cleanHashBytes),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+  }
+
+  async buyTokenizedInvoiceInPool(data: {
+    sellerAddress: string;
+    invoiceKey: string;
+    xmlHash: string;
+    value: number;
+  }): Promise<string> {
+    this.logger.log(
+      `buyTokenizedInvoiceInPool — key: ${data.invoiceKey}, seller: ${data.sellerAddress}`,
+    );
+    const { server, platformKeypair } = this.requireContractConfig();
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
+    const valueInStroops = BigInt(Math.round(data.value * 10_000_000));
+    const cleanHashBytes = this.toBytes32(data.xmlHash);
+    const platformAddress = platformKeypair.publicKey();
+
+    // Data futura simbólica de maturidade para fins de simulação de pool (Unix timestamp 1800000000 = ~2027)
+    const maturityTimestamp = BigInt(1800000000);
+
+    return this.invokeContract(
+      server,
+      platformKeypair,
+      poolContractId,
+      'buy_tokenized_invoice',
+      [
+        nativeToScVal(platformAddress, { type: 'address' }), // operator
+        nativeToScVal(data.sellerAddress, { type: 'address' }), // seller (PME)
+        xdr.ScVal.scvBytes(cleanHashBytes), // invoice_hash
+        nativeToScVal(valueInStroops, { type: 'i128' }), // face_value
+        nativeToScVal(valueInStroops, { type: 'i128' }), // advance_amount (mesmo valor ou proporção)
+        nativeToScVal(100n, { type: 'i128' }), // rate_bps (ex: 1% diário, simbólico)
+        nativeToScVal(maturityTimestamp, { type: 'u64' }), // maturity_timestamp
+      ],
+    );
+  }
+
+  async mintBrlt(toAddress: string, amount: number): Promise<string> {
+    this.logger.log(`mintBrlt — to: ${toAddress}, amount: ${amount}`);
+    const { server, platformKeypair } = this.requireContractConfig();
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!brltContractId) {
+      throw new Error('STELLAR_BRLT_TOKEN_ID not configured');
+    }
+
+    // A precisão padrão dos tokens SEP-41 é de 7 casas decimais
+    const amountInStroops = BigInt(Math.round(amount * 10_000_000));
+
+    return this.invokeContract(
+      server,
+      platformKeypair,
+      brltContractId,
+      'mint',
+      [
+        nativeToScVal(platformKeypair.publicKey(), { type: 'address' }),
+        nativeToScVal(toAddress, { type: 'address' }),
+        nativeToScVal(amountInStroops, { type: 'i128' }),
+      ],
+    );
+  }
+
+  /**
+   * Builds and assembles a simulated Soroban transaction ready for signing by a Privy wallet.
+   * Uses the investor's address as the source account (they pay fees and provide auth).
+   */
+  private async buildAndAssemble(
+    investorAddress: string,
+    contractId: string,
+    method: string,
+    args: xdr.ScVal[],
+  ): Promise<UnsignedSorobanTx> {
+    if (!this.server) {
+      throw new Error('Stellar RPC server not configured');
+    }
+
+    const account = await this.server.getAccount(investorAddress);
+    const contract = new Contract(contractId);
+
+    let tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call(method, ...args))
+      .setTimeout(CLIENT_SIGNED_TX_TIMEOUT_SECONDS)
+      .build();
+
+    const sim = await this.server.simulateTransaction(tx);
+    if (!rpc.Api.isSimulationSuccess(sim)) {
+      throw new Error(
+        `Simulation failed for ${method}: ${JSON.stringify(sim)}`,
+      );
+    }
+
+    tx = rpc.assembleTransaction(tx, sim).build();
+
+    return {
+      xdr: tx.toXDR(),
+      hashToSign: tx.hash().toString('hex'),
+      signerPublicKey: investorAddress,
+    };
+  }
+
+  async buildApproveTx(
+    investorAddress: string,
+    amountBrl: number,
+  ): Promise<UnsignedSorobanTx> {
+    this.logger.log(
+      `buildApproveTx — investor ${investorAddress}, amount ${amountBrl}`,
+    );
+
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!poolContractId || !brltContractId) {
+      throw new Error(
+        'STELLAR_POOL_CONTRACT_ID / STELLAR_BRLT_TOKEN_ID not configured',
+      );
+    }
+
+    // SEP-41 tokens use 7 decimal places (stroops)
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    const latestLedgers = await this.horizon
+      .ledgers()
+      .order('desc')
+      .limit(1)
+      .call();
+    const currentLedger = latestLedgers.records[0]?.sequence ?? 3000000;
+    const liveUntilLedger = currentLedger + 100000;
+
+    return this.buildAndAssemble(investorAddress, brltContractId, 'approve', [
+      nativeToScVal(investorAddress, { type: 'address' }),
+      nativeToScVal(poolContractId, { type: 'address' }),
+      nativeToScVal(amountInStroops, { type: 'i128' }),
+      nativeToScVal(liveUntilLedger, { type: 'u32' }),
+    ]);
+  }
+
+  async buildDepositTx(
+    investorAddress: string,
+    amountBrl: number,
+  ): Promise<UnsignedSorobanTx> {
+    const poolContractId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolContractId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    // SEP-41 tokens use 7 decimal places (stroops)
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    this.logger.log(
+      `buildDepositTx — investor ${investorAddress}, amount ${amountBrl}`,
+    );
+
+    return this.buildAndAssemble(investorAddress, poolContractId, 'deposit', [
+      nativeToScVal(investorAddress, { type: 'address' }),
+      nativeToScVal(amountInStroops, { type: 'i128' }),
+    ]);
+  }
+
+  async submitSignedTx(input: {
+    xdr: string;
+    signerPublicKey: string;
+    signatureHex: string;
+  }): Promise<string> {
+    if (!this.server) {
+      throw new Error('Stellar RPC server not configured');
+    }
+    const { platformKeypair } = this.requireContractConfig();
+
+    const innerTx = TransactionBuilder.fromXDR(
+      input.xdr,
+      NETWORK_PASSPHRASE,
+    ) as import('@stellar/stellar-sdk').Transaction;
+
+    const keypair = Keypair.fromPublicKey(input.signerPublicKey);
+    const signature = Buffer.from(
+      input.signatureHex.replace(/^0x/, ''),
+      'hex',
+    );
+
+    if (!keypair.verify(innerTx.hash(), signature)) {
+      throw new Error('Signature does not match transaction hash');
+    }
+
+    // Aplica a assinatura do investidor (Privy) na transação interna.
+    innerTx.addDecoratedSignature(
+      new xdr.DecoratedSignature({
+        hint: keypair.signatureHint(),
+        signature,
+      }),
+    );
+
+    // Envolve numa Fee Bump patrocinada pela carteira da plataforma (CredBridge),
+    // que passa a pagar o fee — inclusive o resource fee Soroban — em vez do investidor.
+    const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+      platformKeypair,
+      BASE_FEE,
+      innerTx,
+      NETWORK_PASSPHRASE,
+    );
+    feeBumpTx.sign(platformKeypair);
+
+    const sendResult = await this.server.sendTransaction(feeBumpTx as any);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(
+        `sendTransaction failed: ${JSON.stringify(sendResult.errorResult)}`,
+      );
+    }
+
+    await this.waitForConfirmation(sendResult.hash, this.server);
+    this.logger.log(`submitSignedTx confirmed — hash ${sendResult.hash}`);
+    return sendResult.hash;
+  }
+
+  // -----------------------------------------------------------------------
+  // Leitura read-only de contrato (simulação — sem assinar, sem fee)
+  // -----------------------------------------------------------------------
+  private async simulateRead(
+    contractId: string,
+    method: string,
+    args: xdr.ScVal[] = [],
+  ): Promise<unknown> {
+    const { server, platformKeypair } = this.requireContractConfig();
+
+    const account = await server.getAccount(platformKeypair.publicKey());
+    const contract = new Contract(contractId);
+
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call(method, ...args))
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (!rpc.Api.isSimulationSuccess(sim)) {
+      throw new Error(`Simulation failed for ${method}: ${JSON.stringify(sim)}`);
+    }
+    if (sim.result == null || sim.result.retval == null) {
+      throw new Error(`No return value from ${method}`);
+    }
+    return scValToNative(sim.result.retval);
+  }
+
+  async getPoolStatus(): Promise<PoolStatus> {
+    const poolId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    const state = (await this.simulateRead(poolId, 'get_pool_state', [])) as {
+      admin: string;
+      operator: string;
+      asset_address: string;
+      share_token_address: string;
+      total_principal: bigint;
+      total_shares: bigint;
+      paused: boolean;
+    };
+    // Estas leituras são independentes entre si — dispara em paralelo.
+    const [navRaw, sharePriceRaw, brltDecimalsRaw, shareDecimalsRaw] =
+      await Promise.all([
+        this.simulateRead(poolId, 'get_nav', []) as Promise<bigint>,
+        this.simulateRead(poolId, 'get_share_price', []) as Promise<bigint>,
+        this.simulateRead(state.asset_address, 'decimals', []),
+        this.simulateRead(state.share_token_address, 'decimals', []),
+      ]);
+    const brltDecimals = Number(brltDecimalsRaw);
+    const shareDecimals = Number(shareDecimalsRaw);
+
+    const cashRaw = navRaw - state.total_principal;
+    const toScaled = (raw: bigint, decimals: number): Scaled => ({
+      raw: raw.toString(),
+      value: Number(raw) / 10 ** decimals,
+    });
+
+    return {
+      poolContractId: poolId,
+      brltTokenId: state.asset_address,
+      shareTokenId: state.share_token_address,
+      admin: state.admin,
+      operator: state.operator,
+      paused: state.paused,
+      brltDecimals,
+      shareDecimals,
+      nav: toScaled(navRaw, brltDecimals),
+      cashBalance: toScaled(cashRaw, brltDecimals),
+      totalPrincipal: toScaled(state.total_principal, brltDecimals),
+      totalShares: toScaled(state.total_shares, shareDecimals),
+      // sharePrice é ponto-fixo de 9 casas (PRICE_SCALE do contrato), não decimais SEP-41.
+      sharePrice: {
+        raw: sharePriceRaw.toString(),
+        value: Number(sharePriceRaw) / 1e9,
+      },
+    };
+  }
+
+  async getInvestorShares(address: string): Promise<InvestorShares> {
+    const poolId = process.env.STELLAR_POOL_CONTRACT_ID;
+    if (!poolId) {
+      throw new Error('STELLAR_POOL_CONTRACT_ID not configured');
+    }
+
+    const state = (await this.simulateRead(poolId, 'get_pool_state', [])) as {
+      share_token_address: string;
+    };
+    // Leituras independentes — dispara em paralelo.
+    const [shareDecimalsRaw, sharePriceRaw, balanceRaw] = await Promise.all([
+      this.simulateRead(state.share_token_address, 'decimals', []),
+      this.simulateRead(poolId, 'get_share_price', []) as Promise<bigint>,
+      this.simulateRead(state.share_token_address, 'balance', [
+        nativeToScVal(address, { type: 'address' }),
+      ]) as Promise<bigint>,
+    ]);
+    const shareDecimals = Number(shareDecimalsRaw);
+
+    const sharesValue = Number(balanceRaw) / 10 ** shareDecimals;
+    const sharePriceValue = Number(sharePriceRaw) / 1e9;
+
+    return {
+      address,
+      shares: { raw: balanceRaw.toString(), value: sharesValue },
+      estimatedValueBrl: sharesValue * sharePriceValue,
+    };
+  }
+
+  async getBrltBalance(address: string): Promise<WalletBalance> {
+    const brltId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!brltId) {
+      throw new Error('STELLAR_BRLT_TOKEN_ID not configured');
+    }
+
+    // Leituras independentes — dispara em paralelo.
+    const [decimalsRaw, balanceRaw] = await Promise.all([
+      this.simulateRead(brltId, 'decimals', []),
+      this.simulateRead(brltId, 'balance', [
+        nativeToScVal(address, { type: 'address' }),
+      ]) as Promise<bigint>,
+    ]);
+    const decimals = Number(decimalsRaw);
+
+    return {
+      address,
+      tokenId: brltId,
+      balance: {
+        raw: balanceRaw.toString(),
+        value: Number(balanceRaw) / 10 ** decimals,
+      },
+    };
   }
 }

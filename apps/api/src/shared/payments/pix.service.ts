@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PaymentsService, PaymentResult, PaymentStatus, PaymentMethod } from './payments.interface';
+import {
+  PaymentsService,
+  PaymentResult,
+  PaymentStatus,
+  PaymentMethod,
+} from './payments.interface';
 
 @Injectable()
 export class PixService implements PaymentsService {
@@ -11,7 +16,9 @@ export class PixService implements PaymentsService {
     destination: string;
     description: string;
   }): Promise<PaymentResult> {
-    this.logger.log(`send called: ${data.method} R$${data.amount} to ${data.destination}`);
+    this.logger.log(
+      `send called: ${data.method} R$${data.amount} to ${data.destination}`,
+    );
     // TODO: implement PIX/TED provider integration
     return {
       txId: `pix-${Date.now()}`,

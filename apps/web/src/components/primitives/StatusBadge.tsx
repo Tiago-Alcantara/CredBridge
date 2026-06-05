@@ -18,11 +18,16 @@ const statusConfig: Record<ReceivableStatus, { badgeClass: string; stringKey: st
   active: { badgeClass: "badge active", stringKey: "status_active" },
   settled: { badgeClass: "badge settled", stringKey: "status_settled" },
   defaulted: { badgeClass: "badge defaulted", stringKey: "status_defaulted" },
+  rejected: { badgeClass: "badge defaulted", stringKey: "status_rejected" },
 };
 
 export function StatusBadge({ status, lang = "pt" }: StatusBadgeProps) {
   const { t } = useTranslation(lang);
-  const { badgeClass, stringKey } = statusConfig[status];
+  const config = (status && statusConfig[status]) || {
+    badgeClass: "badge neutral",
+    stringKey: "status_unknown"
+  };
+  const { badgeClass, stringKey } = config;
 
   return (
     <span className={badgeClass}>

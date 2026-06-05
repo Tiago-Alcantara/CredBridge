@@ -19,6 +19,46 @@ async function sha256Hex(file: File): Promise<string> {
     .join("");
 }
 
+const SAMPLE_XML_CONTENT = `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35200100000000000000550010000000011000000018" versao="4.00">
+      <ide>
+        <dhEmi>2026-06-30T12:00:00-03:00</dhEmi>
+      </ide>
+      <dest>
+        <CNPJ>12345678000199</CNPJ>
+        <xNome>Adquirente de Teste S.A.</xNome>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <xProd>Prestacao de Servicos CredBridge</xProd>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>15000.00</vNF>
+        </ICMSTot>
+      </total>
+      <cobr>
+        <dup>
+          <dVenc>2026-07-15</dVenc>
+        </dup>
+      </cobr>
+    </infNFe>
+  </NFe>
+</nfeProc>`;
+
+function downloadSampleXml() {
+  const blob = new Blob([SAMPLE_XML_CONTENT], { type: "text/xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "nfe_modelo_credbridge.xml";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function UploadZone({ id }: UploadZoneProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [file, setFile] = useState<File | null>(null);
@@ -29,6 +69,7 @@ export function UploadZone({ id }: UploadZoneProps) {
   const [debtorDocument, setDebtorDocument] = useState("");
   const [value, setValue] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [customHash, setCustomHash] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createReceivable = useCreateReceivable();
@@ -36,7 +77,20 @@ export function UploadZone({ id }: UploadZoneProps) {
 
   const isPending = createReceivable.isPending || createDocument.isPending;
 
-  const pickFile = useCallback((f: File) => {
+  const handleFillManually = useCallback(() => {
+    const dummyBlob = new Blob([SAMPLE_XML_CONTENT], { type: "text/xml" });
+    const dummyFile = new File([dummyBlob], "nfe_manual.xml", { type: "text/xml" });
+    setFile(dummyFile);
+    setErrorMsg(null);
+    setPhase("form");
+    setDebtorName("");
+    setDebtorDocument("");
+    setValue("");
+    setDueDate("");
+    setCustomHash("");
+  }, []);
+
+  const pickFile = useCallback(async (f: File) => {
     if (!f.name.endsWith(".xml")) {
       setErrorMsg("Apenas arquivos XML são aceitos.");
       return;
@@ -44,6 +98,52 @@ export function UploadZone({ id }: UploadZoneProps) {
     setFile(f);
     setErrorMsg(null);
     setPhase("form");
+
+    try {
+      const hash = await sha256Hex(f);
+      setCustomHash(hash);
+      const text = await f.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(text, "text/xml");
+
+      // Extract Debtor (Sacado) Name
+      const destName = xmlDoc.getElementsByTagName("dest")[0]?.getElementsByTagName("xNome")[0]?.textContent || "";
+      if (destName) setDebtorName(destName);
+
+      // Extract Debtor Document (CNPJ / CPF)
+      const destCnpj = xmlDoc.getElementsByTagName("dest")[0]?.getElementsByTagName("CNPJ")[0]?.textContent || "";
+      const destCpf = xmlDoc.getElementsByTagName("dest")[0]?.getElementsByTagName("CPF")[0]?.textContent || "";
+      const doc = destCnpj || destCpf || "";
+      if (doc) {
+        if (doc.length === 14) {
+          setDebtorDocument(doc.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5"));
+        } else if (doc.length === 11) {
+          setDebtorDocument(doc.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4"));
+        } else {
+          setDebtorDocument(doc);
+        }
+      }
+
+      // Extract Invoice Value (vNF)
+      const vNf = xmlDoc.getElementsByTagName("ICMSTot")[0]?.getElementsByTagName("vNF")[0]?.textContent || "";
+      if (vNf) {
+        const parsedVal = parseFloat(vNf);
+        if (!isNaN(parsedVal)) {
+          setValue(parsedVal.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
+        } else {
+          setValue(vNf);
+        }
+      }
+
+      // Extract Due Date (dVenc)
+      const dVenc = xmlDoc.getElementsByTagName("cobr")[0]?.getElementsByTagName("dup")[0]?.getElementsByTagName("dVenc")[0]?.textContent || 
+                   xmlDoc.getElementsByTagName("ide")[0]?.getElementsByTagName("dhEmi")[0]?.textContent?.split("T")[0] || "";
+      if (dVenc) {
+        setDueDate(dVenc.split("T")[0]);
+      }
+    } catch (err) {
+      console.warn("Failed to auto-parse XML file:", err);
+    }
   }, []);
 
   const onDrop = useCallback(
@@ -65,12 +165,12 @@ export function UploadZone({ id }: UploadZoneProps) {
   );
 
   const handleSubmit = useCallback(async () => {
-    if (!file || !debtorName || !debtorDocument || !value || !dueDate) return;
+    if (!file || !debtorName || !debtorDocument || !value || !dueDate || !customHash) return;
     setPhase("submitting");
     setErrorMsg(null);
 
     try {
-      const hash = await sha256Hex(file);
+      const hash = customHash;
       const receivable = await createReceivable.mutateAsync({
         value: parseFloat(value.replace(/\./g, "").replace(",", ".")),
         type: "invoice",
@@ -92,7 +192,7 @@ export function UploadZone({ id }: UploadZoneProps) {
       setErrorMsg(msg);
       setPhase("error");
     }
-  }, [file, debtorName, debtorDocument, value, dueDate, createReceivable, createDocument]);
+  }, [file, debtorName, debtorDocument, value, dueDate, customHash, createReceivable, createDocument]);
 
   const reset = useCallback(() => {
     setPhase("idle");
@@ -101,6 +201,7 @@ export function UploadZone({ id }: UploadZoneProps) {
     setDebtorDocument("");
     setValue("");
     setDueDate("");
+    setCustomHash("");
     setErrorMsg(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
@@ -165,13 +266,33 @@ export function UploadZone({ id }: UploadZoneProps) {
                 style={{ display: "none" }}
                 onChange={onFileChange}
               />
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: 20 }}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Icon name="upload" size={14} /> Selecionar arquivos
-              </button>
+              <div className="row center" style={{ gap: 16, marginTop: 20, justifyContent: "center" }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Icon name="upload" size={14} /> Selecionar XML
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  onClick={handleFillManually}
+                >
+                  <Icon name="plus" size={14} /> Preencher Manualmente
+                </button>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <button
+                  className="appnav-link"
+                  type="button"
+                  style={{ fontSize: 12, padding: 0, color: "var(--blue)", border: "none", background: "none", cursor: "pointer" }}
+                  onClick={downloadSampleXml}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="doc" size={12} /> Baixar XML de Exemplo para Teste
+                  </span>
+                </button>
+              </div>
             </div>
             {errorMsg && (
               <p style={{ color: "var(--red)", fontSize: 13, marginTop: 10 }}>{errorMsg}</p>
@@ -207,6 +328,16 @@ export function UploadZone({ id }: UploadZoneProps) {
                 <label className="field-label">Vencimento</label>
                 <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={isPending} />
               </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label className="field-label">Hash da Nota (SHA-256)</label>
+                <input 
+                  className="input" 
+                  placeholder="Ex: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" 
+                  value={customHash} 
+                  onChange={(e) => setCustomHash(e.target.value)} 
+                  disabled={isPending} 
+                />
+              </div>
             </div>
 
             {errorMsg && (
@@ -216,7 +347,7 @@ export function UploadZone({ id }: UploadZoneProps) {
             <button
               className="btn btn-primary"
               style={{ width: "100%" }}
-              disabled={isPending || !debtorName || !debtorDocument || !value || !dueDate}
+              disabled={isPending || !debtorName || !debtorDocument || !value || !dueDate || !customHash}
               onClick={handleSubmit}
             >
               {isPending ? "Enviando…" : <><Icon name="upload" size={14} /> Enviar NF-e</>}

@@ -3,12 +3,15 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Param,
+  Patch,
   Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { InvestmentsService } from './investments.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
+import { BuildDepositStageDto, SubmitDepositStageDto } from './dto/onchain-deposit.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 interface AuthRequest {
@@ -44,5 +47,37 @@ export class InvestmentsController {
   getMyStats(@Req() req: AuthRequest) {
     assertInvestor(req);
     return this.service.getMyStats(req.user.userId);
+  }
+
+  @Get('me/transactions')
+  findMyTransactions(@Req() req: AuthRequest) {
+    assertInvestor(req);
+    return this.service.findMyTransactions(req.user.userId);
+  }
+
+  @Patch('deposit/:id/pay')
+  markAsPaid(@Req() req: AuthRequest, @Param('id') id: string) {
+    assertInvestor(req);
+    return this.service.markAsPaid(id, req.user.userId);
+  }
+
+  @Post('deposit/:id/onchain/build')
+  buildOnchainDeposit(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() dto: BuildDepositStageDto,
+  ) {
+    assertInvestor(req);
+    return this.service.buildDepositStage(id, req.user.userId, dto.stage);
+  }
+
+  @Post('deposit/:id/onchain/submit')
+  submitOnchainDeposit(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() dto: SubmitDepositStageDto,
+  ) {
+    assertInvestor(req);
+    return this.service.submitDepositStage(id, req.user.userId, dto);
   }
 }

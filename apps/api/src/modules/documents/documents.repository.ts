@@ -7,7 +7,16 @@ export class DocumentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: CreateDocumentDto) {
-    return this.prisma.document.create({ data });
+    const document = await this.prisma.document.create({ data });
+
+    if (data.type === 'invoice') {
+      await this.prisma.receivable.update({
+        where: { id: data.receivableId },
+        data: { documentHash: data.hash },
+      });
+    }
+
+    return document;
   }
 
   async findByReceivable(receivableId: string) {

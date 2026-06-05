@@ -1,0 +1,103 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { AdminService } from './admin.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { ApproveTransactionDto } from './dto/approve-transaction.dto';
+import { CreateDepositDto } from './dto/create-deposit.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+interface AuthRequest {
+  user: { userId: string; email: string; role: string | null };
+}
+
+function assertOperator(req: AuthRequest) {
+  if (req.user.role !== 'operator') {
+    throw new ForbiddenException(
+      'Apenas operadores da plataforma podem acessar este recurso',
+    );
+  }
+}
+
+@UseGuards(JwtAuthGuard)
+@Controller('admin')
+export class AdminController {
+  constructor(private readonly service: AdminService) {}
+
+  @Post('users')
+  createUser(@Req() req: AuthRequest, @Body() body: CreateUserDto) {
+    assertOperator(req);
+    return this.service.createUser(body);
+  }
+
+  @Get('users')
+  listUsers(@Req() req: AuthRequest) {
+    assertOperator(req);
+    return this.service.listUsers();
+  }
+
+  @Get('receivables/pending')
+  listPendingReceivables(@Req() req: AuthRequest) {
+    assertOperator(req);
+    return this.service.listPendingReceivables();
+  }
+
+  @Patch('receivables/:id/approve')
+  approveReceivable(@Req() req: AuthRequest, @Param('id') id: string) {
+    assertOperator(req);
+    return this.service.approveReceivable(id, req.user.userId);
+  }
+
+  @Patch('receivables/:id/reject')
+  rejectReceivable(@Req() req: AuthRequest, @Param('id') id: string) {
+    assertOperator(req);
+    return this.service.rejectReceivable(id, req.user.userId);
+  }
+
+  @Get('transactions/pending')
+  listPendingTransactions(@Req() req: AuthRequest) {
+    assertOperator(req);
+    return this.service.listPendingTransactions();
+  }
+
+  @Post('transactions/deposit')
+  createDeposit(@Req() req: AuthRequest, @Body() body: CreateDepositDto) {
+    assertOperator(req);
+    return this.service.createDeposit(body, req.user.userId);
+  }
+
+  @Post('transactions/:id/approve')
+  approveTransaction(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: ApproveTransactionDto,
+  ) {
+    assertOperator(req);
+    return this.service.approveTransaction(id, req.user.userId, body.status);
+  }
+
+  @Get('pool/status')
+  getPoolStatus(@Req() req: AuthRequest) {
+    assertOperator(req);
+    return this.service.getPoolStatus();
+  }
+
+  @Get('pool/shares')
+  getInvestorShares(@Req() req: AuthRequest, @Query('address') address: string) {
+    assertOperator(req);
+    if (!address || !/^G[A-Z2-7]{55}$/.test(address)) {
+      throw new BadRequestException('Endereço Stellar inválido');
+    }
+    return this.service.getInvestorShares(address);
+  }
+}

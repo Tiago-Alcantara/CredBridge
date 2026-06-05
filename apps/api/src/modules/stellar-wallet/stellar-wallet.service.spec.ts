@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { StellarWalletService } from './stellar-wallet.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StellarService } from '../../shared/blockchain/stellar.service';
 
 const mockUser = {
   id: 'user-1',
@@ -27,6 +28,10 @@ const auditMock = {
   log: jest.fn(),
 };
 
+const stellarMock = {
+  getBrltBalance: jest.fn(),
+};
+
 describe('StellarWalletService', () => {
   let service: StellarWalletService;
 
@@ -36,6 +41,7 @@ describe('StellarWalletService', () => {
         StellarWalletService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditService, useValue: auditMock },
+        { provide: StellarService, useValue: stellarMock },
       ],
     }).compile();
     service = module.get<StellarWalletService>(StellarWalletService);
