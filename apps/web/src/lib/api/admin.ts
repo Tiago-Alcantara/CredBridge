@@ -82,7 +82,7 @@ export function useCreateDeposit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { userId: string; amount: number }) =>
-      apiFetch<PendingTransaction>("/admin/transactions/deposit", {
+      apiFetch<PendingTransaction>("/pix/deposits", {
         method: "POST",
         body: input,
       }),

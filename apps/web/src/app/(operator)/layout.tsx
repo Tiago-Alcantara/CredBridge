@@ -1,7 +1,6 @@
 "use client";
 
-import { AppTopBar } from "@/components/patterns/AppTopBar";
-import { Sidebar } from "@/components/patterns/Sidebar";
+import { AppShell } from "@/components/patterns/AppShell";
 import type { SidebarItem } from "@/components/patterns/Sidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useMe } from "@/lib/api/me";
@@ -29,14 +28,8 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <AppTopBar user={operatorUser} />
-      <div style={{ display: "flex", flex: 1 }}>
-        <Sidebar items={operatorSidebarItems} />
-        <main style={{ flex: 1, minWidth: 0, padding: "32px 40px 64px" }}>
-          {children}
-        </main>
-      </div>
-    </div>
+    <AppShell items={operatorSidebarItems} user={operatorUser}>
+      {children}
+    </AppShell>
   );
 }

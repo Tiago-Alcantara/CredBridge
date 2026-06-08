@@ -18,6 +18,7 @@ import { StellarWalletModule } from './modules/stellar-wallet/stellar-wallet.mod
 import { AnchorModule } from './modules/anchor/anchor.module';
 import { FinancialAuthorizationsModule } from './modules/financial-authorizations/financial-authorizations.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { PixModule } from './modules/pix/pix.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AdminModule } from './modules/admin/admin.module';
     AnchorModule,
     FinancialAuthorizationsModule,
     AdminModule,
+    PixModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

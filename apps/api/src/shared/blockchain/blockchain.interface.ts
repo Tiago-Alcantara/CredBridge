@@ -110,6 +110,8 @@ export interface BlockchainService {
   buildApproveTx(investorAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
   /** Build the Pool deposit(investor, amount) tx, source = investor Privy address. */
   buildDepositTx(investorAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
+  /** Build the BRLT burn tx, source = user Privy address. */
+  buildBurnBrltTx(userAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
   /** Attach a Privy ed25519 signature to an unsigned XDR and submit via RPC; resolves to the confirmed tx hash. */
   submitSignedTx(input: {
     xdr: string;

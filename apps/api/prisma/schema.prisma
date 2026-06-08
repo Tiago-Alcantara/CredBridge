@@ -150,16 +150,71 @@ model Investment {
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String   // "DEPOSIT" (Aporte PIX) ou "WITHDRAWAL" (Resgate PIX)
-  amount      Float
-  status      String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
-  pixKey      String?  // Necessário para resgates
-  txHash      String?  // Hash da transação Stellar correspondente (Mint/Burn)
-  approvedBy  String?  // ID do operador que aprovou
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  userId             String
+  type               String    // "DEPOSIT" (Aporte PIX) ou "WITHDRAWAL" (Resgate PIX)
+  amount             Float
+  status             String    @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "PENDING_PAYMENT", "COMPLETED"
+  pixKey             String?   // Necessário para resgates
+  txHash             String?   // Hash da transação Stellar correspondente (Mint/Burn)
+  approvedBy         String?   // ID do operador que aprovou
 
-  user        User     @relation("UserTransactions", fields: [userId], references: [id])
+  // Campos Pix — adicionados na integração CorpX
+  pixOrderId         String?   @unique  // ID da ordem no microserviço Pix
+  pixIdentifier      String?   @unique  // Identifier curto (NanoID) para reconciliação CorpX
+  pixTxid            String?            // txid CorpX do QR Code
+  pixPaymentId       String?            // paymentId CorpX do Pix Out
+  pixTransactionId   String?            // transactionId CorpX
+  pixEndToEndId      String?            // End-to-end ID Banco Central
+  pixQrCodePayload   String?            // EMV copia-e-cola
+  pixQrCodeLocation  String?            // URL da imagem do QR
+  pixQrCodeBase64    String?   @db.Text // QR code em base64 gerado localmente
+  pixExpiresAt       DateTime?          // Expiração do QR
+  pixConfirmedAt     DateTime?          // Confirmação do pagamento Pix
+  pixFailureReason   String?            // Motivo da falha, se houver
+  pixMetadata        Json?              // Metadados adicionais do Pix
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user               User      @relation("UserTransactions", fields: [userId], references: [id])
+
+  @@index([pixIdentifier])
+  @@index([pixOrderId])
+}
+
+// Evento de webhook Pix recebido pelo módulo NestJS — usado para idempotência
+model PixWebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  pixOrderId  String
+  externalId  String
+  identifier  String?
+  type        String
+  status      String
+  amount      Float
+  payload     Json
+  processedAt DateTime @default(now())
+
+  @@index([pixOrderId])
+  @@index([externalId])
+  @@index([identifier])
+}
+
+// Cobrança futura ao sacado de uma NF-e antecipada
+model ReceivableCollection {
+  id           String    @id @default(uuid())
+  receivableId String
+  pixOrderId   String?   @unique
+  identifier   String?   @unique
+  amount       Float
+  dueDate      DateTime
+  status       String    @default("pending_payment")
+  txHash       String?
+  endToEndId   String?
+  paidAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([receivableId])
 }

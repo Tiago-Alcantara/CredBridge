@@ -46,6 +46,9 @@ export interface InvestorTransaction {
   amount: number;
   status: "PENDING_PAYMENT" | "PAYMENT_SUBMITTED" | "APPROVED" | "COMPLETED" | "REJECTED";
   txHash: string | null;
+  pixQrCodePayload?: string | null;
+  pixQrCodeLocation?: string | null;
+  pixQrCodeBase64?: string | null;
   createdAt: string;
   updatedAt: string;
 }
