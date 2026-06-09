@@ -20,7 +20,7 @@ import { DepositModal } from "@/components/investor/DepositModal";
 import { FinalizeAssignmentModal } from "@/components/investor/FinalizeAssignmentModal";
 
 export default function InvestorDashboardPage() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
   const [view, setView] = useState<PoolView>("pool");
   const [buyTarget, setBuyTarget] = useState<Receivable | null>(null);
   const [onrampOpen, setOnrampOpen] = useState(false);
@@ -54,8 +54,8 @@ export default function InvestorDashboardPage() {
     ? posStats?.totalInvested ?? 0
     : poolStats?.totalValue ?? 0;
   const headerSub = isMine
-    ? `${posStats?.activePositions ?? 0} cotas ativas`
-    : `${poolStats?.poolCount ?? 0} recebíveis no pool`;
+    ? `${posStats?.activePositions ?? 0} ${t("inv_active_shares")}`
+    : `${poolStats?.poolCount ?? 0} ${t("inv_in_pool")}`;
   const headerLoading = isMine ? loadingPosStats : loadingPoolStats;
 
   return (
@@ -64,14 +64,14 @@ export default function InvestorDashboardPage() {
       <div className="row between" style={{ marginBottom: 28, flexWrap: "wrap", gap: 16 }}>
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>{t("inv_overview")}</div>
-          <h2 style={{ fontSize: 32 }}>Seu portfólio</h2>
+          <h2 style={{ fontSize: 32 }}>{t("inv_title")}</h2>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button className="btn btn-ghost">
-            <Icon name="download" size={14} /> Relatório
+            <Icon name="download" size={14} /> {t("inv_report")}
           </button>
           <button className="btn btn-primary" onClick={() => setOnrampOpen(true)}>
-            <Icon name="download" size={14} /> Depositar BRL
+            <Icon name="download" size={14} /> {t("inv_deposit_brl")}
           </button>
           <button
             className="btn btn-violet"
@@ -137,7 +137,7 @@ export default function InvestorDashboardPage() {
                 </div>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <h4 style={{ fontSize: 15, fontWeight: 600 }}>Ordem de Depósito Recebida</h4>
+                    <h4 style={{ fontSize: 15, fontWeight: 600 }}>{t("inv_dep_order_received")}</h4>
                     <span
                       style={{
                         padding: "2px 8px",
@@ -159,25 +159,25 @@ export default function InvestorDashboardPage() {
                       }}
                     >
                       {dep.status === "PENDING_PAYMENT"
-                        ? "Aguardando Pix"
+                        ? t("inv_status_awaiting_pix")
                         : dep.status === "PAYMENT_SUBMITTED"
-                        ? "Pix Enviado"
-                        : "Liberado (On-Chain)"}
+                        ? t("inv_status_pix_sent")
+                        : t("inv_status_released_onchain")}
                     </span>
                   </div>
                   <p className="t-3" style={{ fontSize: 12.5, marginTop: 4 }}>
                     {dep.status === "PENDING_PAYMENT"
-                      ? "Uma ordem de depósito de capital foi gerada pela mesa de operações CredBridge."
+                      ? t("inv_dep_desc_pending")
                       : dep.status === "PAYMENT_SUBMITTED"
-                      ? "Nossa tesouraria está conciliando seu Pix. Você receberá BRLT on-chain em instantes."
-                      : "Seu BRLT foi creditado na Stellar! Finalize a transação on-chain para receber as cotas da pool."}
+                      ? t("inv_dep_desc_submitted")
+                      : t("inv_dep_desc_approved")}
                   </p>
                 </div>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
                 <div style={{ textAlign: "right" }}>
-                  <span className="t-3" style={{ fontSize: 11 }}>VALOR</span>
+                  <span className="t-3" style={{ fontSize: 11 }}>{t("inv_value_label")}</span>
                   <div className="num" style={{ fontSize: 18, fontWeight: 600, marginTop: 2 }}>
                     {fmtBRL(dep.amount)}
                   </div>
@@ -191,7 +191,7 @@ export default function InvestorDashboardPage() {
                       setDepositModalOpen(true);
                     }}
                   >
-                    Efetuar Pagamento Pix <Icon name="arrow_right" size={12} />
+                    {t("inv_make_pix_payment")} <Icon name="arrow_right" size={12} />
                   </button>
                 )}
 
@@ -209,7 +209,7 @@ export default function InvestorDashboardPage() {
                         display: "inline-block",
                       }}
                     />
-                    Aguardando Conciliação
+                    {t("inv_awaiting_reconciliation")}
                   </button>
                 )}
 
@@ -226,7 +226,7 @@ export default function InvestorDashboardPage() {
                       boxShadow: "0 0 20px rgba(123, 47, 255, 0.4)",
                     }}
                   >
-                    Finalizar Aporte <Icon name="bolt" size={12} />
+                    {t("inv_finalize_contribution")} <Icon name="bolt" size={12} />
                   </button>
                 )}
               </div>
@@ -242,7 +242,7 @@ export default function InvestorDashboardPage() {
       >
         <div className="card violet-hi" style={{ padding: 32 }}>
           <div className="eyebrow" style={{ marginBottom: 12 }}>
-            {isMine ? "Total investido" : t("inv_invested")}
+            {t("inv_invested")}
           </div>
           <div className="kpi kpi-lg num">
             {headerLoading ? <span className="t-3">—</span> : <span>{fmtBRL(headerValue)}</span>}
@@ -252,20 +252,20 @@ export default function InvestorDashboardPage() {
           </div>
         </div>
         <MiniKpi
-          label={isMine ? "Retorno esperado" : t("inv_nav")}
+          label={isMine ? t("inv_expected_return") : t("inv_nav")}
           value={
             isMine
               ? posStats
                 ? fmtBRL(posStats.expectedReturn)
                 : "—"
-              : "1,186"
+              : "1.186"
           }
-          sub={isMine ? "no vencimento" : "por cota"}
+          sub={isMine ? t("inv_at_maturity") : t("inv_per_share")}
           color="#00D4FF"
           icon="chart"
         />
-        <MiniKpi label={t("inv_yield")} value="18,6%" sub="últimos 12m" color="#00FF94" icon="arrow_up_right" />
-        <MiniKpi label="Liquidez D+" value="D+2" sub="via Stellar DEX" color="#7B2FFF" icon="bolt" />
+        <MiniKpi label={t("inv_yield")} value="18.6%" sub={t("inv_last_12m")} color="#00FF94" icon="arrow_up_right" />
+        <MiniKpi label={t("inv_liquidity_d")} value="D+2" sub="via Stellar DEX" color="#7B2FFF" icon="bolt" />
       </div>
 
       {/* Chart + shares */}
@@ -277,7 +277,7 @@ export default function InvestorDashboardPage() {
           <div className="row between" style={{ marginBottom: 6 }}>
             <h3>{t("inv_nav_chart")}</h3>
             <div className="row" style={{ gap: 4 }}>
-              {(["1M", "3M", "6M", "1A", "Máx"] as const).map((p, i) => (
+              {(["1M", "3M", "6M", "1Y", "Max"] as const).map((p, i) => (
                 <button
                   key={p}
                   className="btn btn-ghost btn-sm"
@@ -297,7 +297,7 @@ export default function InvestorDashboardPage() {
                 {headerLoading ? "—" : fmtBRL(headerValue)}
               </div>
               <div className="row" style={{ gap: 8, fontSize: 12 }}>
-                <span className="t-3">{isMine ? "Suas posições" : "Pool total"}</span>
+                <span className="t-3">{isMine ? t("inv_your_positions") : t("inv_pool_total")}</span>
               </div>
             </div>
           </div>
@@ -311,7 +311,7 @@ export default function InvestorDashboardPage() {
             allocation="100%"
             value={headerLoading ? "—" : fmtBRL(headerValue)}
             yieldVal="—"
-            desc="Cotas do fundo"
+            desc={t("inv_fund_shares")}
           />
           <div className="card" style={{ padding: 16, display: "flex", gap: 10 }}>
             <button className="btn btn-primary grow" onClick={goToPool}>
@@ -328,14 +328,14 @@ export default function InvestorDashboardPage() {
           style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}
         >
           <div>
-            <h3>{isMine ? "Minhas cotas" : t("inv_receivables")}</h3>
+            <h3>{isMine ? t("inv_my_shares") : t("inv_receivables")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
               {isMine? loadingPositions
-                  ? "Carregando…"
-                  : `${positions.length} posições · todas com prova on-chain`
+                  ? t("dash_loading")
+                  : `${positions.length} ${t("inv_positions_proof")}`
                 : loadingPool
-                ? "Carregando…"
-                : `${poolStats?.poolCount ?? 0} ativos · todos com prova on-chain`}
+                ? t("dash_loading")
+                : `${poolStats?.poolCount ?? 0} ${t("inv_assets_proof")}`}
             </p>
           </div>
           <PoolToggle value={view} onChange={setView} />

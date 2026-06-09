@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "CredBridge",
-  description: "Plataforma de antecipação de recebíveis com liquidação on-chain via Stellar",
+  description: "Receivables anticipation platform with on-chain settlement via Stellar",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
@@ -34,7 +34,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="pt-BR"
+      lang="en"
       data-theme="dark"
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >

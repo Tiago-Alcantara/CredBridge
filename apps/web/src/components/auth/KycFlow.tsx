@@ -30,7 +30,7 @@ const MONTHLY_REVENUE_MAP: Record<string, number> = {
 };
 
 export function KycFlow({ onDone }: KycFlowProps) {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 

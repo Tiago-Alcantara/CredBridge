@@ -3,23 +3,26 @@
 import { Timeline } from "@/components/patterns/Timeline";
 import type { TimelineItem } from "@/components/patterns/Timeline";
 import { useAuditTrail } from "@/lib/api/audit";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AuditEvent } from "@credbridge/types";
 
 interface ReceivableTimelineProps {
   receivableId: string;
 }
 
-const EVENT_LABELS: Record<string, string> = {
-  "receivable.created": "Criado na base de dados",
-  "receivable.validated": "Validado nas verificações",
-  "receivable.ready_for_blockchain": "Pronto para ativação em blockchain",
-  "receivable.nft_minting": "NFT sendo emitida no contrato Soroban",
-  "receivable.nft_minted": "NFT criada na blockchain Stellar",
-  "receivable.tx_confirmed": "Transação confirmada na blockchain",
-  "document.created": "Documento enviado",
-  "document.uploaded": "Documento enviado",
-  "settlement.created": "Liquidação criada",
-  "settlement.completed": "Liquidação concluída",
+type Translate = (key: string) => string;
+
+const EVENT_LABEL_KEYS: Record<string, string> = {
+  "receivable.created": "rt_ev_created",
+  "receivable.validated": "rt_ev_validated",
+  "receivable.ready_for_blockchain": "rt_ev_ready",
+  "receivable.nft_minting": "rt_ev_minting",
+  "receivable.nft_minted": "rt_ev_minted",
+  "receivable.tx_confirmed": "rt_ev_confirmed",
+  "document.created": "rt_ev_doc",
+  "document.uploaded": "rt_ev_doc",
+  "settlement.created": "rt_ev_settlement_created",
+  "settlement.completed": "rt_ev_settlement_completed",
 };
 
 const EVENT_KIND: Record<string, TimelineItem["kind"]> = {
@@ -35,16 +38,16 @@ const EVENT_KIND: Record<string, TimelineItem["kind"]> = {
   "settlement.completed": "green",
 };
 
-function fmtTime(iso: string): string {
+function fmtTime(iso: string, t: Translate): string {
   const d = new Date(iso);
   const today = new Date();
   const sameDay =
     d.getDate() === today.getDate() &&
     d.getMonth() === today.getMonth() &&
     d.getFullYear() === today.getFullYear();
-  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  if (sameDay) return `Hoje ${time}`;
-  return `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} ${time}`;
+  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `${t("rt_today")} ${time}`;
+  return `${d.toLocaleDateString("en-US", { day: "2-digit", month: "short" })} ${time}`;
 }
 
 function shortHash(hash: string): string {
@@ -61,27 +64,28 @@ function eventValue(e: AuditEvent): string {
   return e.entityType;
 }
 
-function eventsToTimeline(events: AuditEvent[]): TimelineItem[] {
+function eventsToTimeline(events: AuditEvent[], t: Translate): TimelineItem[] {
   return [...events]
     .sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
     .map((e) => ({
-      time: fmtTime(e.createdAt),
-      label: EVENT_LABELS[e.event] ?? e.event,
+      time: fmtTime(e.createdAt, t),
+      label: EVENT_LABEL_KEYS[e.event] ? t(EVENT_LABEL_KEYS[e.event]) : e.event,
       value: eventValue(e),
       kind: EVENT_KIND[e.event] ?? "blue",
     }));
 }
 
 export function ReceivableTimeline({ receivableId }: ReceivableTimelineProps) {
+  const { t } = useTranslation("en");
   const { data, isLoading, isError, isFetching, dataUpdatedAt } = useAuditTrail(receivableId);
 
   if (isLoading) {
     return (
       <div className="t-3" style={{ padding: "16px 24px", fontSize: 12 }}>
-        Carregando histórico…
+        {t("rt_loading")}
       </div>
     );
   }
@@ -89,23 +93,23 @@ export function ReceivableTimeline({ receivableId }: ReceivableTimelineProps) {
   if (isError) {
     return (
       <div style={{ padding: "16px 24px", fontSize: 12, color: "var(--red)" }}>
-        Erro ao carregar histórico do recebível.
+        {t("rt_error")}
       </div>
     );
   }
 
-  const items = eventsToTimeline(data ?? []);
+  const items = eventsToTimeline(data ?? [], t as Translate);
 
   if (items.length === 0) {
     return (
       <div className="t-3" style={{ padding: "16px 24px", fontSize: 12 }}>
-        Nenhum evento registrado para este recebível.
+        {t("rt_none")}
       </div>
     );
   }
 
   const lastUpdate = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", {
+    ? new Date(dataUpdatedAt).toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
@@ -125,7 +129,7 @@ export function ReceivableTimeline({ receivableId }: ReceivableTimelineProps) {
         style={{ padding: "14px 24px 0", alignItems: "center" }}
       >
         <span className="eyebrow" style={{ fontSize: 11 }}>
-          Histórico do recebível
+          {t("rt_title")}
         </span>
         <span
           className="row"
@@ -144,7 +148,7 @@ export function ReceivableTimeline({ receivableId }: ReceivableTimelineProps) {
               transition: "opacity 200ms ease",
             }}
           />
-          <span>{isFetching ? "Atualizando…" : `Ao vivo${lastUpdate ? ` · ${lastUpdate}` : ""}`}</span>
+          <span>{isFetching ? t("rt_updating") : `${t("rt_live")}${lastUpdate ? ` · ${lastUpdate}` : ""}`}</span>
         </span>
       </div>
       <Timeline items={items} />

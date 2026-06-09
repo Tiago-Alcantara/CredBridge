@@ -21,7 +21,7 @@ const statusConfig: Record<ReceivableStatus, { badgeClass: string; stringKey: st
   rejected: { badgeClass: "badge defaulted", stringKey: "status_rejected" },
 };
 
-export function StatusBadge({ status, lang = "pt" }: StatusBadgeProps) {
+export function StatusBadge({ status, lang = "en" }: StatusBadgeProps) {
   const { t } = useTranslation(lang);
   const config = (status && statusConfig[status]) || {
     badgeClass: "badge neutral",

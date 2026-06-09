@@ -79,36 +79,36 @@ export function ActorColumn({ label, color, steps }: ActorColumnProps) {
 }
 
 export function HowItWorks() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
 
   const data = {
     client: [
-      "Cadastro inicial (empresa + dados)",
-      "Upload NF-e + validação SEFAZ",
-      "Assina cessão via Stellar Auth",
-      "Recebe stablecoins → saca via Pix",
-      "Boleto único emitido ao sacado",
+      t("hiw_client_1"),
+      t("hiw_client_2"),
+      t("hiw_client_3"),
+      t("hiw_client_4"),
+      t("hiw_client_5"),
     ],
     bridge: [
-      "Valida documentos na SEFAZ",
-      "Analisa risco + gera proposta",
-      "Executa Smart Contract (Soroban)",
-      "Monitora pagamento do boleto",
-      "Atualiza NAV automaticamente",
+      t("hiw_bridge_1"),
+      t("hiw_bridge_2"),
+      t("hiw_bridge_3"),
+      t("hiw_bridge_4"),
+      t("hiw_bridge_5"),
     ],
     investor: [
-      "Deposita capital via Pix",
-      "Visualiza propostas disponíveis",
-      "Aprova proposta + envia capital",
-      "Recebe garantia on-chain",
-      "Consulta veracidade na blockchain",
+      t("hiw_investor_1"),
+      t("hiw_investor_2"),
+      t("hiw_investor_3"),
+      t("hiw_investor_4"),
+      t("hiw_investor_5"),
     ],
   };
 
   const actors = [
-    { key: "client", label: "CLIENTE · PME", color: "#00D4FF", steps: data.client },
-    { key: "bridge", label: "CREDBRIDGE", color: "#7B2FFF", steps: data.bridge },
-    { key: "investor", label: "INVESTIDOR", color: "#00FF94", steps: data.investor },
+    { key: "client", label: t("actor_client_label"), color: "#00D4FF", steps: data.client },
+    { key: "bridge", label: t("actor_bridge_label"), color: "#7B2FFF", steps: data.bridge },
+    { key: "investor", label: t("actor_investor_label"), color: "#00FF94", steps: data.investor },
   ];
 
   return (

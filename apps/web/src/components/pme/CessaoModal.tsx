@@ -6,6 +6,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { extractApiErrorMessage } from "@/lib/api/client";
 import { usePrepareAssignment, useSubmitAssignment } from "@/lib/api/receivables";
 import { fmtBRL } from "@/lib/format";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface CessaoModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export function CessaoModal({
   desagio,
   liquido,
 }: CessaoModalProps) {
+  const { t } = useTranslation("en");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -49,7 +51,7 @@ export function CessaoModal({
       const { unsignedXdr, hashToSign, pmeAddress } = prepRes;
 
       if (!pmeAddress) {
-        throw new Error("Carteira Stellar Privy do cliente não localizada.");
+        throw new Error(t("cm_no_wallet"));
       }
 
       // 2. Solicita a assinatura da transação on-chain do cliente via Privy
@@ -60,7 +62,7 @@ export function CessaoModal({
       });
 
       if (!signatureResult?.signature) {
-        throw new Error("Assinatura recusada ou falhou.");
+        throw new Error(t("cm_sign_refused"));
       }
 
       // 3. Envia o XDR e a assinatura hex de volta para envelopamento e submissão na Stellar
@@ -77,7 +79,7 @@ export function CessaoModal({
       }, 3000);
     } catch (err: unknown) {
       console.error("Cessão falhou:", err);
-      setError(extractApiErrorMessage(err) || "Ocorreu um erro ao assinar a cessão.");
+      setError(extractApiErrorMessage(err) || t("cm_error"));
     } finally {
       setLoading(false);
     }
@@ -92,10 +94,10 @@ export function CessaoModal({
               <Icon name="doc" size={18} />
             </span>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--fg)" }}>
-              Cessão Fiduciária de Recebível
+              {t("cm_title")}
             </h3>
           </div>
-          <button onClick={onClose} style={closeBtnStyle} aria-label="Fechar">
+          <button onClick={onClose} style={closeBtnStyle} aria-label={t("cm_close")}>
             <Icon name="close" size={16} />
           </button>
         </div>
@@ -103,9 +105,9 @@ export function CessaoModal({
         {success ? (
           <div style={successContainerStyle}>
             <span style={successIconStyle}>✓</span>
-            <h4 style={{ margin: "12px 0 6px 0", color: "var(--green)" }}>Cessão Concluída!</h4>
+            <h4 style={{ margin: "12px 0 6px 0", color: "var(--green)" }}>{t("cm_done_title")}</h4>
             <p style={{ margin: 0, fontSize: 13, color: "var(--fg-muted)" }}>
-              A transação foi assinada e enviada para a Stellar Testnet com sucesso.
+              {t("cm_done_desc")}
             </p>
           </div>
         ) : (
@@ -117,23 +119,23 @@ export function CessaoModal({
                   <div style={valueStyle}>{nfeNumber}</div>
                 </div>
                 <div style={detailBoxStyle}>
-                  <div style={labelStyle}>Sacado</div>
+                  <div style={labelStyle}>{t("tbl_debtor")}</div>
                   <div style={valueStyle}>{sacado}</div>
                 </div>
               </div>
 
               <div style={financialCardStyle}>
                 <div style={financialRowStyle}>
-                  <span style={labelStyle}>Valor de Face</span>
+                  <span style={labelStyle}>{t("bd_face_value")}</span>
                   <span style={{ fontWeight: 500 }}>{fmtBRL(valor)}</span>
                 </div>
                 <div style={financialRowStyle}>
-                  <span style={labelStyle}>Taxa de Deságio</span>
+                  <span style={labelStyle}>{t("cm_discount_rate")}</span>
                   <span style={{ color: "var(--red)" }}>-{desagio.toFixed(2)}%</span>
                 </div>
                 <hr style={dividerStyle} />
                 <div style={financialRowStyle}>
-                  <span style={{ fontWeight: 600, color: "var(--fg)" }}>Valor Líquido a Receber</span>
+                  <span style={{ fontWeight: 600, color: "var(--fg)" }}>{t("cm_net_to_receive")}</span>
                   <span style={{ fontSize: 18, fontWeight: 700, color: "var(--green)" }}>
                     {fmtBRL(liquido)}
                   </span>
@@ -144,15 +146,15 @@ export function CessaoModal({
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <Icon name="chain" size={14} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>
-                    Contrato Digital de Cessão
+                    {t("cm_digital_contract")}
                   </span>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: "var(--fg-muted)", lineHeight: 1.4 }}>
-                  Ao clicar em assinar, você autoriza a transferência de propriedade da NF-e tokenizada para a Pool de Liquidez da CredBridge de forma descentralizada on-chain.
+                  {t("cm_contract_desc")}
                 </p>
                 <div style={fileMockStyle}>
                   <Icon name="doc" size={16} />
-                  <span style={{ fontSize: 12, color: "var(--fg-2)" }}>contrato_cessao_fiduciaria.pdf (Em breve)</span>
+                  <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{t("cm_contract_file")}</span>
                 </div>
               </div>
 
@@ -166,7 +168,7 @@ export function CessaoModal({
                 disabled={loading}
                 style={{ minWidth: 100 }}
               >
-                Cancelar
+                {t("op_cancel")}
               </button>
               <button
                 className="btn btn-primary"
@@ -183,12 +185,12 @@ export function CessaoModal({
                 {loading ? (
                   <>
                     <span className="spinner" style={spinnerStyle} />
-                    Assinando…
+                    {t("cm_signing")}
                   </>
                 ) : (
                   <>
                     <Icon name="key" size={14} />
-                    Assinar e Confirmar
+                    {t("cm_sign_confirm")}
                   </>
                 )}
               </button>

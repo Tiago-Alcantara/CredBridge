@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMe } from "@/lib/api/me";
 import { Icon } from "@/components/primitives/Icon";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const EXPLORER = "https://stellar.expert/explorer/testnet/account";
 
@@ -12,6 +13,7 @@ function truncate(key: string) {
 
 export function StellarWalletAddress() {
   const { data: me } = useMe();
+  const { t } = useTranslation("en");
   const [copied, setCopied] = useState(false);
 
   const walletId = me?.privyStellarWalletAddress ?? me?.stellarWalletId;
@@ -26,15 +28,15 @@ export function StellarWalletAddress() {
   return (
     <div style={{display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, marginBottom: 16, fontSize: 13}}>
       <Icon name="wallet" size={15} />
-      <span style={{color: "var(--fg-muted)"}}>Wallet Stellar:</span>
+      <span style={{color: "var(--fg-muted)"}}>{t("sw_wallet")}</span>
       <code style={{fontFamily: "monospace", letterSpacing: "0.02em"}}>{truncate(walletId)}</code>
       <button
         className="btn btn-ghost btn-sm"
         onClick={handleCopy}
         style={{padding: "2px 8px", fontSize: 12}}
-        title="Copiar endereço completo"
+        title={t("sw_copy_full")}
       >
-        {copied ? "Copiado!" : <Icon name="copy" size={13} />}
+        {copied ? t("ad_copied") : <Icon name="copy" size={13} />}
       </button>
       <a
         href={`${EXPLORER}/${walletId}`}
@@ -42,7 +44,7 @@ export function StellarWalletAddress() {
         rel="noopener noreferrer"
         className="btn btn-ghost btn-sm"
         style={{padding: "2px 8px", fontSize: 12}}
-        title="Ver no Stellar Expert"
+        title={t("op_view_stellar_expert")}
       >
         <Icon name="arrow_up_right" size={13} />
       </a>

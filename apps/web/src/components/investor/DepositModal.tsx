@@ -5,6 +5,7 @@ import { Icon } from "../primitives/Icon";
 import { fmtBRL } from "@/lib/format";
 import { useNotifyDepositPayment, type InvestorTransaction } from "@/lib/api/investments";
 import { useToast } from "@/providers/ToastProvider";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface DepositModalProps {
 
 export function DepositModal({ isOpen, onClose, transaction, onSuccess }: DepositModalProps) {
   const { showToast } = useToast();
+  const { t } = useTranslation("en");
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const notifyPaymentMut = useNotifyDepositPayment();
@@ -26,7 +28,7 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
   const handleCopy = () => {
     navigator.clipboard.writeText(pixKey);
     setCopied(true);
-    showToast("Chave Pix Copia e Cola copiada para a área de transferência!", "success");
+    showToast(t("dm_toast_copied"), "success");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -34,11 +36,11 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
     try {
       setSubmitting(true);
       await notifyPaymentMut.mutateAsync(transaction.id);
-      showToast("Pagamento notificado com sucesso! Aguarde a verificação administrativa.", "success");
+      showToast(t("dm_toast_notified"), "success");
       onSuccess();
       onClose();
     } catch (err) {
-      showToast("Erro ao notificar pagamento de depósito.", "error");
+      showToast(t("dm_toast_error"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -87,9 +89,9 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
         >
           <div>
             <span className="eyebrow" style={{ color: "#00FF94", marginBottom: 4 }}>
-              Pagamento Pix
+              {t("dm_eyebrow")}
             </span>
-            <h3 style={{ fontSize: 20 }}>Aporte Financeiro</h3>
+            <h3 style={{ fontSize: 20 }}>{t("dm_title")}</h3>
           </div>
           <button
             className="btn btn-ghost btn-sm"
@@ -103,7 +105,7 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
         {/* Body */}
         <div style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
           <div style={{ textAlign: "center" }}>
-            <div className="t-3" style={{ fontSize: 13, marginBottom: 4 }}>Valor do Aporte</div>
+            <div className="t-3" style={{ fontSize: 13, marginBottom: 4 }}>{t("dm_amount")}</div>
             <div className="num" style={{ fontSize: 32, fontWeight: 700, color: "var(--fg)" }}>
               {fmtBRL(transaction.amount)}
             </div>
@@ -154,7 +156,7 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
           </div>
 
           <p className="t-3" style={{ fontSize: 12, textAlign: "center", lineHeight: 1.5 }}>
-            Escaneie o código QR acima no aplicativo do seu banco ou utilize a chave copia e cola abaixo para efetuar a transferência Pix.
+            {t("dm_scan_desc")}
           </p>
 
           {/* Copy and Paste Box */}
@@ -198,14 +200,14 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
             className="btn btn-ghost"
             onClick={onClose}
           >
-            Pagar Depois
+            {t("dm_pay_later")}
           </button>
           <button
             className="btn btn-primary"
             onClick={handleConfirmPayment}
             disabled={submitting}
           >
-            {submitting ? "Confirmando..." : "Já realizei a transferência"}
+            {submitting ? t("dm_confirming") : t("dm_already_transferred")}
           </button>
         </div>
       </div>

@@ -3,13 +3,13 @@
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function StatsBar() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
 
   const stats = [
-    { label: t("stat_anticipated"), value: "R$ 128,4M", sub: "+R$ 3,2M esta semana" },
-    { label: t("stat_smes"), value: "1.847", sub: "+42 últimos 30d" },
-    { label: t("stat_yield"), value: "18,6%", sub: "acima do CDI" },
-    { label: t("stat_nav"), value: "R$ 92,1M", sub: "NAV/cota: 1,186" },
+    { label: t("stat_anticipated"), value: "R$ 128.4M", sub: t("stat_anticipated_sub") },
+    { label: t("stat_smes"), value: "1,847", sub: t("stat_smes_sub") },
+    { label: t("stat_yield"), value: "18.6%", sub: t("stat_yield_sub") },
+    { label: t("stat_nav"), value: "R$ 92.1M", sub: t("stat_nav_sub") },
   ];
 
   return (

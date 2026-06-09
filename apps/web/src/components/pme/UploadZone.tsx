@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { useCreateReceivable } from "@/lib/api/receivables";
 import { useCreateDocument } from "@/lib/api/documents";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface UploadZoneProps {
   id?: string;
@@ -60,6 +61,7 @@ function downloadSampleXml() {
 }
 
 export function UploadZone({ id }: UploadZoneProps) {
+  const { t } = useTranslation("en");
   const [phase, setPhase] = useState<Phase>("idle");
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -92,7 +94,7 @@ export function UploadZone({ id }: UploadZoneProps) {
 
   const pickFile = useCallback(async (f: File) => {
     if (!f.name.endsWith(".xml")) {
-      setErrorMsg("Apenas arquivos XML são aceitos.");
+      setErrorMsg(t("uz_only_xml"));
       return;
     }
     setFile(f);
@@ -129,7 +131,7 @@ export function UploadZone({ id }: UploadZoneProps) {
       if (vNf) {
         const parsedVal = parseFloat(vNf);
         if (!isNaN(parsedVal)) {
-          setValue(parsedVal.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
+          setValue(parsedVal.toLocaleString("en-US", { minimumFractionDigits: 2 }));
         } else {
           setValue(vNf);
         }
@@ -144,7 +146,7 @@ export function UploadZone({ id }: UploadZoneProps) {
     } catch (err) {
       console.warn("Failed to auto-parse XML file:", err);
     }
-  }, []);
+  }, [t]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -172,7 +174,7 @@ export function UploadZone({ id }: UploadZoneProps) {
     try {
       const hash = customHash;
       const receivable = await createReceivable.mutateAsync({
-        value: parseFloat(value.replace(/\./g, "").replace(",", ".")),
+        value: parseFloat(value.replace(/,/g, "")),
         type: "invoice",
         debtorName,
         debtorDocument,
@@ -188,11 +190,11 @@ export function UploadZone({ id }: UploadZoneProps) {
 
       setPhase("success");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao enviar NF-e";
+      const msg = err instanceof Error ? err.message : t("uz_submit_error");
       setErrorMsg(msg);
       setPhase("error");
     }
-  }, [file, debtorName, debtorDocument, value, dueDate, customHash, createReceivable, createDocument]);
+  }, [file, debtorName, debtorDocument, value, dueDate, customHash, createReceivable, createDocument, t]);
 
   const reset = useCallback(() => {
     setPhase("idle");
@@ -220,9 +222,9 @@ export function UploadZone({ id }: UploadZoneProps) {
       <div style={{ padding: 24 }}>
         <div className="row between" style={{ marginBottom: 16 }}>
           <div>
-            <h3>Enviar NF-e</h3>
+            <h3>{t("uz_title")}</h3>
             <p className="t-2" style={{ fontSize: 13, marginTop: 4 }}>
-              Validação SEFAZ em tempo real · proposta em &lt; 60s
+              {t("uz_subtitle")}
             </p>
           </div>
           <span className="badge violet">Soroban v1.4</span>
@@ -254,10 +256,10 @@ export function UploadZone({ id }: UploadZoneProps) {
                 <Icon name="upload" size={22} />
               </div>
               <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 16, marginBottom: 6 }}>
-                Arraste o XML aqui ou clique para selecionar
+                {t("dash_upload_desc")}
               </div>
               <div className="t-3" style={{ fontSize: 12 }}>
-                XML · até 10 MB · lote de até 50 arquivos
+                {t("uz_constraints")}
               </div>
               <input
                 ref={fileInputRef}
@@ -271,14 +273,14 @@ export function UploadZone({ id }: UploadZoneProps) {
                   className="btn btn-primary"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Icon name="upload" size={14} /> Selecionar XML
+                  <Icon name="upload" size={14} /> {t("uz_select_xml")}
                 </button>
                 <button
                   className="btn btn-ghost"
                   type="button"
                   onClick={handleFillManually}
                 >
-                  <Icon name="plus" size={14} /> Preencher Manualmente
+                  <Icon name="plus" size={14} /> {t("uz_fill_manually")}
                 </button>
               </div>
               <div style={{ marginTop: 16 }}>
@@ -289,7 +291,7 @@ export function UploadZone({ id }: UploadZoneProps) {
                   onClick={downloadSampleXml}
                 >
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="doc" size={12} /> Baixar XML de Exemplo para Teste
+                    <Icon name="doc" size={12} /> {t("uz_download_sample")}
                   </span>
                 </button>
               </div>
@@ -307,29 +309,29 @@ export function UploadZone({ id }: UploadZoneProps) {
               <Icon name="doc" size={14} className="t-2" />
               <span style={{ fontSize: 13, flex: 1 }}>{file?.name}</span>
               <button className="appnav-link" style={{ padding: 0, fontSize: 12 }} onClick={reset}>
-                Trocar
+                {t("uz_swap")}
               </button>
             </div>
 
             <div className="grid-2">
               <div style={{ gridColumn: "1 / -1" }}>
-                <label className="field-label">Sacado (razão social)</label>
-                <input className="input" placeholder="Empresa Ltda." value={debtorName} onChange={(e) => setDebtorName(e.target.value)} disabled={isPending} />
+                <label className="field-label">{t("uz_debtor_legal_name")}</label>
+                <input className="input" placeholder={t("uz_company_ph")} value={debtorName} onChange={(e) => setDebtorName(e.target.value)} disabled={isPending} />
               </div>
               <div>
                 <label className="field-label">CNPJ / CPF</label>
                 <input className="input" placeholder="00.000.000/0001-00" value={debtorDocument} onChange={(e) => setDebtorDocument(e.target.value)} disabled={isPending} />
               </div>
               <div>
-                <label className="field-label">Valor (R$)</label>
-                <input className="input" placeholder="0,00" value={value} onChange={(e) => setValue(e.target.value)} disabled={isPending} />
+                <label className="field-label">{t("uz_value_brl")}</label>
+                <input className="input" placeholder="0.00" value={value} onChange={(e) => setValue(e.target.value)} disabled={isPending} />
               </div>
               <div>
-                <label className="field-label">Vencimento</label>
+                <label className="field-label">{t("tbl_due")}</label>
                 <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={isPending} />
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                <label className="field-label">Hash da Nota (SHA-256)</label>
+                <label className="field-label">{t("uz_note_hash")}</label>
                 <input 
                   className="input" 
                   placeholder="Ex: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" 
@@ -350,7 +352,7 @@ export function UploadZone({ id }: UploadZoneProps) {
               disabled={isPending || !debtorName || !debtorDocument || !value || !dueDate || !customHash}
               onClick={handleSubmit}
             >
-              {isPending ? "Enviando…" : <><Icon name="upload" size={14} /> Enviar NF-e</>}
+              {isPending ? t("uz_sending") : <><Icon name="upload" size={14} /> {t("uz_title")}</>}
             </button>
           </div>
         )}
@@ -365,12 +367,12 @@ export function UploadZone({ id }: UploadZoneProps) {
             }}>
               <Icon name="check" size={28} />
             </div>
-            <h4 style={{ marginBottom: 6 }}>NF-e enviada com sucesso</h4>
+            <h4 style={{ marginBottom: 6 }}>{t("uz_success_title")}</h4>
             <p className="t-2" style={{ fontSize: 13, marginBottom: 16 }}>
-              Seu recebível foi registrado e está em análise.
+              {t("uz_success_desc")}
             </p>
             <button className="btn btn-ghost" onClick={reset}>
-              Enviar outra NF-e
+              {t("uz_send_another")}
             </button>
           </div>
         )}
@@ -378,7 +380,7 @@ export function UploadZone({ id }: UploadZoneProps) {
         {/* Pipeline steps */}
         {phase === "idle" && (
           <div className="row" style={{ gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-            {(["SEFAZ", "Score", "Proposta", "Cessão", "Pix"] as const).map((s, i) => (
+            {(["SEFAZ", "Score", "Proposal", "Assignment", "Pix"] as const).map((s, i) => (
               <span key={s} style={{ display: "contents" }}>
                 <span style={{
                   fontFamily: "var(--mono)", fontSize: 11, color: "var(--fg-2)",

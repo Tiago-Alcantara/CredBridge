@@ -5,7 +5,7 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { HeroNetworkBG } from "./HeroNetworkBG";
 
 export function HeroNetwork() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
   const title = t("hero_title");
 
   return (
@@ -65,16 +65,16 @@ export function HeroNetwork() {
           }}
         >
           <span className="row" style={{ gap: 8 }}>
-            <Icon name="shield" size={14} /> Auditoria Soroban
+            <Icon name="shield" size={14} /> {t("hero_badge_audit")}
           </span>
           <span className="row" style={{ gap: 8 }}>
-            <Icon name="check" size={14} /> Validação SEFAZ
+            <Icon name="check" size={14} /> {t("hero_badge_sefaz")}
           </span>
           <span className="row" style={{ gap: 8 }}>
-            <Icon name="chain" size={14} /> Liquidação verificável
+            <Icon name="chain" size={14} /> {t("hero_badge_settlement")}
           </span>
           <span className="row" style={{ gap: 8 }}>
-            <Icon name="bolt" size={14} /> Pix em &lt; 2 min
+            <Icon name="bolt" size={14} /> {t("hero_badge_pix")}
           </span>
         </div>
       </div>
