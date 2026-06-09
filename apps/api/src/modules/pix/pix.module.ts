@@ -5,6 +5,7 @@ import { BlockchainModule } from '../../shared/blockchain/blockchain.module';
 import { PixClient } from './pix.client';
 import { PixService } from './pix.service';
 import { PixController } from './pix.controller';
+import { SettlementsModule } from '../settlements/settlements.module';
 
 /**
  * Módulo Pix da CredBridge.
@@ -20,7 +21,7 @@ import { PixController } from './pix.controller';
  *   - ConfigModule: variáveis de ambiente PIX_SERVICE_BASE_URL, PIX_SERVICE_API_KEY, etc.
  */
 @Module({
-  imports: [ConfigModule, PrismaModule, BlockchainModule],
+  imports: [ConfigModule, PrismaModule, BlockchainModule, SettlementsModule],
   providers: [PixClient, PixService],
   controllers: [PixController],
   exports: [PixService, PixClient],

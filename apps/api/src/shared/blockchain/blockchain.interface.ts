@@ -124,6 +124,8 @@ export interface BlockchainService {
   getInvestorShares(address: string): Promise<InvestorShares>;
   /** Lê o saldo de BRLT (BRL Digital) de um endereço Stellar. */
   getBrltBalance(address: string): Promise<WalletBalance>;
+  /** Settle an invoice in the pool on-chain. */
+  settleInvoiceInPool(invoiceHash: string, advanceAmountBrl: number): Promise<string>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');

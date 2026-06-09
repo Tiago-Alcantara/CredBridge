@@ -203,18 +203,21 @@ model PixWebhookEvent {
 
 // Cobrança futura ao sacado de uma NF-e antecipada
 model ReceivableCollection {
-  id           String    @id @default(uuid())
-  receivableId String
-  pixOrderId   String?   @unique
-  identifier   String?   @unique
-  amount       Float
-  dueDate      DateTime
-  status       String    @default("pending_payment")
-  txHash       String?
-  endToEndId   String?
-  paidAt       DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  receivableId      String
+  pixOrderId        String?   @unique
+  identifier        String?   @unique
+  amount            Float
+  dueDate           DateTime
+  status            String    @default("pending_payment")
+  txHash            String?
+  endToEndId        String?
+  pixQrCodePayload  String?
+  pixQrCodeLocation String?
+  pixQrCodeBase64   String?   @db.Text
+  paidAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([receivableId])
 }

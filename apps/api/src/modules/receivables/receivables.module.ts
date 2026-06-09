@@ -6,6 +6,7 @@ import { BlockchainModule } from '../../shared/blockchain/blockchain.module';
 import { ReceivablesController } from './receivables.controller';
 import { ReceivablesService } from './receivables.service';
 import { ReceivablesRepository } from './receivables.repository';
+import { PixModule } from '../pix/pix.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ReceivablesRepository } from './receivables.repository';
     AuditModule,
     BlockchainModule,
     FinancialAuthorizationsModule,
+    PixModule,
   ],
   controllers: [ReceivablesController],
   providers: [ReceivablesService, ReceivablesRepository],

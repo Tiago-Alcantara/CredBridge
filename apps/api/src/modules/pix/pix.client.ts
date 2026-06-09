@@ -71,6 +71,7 @@ export interface CollectionOrderResponse {
   dueDate: string;
   qrCodePayload: string | null;
   qrCodeLocation: string | null;
+  qrCodeBase64: string | null;
   endToEndId: string | null;
   createdAt: string;
   paidAt: string | null;
@@ -235,6 +236,7 @@ export class PixClient {
       dueDate: data['due_date'] as string,
       qrCodePayload: (data['qr_code_payload'] ?? null) as string | null,
       qrCodeLocation: (data['qr_code_location'] ?? null) as string | null,
+      qrCodeBase64: (data['qr_code_base64'] ?? null) as string | null,
       endToEndId: (data['end_to_end_id'] ?? null) as string | null,
       createdAt: data['created_at'] as string,
       paidAt: (data['paid_at'] ?? null) as string | null,

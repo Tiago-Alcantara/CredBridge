@@ -82,6 +82,14 @@ export class PixController {
     return this.pixService.submitWithdrawal(userId, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('collections/active')
+  async listActiveCollections(@Req() req: any) {
+    const userId = req.user.userId;
+    const role = req.user.role;
+    return this.pixService.listActiveCollections(userId, role);
+  }
+
   @Get('orders')
   async listOrders(
     @Query('userId') userId: string,

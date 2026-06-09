@@ -15,6 +15,7 @@ import {
 import { PixWebhookDto, PixCollectionWebhookDto } from './dto/pix-webhook.dto';
 import { CreatePixDepositDto } from './dto/create-pix-deposit.dto';
 import { CreatePixWithdrawalDto } from './dto/create-pix-withdrawal.dto';
+import { SettlementsService } from '../settlements/settlements.service';
 
 /**
  * Serviço Pix da CredBridge.
@@ -37,6 +38,7 @@ export class PixService {
     private readonly stellar: StellarService,
     private readonly pixClient: PixClient,
     private readonly config: ConfigService,
+    private readonly settlementsService: SettlementsService,
   ) {}
 
   // ------------------------------------------------------------------ //
@@ -110,6 +112,76 @@ export class PixService {
     return { transaction: updatedTransaction, pixOrder };
   }
 
+  async createCollectionOrder(dto: {
+    receivableId: string;
+    pmeUserId: string;
+    debtorName: string;
+    debtorDocument: string;
+    amount: number;
+    dueDate: Date;
+  }) {
+    // 1. Cria a ReceivableCollection local no banco com status pending_payment
+    const collection = await this.prisma.receivableCollection.create({
+      data: {
+        receivableId: dto.receivableId,
+        amount: dto.amount,
+        dueDate: dto.dueDate,
+        status: 'pending_payment',
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        event: 'pix.collection.created',
+        entityId: collection.id,
+        entityType: 'receivable_collection',
+        userId: dto.pmeUserId,
+        metadata: { amount: dto.amount, receivableId: dto.receivableId },
+      },
+    });
+
+    try {
+      // 2. Chama o PixClient para registrar a cobrança e obter o QR Code
+      // Adiciona 1 dia à data de vencimento para evitar que esteja no passado na CorpX
+      const expirationDate = new Date(dto.dueDate);
+      expirationDate.setDate(expirationDate.getDate() + 1);
+
+      const pixCollection = await this.pixClient.createCollection({
+        receivableId: dto.receivableId,
+        pmeUserId: dto.pmeUserId,
+        debtorName: dto.debtorName,
+        debtorDocument: dto.debtorDocument,
+        amount: dto.amount,
+        dueDate: expirationDate.toISOString(),
+        paymentDeadline: expirationDate.toISOString(),
+      });
+
+      // 3. Atualiza a ReceivableCollection com os dados do Pix obtidos
+      const updatedCollection = await this.prisma.receivableCollection.update({
+        where: { id: collection.id },
+        data: {
+          pixOrderId: pixCollection.collectionOrderId,
+          identifier: pixCollection.identifier,
+          pixQrCodePayload: pixCollection.qrCodePayload ?? undefined,
+          pixQrCodeLocation: pixCollection.qrCodeLocation ?? undefined,
+          pixQrCodeBase64: pixCollection.qrCodeBase64 ?? undefined,
+        },
+      });
+
+      this.logger.log(
+        `Cobrança Pix criada: receivableId=${dto.receivableId} pixOrder=${pixCollection.collectionOrderId} identifier=${pixCollection.identifier}`,
+      );
+
+      return updatedCollection;
+    } catch (err) {
+      this.logger.error(
+        `Erro ao registrar cobrança no Pix Service: ${(err as Error).message}`,
+      );
+      // Repassa o erro para tratamento
+      throw err;
+    }
+  }
+
   async buildWithdrawalTx(userId: string, amount: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -129,6 +201,9 @@ export class PixService {
         );
       }
     } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
       this.logger.warn(`Erro ao buscar saldo BRLT on-chain para validação: ${(err as Error).message}`);
     }
 
@@ -426,7 +501,7 @@ export class PixService {
       );
     }
 
-    // TODO: chamar SettlementsService.settleInvoice(dto.receivableId) quando implementado
+    await this.settlementsService.settleInvoice(dto.receivableId);
   }
 
   // ------------------------------------------------------------------ //
@@ -579,5 +654,37 @@ export class PixService {
         metadata: { pixOrderId: dto.pixOrderId },
       },
     });
+  }
+
+  async listActiveCollections(userId: string, role: string | null) {
+    const collections = await this.prisma.receivableCollection.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const receivableIds = collections.map((c) => c.receivableId);
+    const receivables = await this.prisma.receivable.findMany({
+      where: {
+        id: { in: receivableIds },
+        ...(role !== 'operator' ? { userId: userId } : {}),
+      },
+      select: {
+        id: true,
+        debtorName: true,
+        debtorDocument: true,
+      },
+    });
+
+    const receivablesMap = new Map(receivables.map((r) => [r.id, r]));
+
+    return collections
+      .filter((c) => receivablesMap.has(c.receivableId))
+      .map((c) => {
+        const r = receivablesMap.get(c.receivableId);
+        return {
+          ...c,
+          debtorName: r?.debtorName ?? 'Sacado Desconhecido',
+          debtorDocument: r?.debtorDocument ?? '',
+        };
+      });
   }
 }
