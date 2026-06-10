@@ -23,7 +23,7 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
 
   if (!isOpen || !transaction) return null;
 
-  const pixKey = `00020126360014br.gov.bcb.pix0114credbridgepix0227Aporte de Investimento CB20005204000053039865407${transaction.amount.toFixed(2)}5802BR5910CredBridge6009Sao Paulo62070503***6304724E`;
+  const pixKey = transaction.pixQrCodePayload || `00020126360014br.gov.bcb.pix0114credbridgepix0227Aporte de Investimento CB20005204000053039865407${transaction.amount.toFixed(2)}5802BR5910CredBridge6009Sao Paulo62070503***6304724E`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(pixKey);
@@ -111,7 +111,7 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
             </div>
           </div>
 
-          {/* Simulated QR Code SVG */}
+          {/* QR Code Container */}
           <div
             style={{
               padding: 16,
@@ -124,35 +124,43 @@ export function DepositModal({ isOpen, onClose, transaction, onSuccess }: Deposi
               border: "1px solid rgba(255, 255, 255, 0.1)",
             }}
           >
-            <svg width="180" height="180" viewBox="0 0 100 100" fill="black">
-              {/* Quieto e cantos do QR Code */}
-              <rect x="0" y="0" width="100" height="100" fill="white" />
-              {/* Canto superior esquerdo */}
-              <rect x="10" y="10" width="30" height="30" fill="black" />
-              <rect x="15" y="15" width="20" height="20" fill="white" />
-              <rect x="20" y="20" width="10" height="10" fill="black" />
-              {/* Canto superior direito */}
-              <rect x="60" y="10" width="30" height="30" fill="black" />
-              <rect x="65" y="15" width="20" height="20" fill="white" />
-              <rect x="70" y="20" width="10" height="10" fill="black" />
-              {/* Canto inferior esquerdo */}
-              <rect x="10" y="60" width="30" height="30" fill="black" />
-              <rect x="15" y="65" width="20" height="20" fill="white" />
-              <rect x="20" y="70" width="10" height="10" fill="black" />
-              {/* Bits aleatórios simulando QR Code */}
-              <rect x="45" y="10" width="10" height="5" fill="black" />
-              <rect x="50" y="20" width="5" height="10" fill="black" />
-              <rect x="45" y="35" width="10" height="10" fill="black" />
-              <rect x="10" y="45" width="15" height="5" fill="black" />
-              <rect x="25" y="50" width="5" height="5" fill="black" />
-              <rect x="60" y="45" width="10" height="10" fill="black" />
-              <rect x="75" y="45" width="15" height="5" fill="black" />
-              <rect x="70" y="55" width="5" height="20" fill="black" />
-              <rect x="45" y="60" width="10" height="5" fill="black" />
-              <rect x="50" y="70" width="15" height="10" fill="black" />
-              <rect x="45" y="85" width="20" height="5" fill="black" />
-              <rect x="70" y="80" width="20" height="10" fill="black" />
-            </svg>
+            {transaction.pixQrCodeBase64 ? (
+              <img
+                src={`data:image/png;base64,${transaction.pixQrCodeBase64}`}
+                alt="Pix QR Code"
+                style={{ width: 180, height: 180, display: "block" }}
+              />
+            ) : (
+              <svg width="180" height="180" viewBox="0 0 100 100" fill="black">
+                {/* Quieto e cantos do QR Code */}
+                <rect x="0" y="0" width="100" height="100" fill="white" />
+                {/* Canto superior esquerdo */}
+                <rect x="10" y="10" width="30" height="30" fill="black" />
+                <rect x="15" y="15" width="20" height="20" fill="white" />
+                <rect x="20" y="20" width="10" height="10" fill="black" />
+                {/* Canto superior direito */}
+                <rect x="60" y="10" width="30" height="30" fill="black" />
+                <rect x="65" y="15" width="20" height="20" fill="white" />
+                <rect x="70" y="20" width="10" height="10" fill="black" />
+                {/* Canto inferior esquerdo */}
+                <rect x="10" y="60" width="30" height="30" fill="black" />
+                <rect x="15" y="65" width="20" height="20" fill="white" />
+                <rect x="20" y="70" width="10" height="10" fill="black" />
+                {/* Bits aleatórios simulando QR Code */}
+                <rect x="45" y="10" width="10" height="5" fill="black" />
+                <rect x="50" y="20" width="5" height="10" fill="black" />
+                <rect x="45" y="35" width="10" height="10" fill="black" />
+                <rect x="10" y="45" width="15" height="5" fill="black" />
+                <rect x="25" y="50" width="5" height="5" fill="black" />
+                <rect x="60" y="45" width="10" height="10" fill="black" />
+                <rect x="75" y="45" width="15" height="5" fill="black" />
+                <rect x="70" y="55" width="5" height="20" fill="black" />
+                <rect x="45" y="60" width="10" height="5" fill="black" />
+                <rect x="50" y="70" width="15" height="10" fill="black" />
+                <rect x="45" y="85" width="20" height="5" fill="black" />
+                <rect x="70" y="80" width="20" height="10" fill="black" />
+              </svg>
+            )}
           </div>
 
           <p className="t-3" style={{ fontSize: 12, textAlign: "center", lineHeight: 1.5 }}>

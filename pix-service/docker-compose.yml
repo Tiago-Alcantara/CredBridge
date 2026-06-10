@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  pix-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pix
+      POSTGRES_PASSWORD: pix_secret
+      POSTGRES_DB: pix_service
+    ports:
+      - "5433:5432"
+    volumes:
+      - pix_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pix -d pix_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pix-service:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pix:pix_secret@pix-db:5432/pix_service
+      PIX_PROVIDER: sandbox
+      CORPX_ENV: sandbox
+      CORPX_API_BASE_URL: https://api.dev.corpxapi.com
+      CORPX_AUTH_BASE_URL: https://auth.dev.corpxapi.com
+      CORPX_CLIENT_ID: ${CORPX_CLIENT_ID:-}
+      CORPX_CLIENT_SECRET: ${CORPX_CLIENT_SECRET:-}
+      CORPX_SCOPE: ${CORPX_SCOPE:-}
+      CORPX_TENANT_ID: ${CORPX_TENANT_ID:-}
+      CORPX_ACCOUNT_ID: ${CORPX_ACCOUNT_ID:-}
+      CORPX_RECEIVER_PIX_KEY: ${CORPX_RECEIVER_PIX_KEY:-}
+      CORPX_WEBHOOK_SECRET: ${CORPX_WEBHOOK_SECRET:-}
+      CREDBRIDGE_API_URL: http://host.docker.internal:3001
+      CREDBRIDGE_PIX_WEBHOOK_SECRET: ${CREDBRIDGE_PIX_WEBHOOK_SECRET:-dev_secret}
+      CREDBRIDGE_PIX_SERVICE_API_KEY: ${CREDBRIDGE_PIX_SERVICE_API_KEY:-dev_api_key}
+    depends_on:
+      pix-db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  pix_db_data:

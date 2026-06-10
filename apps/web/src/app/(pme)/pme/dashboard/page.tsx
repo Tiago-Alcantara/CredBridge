@@ -12,7 +12,7 @@ import { YieldSpark } from "@/components/pme/YieldSpark";
 import { InvoiceTable } from "@/components/pme/InvoiceTable";
 import type { InvoiceRow } from "@/components/pme/InvoiceTable";
 import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
-import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
+import { WithdrawalDrawer } from "@/components/pme/WithdrawalDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useReceivables, receivableQueryKeys } from "@/lib/api/receivables";
 import { useMe } from "@/lib/api/me";
@@ -347,7 +347,7 @@ export default function PmeDashboardPage() {
         )}
       </div> */}
 
-      <AnchorDrawer mode="offramp" open={offrampOpen} onClose={() => setOfframpOpen(false)} />
+      <WithdrawalDrawer open={offrampOpen} onClose={() => setOfframpOpen(false)} onSuccess={handleRefresh} />
     </>
   );
 }

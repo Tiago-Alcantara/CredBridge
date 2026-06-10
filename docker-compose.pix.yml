@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  pix-db:
+    image: postgres:16-alpine
+    container_name: credbridge-pix-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pix
+      POSTGRES_PASSWORD: pix_secret
+      POSTGRES_DB: pix_service
+    ports:
+      - "5433:5432"
+    volumes:
+      - credbridge-pix-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pix -d pix_service"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pix-service:
+    build:
+      context: ./pix-service
+      dockerfile: Dockerfile
+    container_name: credbridge-pix-service
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pix:pix_secret@pix-db:5432/pix_service
+      PYTHONUNBUFFERED: "1"
+      CREDBRIDGE_API_URL: http://host.docker.internal:3001
+    env_file:
+      - ./pix-service/.env
+    depends_on:
+      pix-db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  credbridge-pix-db-data:

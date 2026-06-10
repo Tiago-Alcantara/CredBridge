@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { FinancialAuthorizationsService } from '../financial-authorizations/financial-authorizations.service';
 import type { BlockchainService } from '../../shared/blockchain/blockchain.interface';
 import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
+import { PixService } from '../pix/pix.service';
 
 @Injectable()
 export class ReceivablesService {
@@ -22,6 +23,7 @@ export class ReceivablesService {
     private readonly audit: AuditService,
     @Inject(BLOCKCHAIN_SERVICE) private readonly blockchain: BlockchainService,
     private readonly financialAuthorizations: FinancialAuthorizationsService,
+    private readonly pixService: PixService,
   ) {}
 
   async create(userId: string, data: CreateReceivableDto) {
@@ -248,6 +250,25 @@ export class ReceivablesService {
     }
 
     const updated = await this.repo.setActive(id);
+
+    // Etapa 3: Criar cobrança Pix para o Sacado (devedor)
+    try {
+      this.logger.log(`Criando cobrança Pix para o sacado do recebível ${id}...`);
+      await this.pixService.createCollectionOrder({
+        receivableId: receivable.id,
+        pmeUserId: receivable.userId,
+        debtorName: receivable.debtorName,
+        debtorDocument: receivable.debtorDocument,
+        amount: receivable.value, // Valor total nominal
+        dueDate: receivable.dueDate,
+      });
+    } catch (collectionErr) {
+      this.logger.error(
+        `Falha ao iniciar cobrança do sacado no Pix Service: ${(collectionErr as Error).message}`,
+      );
+      // Não bloqueia o fluxo de cessão, pois a cessão on-chain e o pagamento
+      // do PME foram concluídos com sucesso.
+    }
 
     await this.audit.log({
       event: 'receivable.assignment_signed',

@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/admin";
 import { useToast } from "@/providers/ToastProvider";
 import { usePoolStatus, useInvestorShares } from "@/lib/api/pool";
+import { useActiveCollections } from "@/lib/api/collections";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface AdminReceivable extends Receivable {
@@ -45,6 +46,7 @@ export default function OperatorDashboardPage() {
   const receivables = rawReceivables as AdminReceivable[];
   const { data: transactions = [], isLoading: loadingTransactions } = usePendingTransactions();
   const { data: users = [] } = useAdminUsers();
+  const { data: collections = [], isLoading: loadingCollections, refetch: refetchCollections } = useActiveCollections();
 
   const approveReceivableMut = useApproveReceivable();
   const rejectReceivableMut = useRejectReceivable();
@@ -438,6 +440,104 @@ export default function OperatorDashboardPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Cobranças Tab */}
+      {activeTab === "cobrancas" && (
+        <div className="card" style={{ padding: 0 }}>
+          <div
+            style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid var(--line)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div>
+              <h3>Cobranças de Sacados Ativas</h3>
+              <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
+                {loadingCollections ? "Carregando…" : `${collections.length} cobranças no sistema`}
+              </p>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => refetchCollections()} disabled={loadingCollections}>
+              <Icon name="refresh" size={14} className={loadingCollections ? "spinning" : undefined} /> {loadingCollections ? "Atualizando..." : "Atualizar"}
+            </button>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line-2)" }}>
+                  <th style={{ padding: "12px 24px" }}>Sacado (Devedor)</th>
+                  <th style={{ padding: "12px 24px" }}>Valor</th>
+                  <th style={{ padding: "12px 24px" }}>Vencimento</th>
+                  <th style={{ padding: "12px 24px" }}>Status</th>
+                  <th style={{ padding: "12px 24px" }}>Dados Pix</th>
+                </tr>
+              </thead>
+              <tbody>
+                {collections.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 32, textAlign: "center" }} className="t-3">
+                      Nenhuma cobrança registrada no sistema.
+                    </td>
+                  </tr>
+                ) : (
+                  collections.map((c) => (
+                    <tr key={c.id} style={{ borderBottom: "1px solid var(--line-2)" }}>
+                      <td style={{ padding: "16px 24px" }}>
+                        <div style={{ fontWeight: 600 }}>{c.debtorName}</div>
+                        <div className="t-3" style={{ fontSize: 12 }}>CNPJ: {c.debtorDocument}</div>
+                      </td>
+                      <td style={{ padding: "16px 24px", fontWeight: 600 }}>
+                        {fmtBRL(c.amount)}
+                      </td>
+                      <td style={{ padding: "16px 24px" }}>
+                        {new Date(c.dueDate).toLocaleDateString("pt-BR")}
+                      </td>
+                      <td style={{ padding: "16px 24px" }}>
+                        <span
+                          className="eyebrow"
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 4,
+                            background:
+                              c.status === "paid"
+                                ? "rgba(0, 255, 148, 0.1)"
+                                : c.status === "pending"
+                                ? "rgba(255, 200, 87, 0.1)"
+                                : "rgba(255, 255, 255, 0.1)",
+                            color:
+                              c.status === "paid"
+                                ? "#00FF94"
+                                : c.status === "pending"
+                                ? "#FFC857"
+                                : "var(--fg-2)",
+                          }}
+                        >
+                          {c.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ padding: "16px 24px", fontSize: 12.5 }}>
+                        {c.status === "paid" ? (
+                          <div className="mono" style={{ wordBreak: "break-all", maxWidth: 300 }}>
+                            <span className="t-3">TxHash:</span> {c.txHash || "N/A"}
+                          </div>
+                        ) : (
+                          <div className="mono" style={{ wordBreak: "break-all", maxWidth: 300, color: "var(--fg-2)" }}>
+                            <span className="t-3">Payload:</span> {c.pixQrCodePayload ? `${c.pixQrCodePayload.slice(0, 30)}...` : "Pendente"}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -1080,6 +1080,29 @@ export class StellarService implements BlockchainService {
     ]);
   }
 
+  async buildBurnBrltTx(
+    userAddress: string,
+    amountBrl: number,
+  ): Promise<UnsignedSorobanTx> {
+    const brltContractId = process.env.STELLAR_BRLT_TOKEN_ID;
+    if (!brltContractId) {
+      throw new Error('STELLAR_BRLT_TOKEN_ID not configured');
+    }
+
+    // SEP-41 tokens use 7 decimal places (stroops)
+    const amountInStroops = BigInt(Math.round(amountBrl * 10_000_000));
+
+    this.logger.log(
+      `buildBurnBrltTx — user ${userAddress}, amount ${amountBrl}`,
+    );
+
+    return this.buildAndAssemble(userAddress, brltContractId, 'burn', [
+      nativeToScVal(userAddress, { type: 'address' }),
+      nativeToScVal(amountInStroops, { type: 'i128' }),
+    ]);
+  }
+
+
   async submitSignedTx(input: {
     xdr: string;
     signerPublicKey: string;

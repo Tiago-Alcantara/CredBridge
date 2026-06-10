@@ -1,0 +1,38 @@
+[project]
+name = "pix-service"
+version = "0.1.0"
+description = "CredBridge Pix Microservice — CorpX adapter/orchestrator"
+authors = [
+    { name = "CredBridge Team" }
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic[email]>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "sqlalchemy>=2.0.30",
+    "alembic>=1.13.1",
+    "asyncpg>=0.29.0",
+    "httpx>=0.27.0",
+    "python-nanoid>=2.0.0",
+    "python-multipart>=0.0.9",
+    "segno>=1.6.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.7",
+    "pytest-httpx>=0.30.0",
+    "anyio>=4.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

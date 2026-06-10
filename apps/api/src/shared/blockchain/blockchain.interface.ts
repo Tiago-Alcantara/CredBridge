@@ -110,6 +110,8 @@ export interface BlockchainService {
   buildApproveTx(investorAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
   /** Build the Pool deposit(investor, amount) tx, source = investor Privy address. */
   buildDepositTx(investorAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
+  /** Build the BRLT burn tx, source = user Privy address. */
+  buildBurnBrltTx(userAddress: string, amountBrl: number): Promise<UnsignedSorobanTx>;
   /** Attach a Privy ed25519 signature to an unsigned XDR and submit via RPC; resolves to the confirmed tx hash. */
   submitSignedTx(input: {
     xdr: string;
@@ -122,6 +124,8 @@ export interface BlockchainService {
   getInvestorShares(address: string): Promise<InvestorShares>;
   /** Lê o saldo de BRLT (BRL Digital) de um endereço Stellar. */
   getBrltBalance(address: string): Promise<WalletBalance>;
+  /** Settle an invoice in the pool on-chain. */
+  settleInvoiceInPool(invoiceHash: string, advanceAmountBrl: number): Promise<string>;
 }
 
 export const BLOCKCHAIN_SERVICE = Symbol('BLOCKCHAIN_SERVICE');
