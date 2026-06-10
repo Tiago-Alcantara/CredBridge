@@ -259,7 +259,7 @@ async def _process_collection_event(
         from app.domain.models import OutboxCallback
         callback = OutboxCallback(
             event_id=callback_event_id,
-            pix_order_id=collection.created_from_withdrawal_order_id or collection.id,
+            pix_order_id=collection.created_from_withdrawal_order_id,
             target_url=f"{settings.credbridge_api_url}{settings.credbridge_pix_webhook_path}",
             payload_json={
                 "eventId": callback_event_id,

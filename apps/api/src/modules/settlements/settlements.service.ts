@@ -27,7 +27,7 @@ export class SettlementsService {
     return this.repo.findByReceivable(receivableId);
   }
 
-  async settleInvoice(receivableId: string) {
+  async settleInvoice(receivableId: string): Promise<string | null> {
     const receivable = await this.prisma.receivable.findUnique({
       where: { id: receivableId },
     });
@@ -37,7 +37,7 @@ export class SettlementsService {
 
     if (receivable.status === 'settled') {
       this.logger.log(`Receivable ${receivableId} already settled`);
-      return;
+      return receivable.paymentTxHash;
     }
 
     // 1. Settle on-chain
@@ -66,5 +66,6 @@ export class SettlementsService {
     });
 
     this.logger.log(`Receivable ${receivableId} settled successfully. TxHash: ${txHash}`);
+    return txHash;
   }
 }

@@ -172,8 +172,8 @@ class OutboxCallback(Base):
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     event_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    pix_order_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("pix_orders.id"), nullable=False
+    pix_order_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("pix_orders.id"), nullable=True
     )
     target_url: Mapped[str] = mapped_column(String(512), nullable=False)
     payload_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -197,7 +197,7 @@ class OutboxCallback(Base):
         nullable=False,
     )
 
-    pix_order: Mapped[PixOrder] = relationship("PixOrder", back_populates="callbacks")
+    pix_order: Mapped[PixOrder | None] = relationship("PixOrder", back_populates="callbacks")
 
     __table_args__ = (
         Index("ix_outbox_callbacks_status", "status"),

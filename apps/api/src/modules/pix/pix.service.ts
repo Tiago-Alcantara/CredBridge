@@ -517,7 +517,14 @@ export class PixService {
       );
     }
 
-    await this.settlementsService.settleInvoice(dto.receivableId);
+    const txHash = await this.settlementsService.settleInvoice(dto.receivableId);
+
+    if (collection && txHash) {
+      await this.prisma.receivableCollection.update({
+        where: { id: collection.id },
+        data: { txHash },
+      });
+    }
   }
 
   // ------------------------------------------------------------------ //

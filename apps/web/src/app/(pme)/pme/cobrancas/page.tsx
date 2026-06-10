@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useActiveCollections, ReceivableCollection, retryCollection } from "@/lib/api/collections";
 import { Icon } from "@/components/primitives/Icon";
 import { useToast } from "@/providers/ToastProvider";
@@ -10,6 +10,26 @@ export default function PmeCollectionsPage() {
   const { showToast } = useToast();
   const [selectedCollection, setSelectedCollection] = useState<ReceivableCollection | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+
+  const currentCollection = selectedCollection
+    ? collections.find((c) => c.id === selectedCollection.id) || selectedCollection
+    : null;
+
+  // Polling: refetch every 5 seconds when a pending collection modal is open
+  useEffect(() => {
+    if (!currentCollection) return;
+    const isPending =
+      currentCollection.status.toLowerCase() === "pending" ||
+      currentCollection.status.toLowerCase() === "pending_payment";
+
+    if (!isPending) return;
+
+    const interval = setInterval(() => {
+      refetch();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [currentCollection, refetch]);
 
   const handleRetryCollection = async (collectionId: string) => {
     try {
@@ -172,7 +192,7 @@ export default function PmeCollectionsPage() {
       </div>
 
       {/* Modal Pix QR Code */}
-      {selectedCollection && (
+      {selectedCollection && currentCollection && (
         <div
           style={{
             position: "fixed",
@@ -217,21 +237,21 @@ export default function PmeCollectionsPage() {
             {/* Modal Body */}
             <div style={{ padding: 32, display: "flex", flexDirection: "column", gap: 20, alignItems: "center", textAlign: "center" }}>
               <div style={{ width: "100%", textAlign: "left" }}>
-                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{selectedCollection.debtorName}</div>
-                <div className="t-3" style={{ fontSize: 13, marginBottom: 12 }}>CNPJ: {selectedCollection.debtorDocument}</div>
+                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{currentCollection.debtorName}</div>
+                <div className="t-3" style={{ fontSize: 13, marginBottom: 12 }}>CNPJ: {currentCollection.debtorDocument}</div>
                 <div className="row between" style={{ background: "var(--surface)", padding: 12, borderRadius: 8, border: "1px solid var(--line-2)" }}>
                   <span className="t-3" style={{ fontSize: 13 }}>Valor da cobrança:</span>
-                  <span style={{ fontWeight: 700, color: "var(--fg)" }}>{formatBRL(selectedCollection.amount)}</span>
+                  <span style={{ fontWeight: 700, color: "var(--fg)" }}>{formatBRL(currentCollection.amount)}</span>
                 </div>
               </div>
 
-              {selectedCollection.status.toLowerCase() === "pending" || selectedCollection.status.toLowerCase() === "pending_payment" ? (
-                selectedCollection.pixQrCodeBase64 ? (
+              {currentCollection.status.toLowerCase() === "pending" || currentCollection.status.toLowerCase() === "pending_payment" ? (
+                currentCollection.pixQrCodeBase64 ? (
                   <>
                     <div style={{ background: "white", padding: 16, borderRadius: 12, display: "inline-block", marginTop: 8 }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={getQrCodeSrc(selectedCollection.pixQrCodeBase64)}
+                        src={getQrCodeSrc(currentCollection.pixQrCodeBase64)}
                         alt="Pix QR Code"
                         style={{ width: 220, height: 220, display: "block" }}
                       />
@@ -239,15 +259,27 @@ export default function PmeCollectionsPage() {
                     <p className="t-2" style={{ fontSize: 13, marginTop: 8 }}>
                       Aponte a câmera do aplicativo do seu banco para o QR Code acima para realizar o pagamento.
                     </p>
-                    {selectedCollection.pixQrCodePayload && (
+                    <div style={{ width: "100%", display: "flex", gap: 12, marginTop: 8 }}>
+                      {currentCollection.pixQrCodePayload && (
+                        <button
+                          className="btn btn-violet"
+                          onClick={() => handleCopyPix(currentCollection.pixQrCodePayload!)}
+                          style={{ flex: 1 }}
+                        >
+                          <Icon name="copy" size={14} /> Copiar Código
+                        </button>
+                      )}
                       <button
-                        className="btn btn-violet"
-                        onClick={() => handleCopyPix(selectedCollection.pixQrCodePayload!)}
-                        style={{ width: "100%", marginTop: 8 }}
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          refetch();
+                          showToast("Verificando pagamento...", "info");
+                        }}
+                        style={{ flex: 1, border: "1px solid var(--line)" }}
                       >
-                        <Icon name="copy" size={14} /> Copiar Código Pix Copia e Cola
+                        <Icon name="refresh" size={14} /> Verificar Status
                       </button>
-                    )}
+                    </div>
                   </>
                 ) : (
                   <div style={{ padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
@@ -261,7 +293,7 @@ export default function PmeCollectionsPage() {
                       </p>
                       <button
                         className="btn btn-primary"
-                        onClick={() => handleRetryCollection(selectedCollection.id)}
+                        onClick={() => handleRetryCollection(currentCollection.id)}
                         disabled={isRetrying}
                         style={{ width: "100%" }}
                       >
@@ -270,7 +302,7 @@ export default function PmeCollectionsPage() {
                     </div>
                   </div>
                 )
-              ) : selectedCollection.status.toLowerCase() === "paid" ? (
+              ) : currentCollection.status.toLowerCase() === "paid" ? (
                 <div style={{ padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
                   <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(0, 255, 148, 0.1)", color: "#00FF94", display: "grid", placeItems: "center" }}>
                     <Icon name="check" size={32} />
@@ -281,16 +313,16 @@ export default function PmeCollectionsPage() {
                       O pagamento Pix foi recebido e a liquidação on-chain na Stellar foi concluída com sucesso.
                     </p>
                   </div>
-                  {selectedCollection.txHash && (
+                  {currentCollection.txHash && (
                     <div style={{ width: "100%", background: "var(--surface)", padding: 12, borderRadius: 8, border: "1px solid var(--line-2)", fontSize: 12, fontFamily: "monospace", wordBreak: "break-all", textAlign: "left" }}>
                       <span className="t-3">Hash da Liquidação Stellar:</span>
-                      <div style={{ marginTop: 4, color: "#00FF94" }}>{selectedCollection.txHash}</div>
+                      <div style={{ marginTop: 4, color: "#00FF94" }}>{currentCollection.txHash}</div>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="t-3" style={{ padding: "40px 0" }}>
-                  Status da cobrança: {selectedCollection.status.toUpperCase()}
+                  Status da cobrança: {currentCollection.status.toUpperCase()}
                 </div>
               )}
             </div>
