@@ -90,6 +90,16 @@ export class PixController {
     return this.pixService.listActiveCollections(userId, role);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('collections/:id/retry')
+  async retryCollection(
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user.userId;
+    return this.pixService.retryCollectionOrder(id, userId);
+  }
+
   @Get('orders')
   async listOrders(
     @Query('userId') userId: string,

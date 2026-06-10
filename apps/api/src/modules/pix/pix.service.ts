@@ -142,9 +142,9 @@ export class PixService {
 
     try {
       // 2. Chama o PixClient para registrar a cobrança e obter o QR Code
-      // Adiciona 1 dia à data de vencimento para evitar que esteja no passado na CorpX
-      const expirationDate = new Date(dto.dueDate);
-      expirationDate.setDate(expirationDate.getDate() + 1);
+      // A expiração do QR Code deve ser 23 horas a partir do momento atual para respeitar a regra da CorpX (máximo 1 dia) e evitar erros de data passada
+      const expirationDate = new Date();
+      expirationDate.setHours(expirationDate.getHours() + 23);
 
       const pixCollection = await this.pixClient.createCollection({
         receivableId: dto.receivableId,
@@ -374,18 +374,28 @@ export class PixService {
     }
 
     // Persiste o evento ANTES de qualquer efeito (garante idempotência em retry)
-    await this.prisma.pixWebhookEvent.create({
-      data: {
-        eventId: dto.eventId,
-        pixOrderId: dto.pixOrderId,
-        externalId: dto.externalId,
-        identifier: dto.identifier,
-        type: dto.type,
-        status: dto.status,
-        amount: dto.amount,
-        payload: dto as any,
-      },
-    });
+    try {
+      await this.prisma.pixWebhookEvent.create({
+        data: {
+          eventId: dto.eventId,
+          pixOrderId: dto.pixOrderId,
+          externalId: dto.externalId,
+          identifier: dto.identifier,
+          type: dto.type,
+          status: dto.status,
+          amount: dto.amount,
+          payload: dto as any,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        this.logger.log(
+          `Evento Pix duplicado detectado via Unique Constraint (ignorando): eventId=${dto.eventId}`,
+        );
+        return;
+      }
+      throw error;
+    }
 
     // Localiza a Transaction CredBridge pelo externalId (= transaction.id)
     const transaction = await this.prisma.transaction.findUnique({
@@ -433,18 +443,28 @@ export class PixService {
       return;
     }
 
-    await this.prisma.pixWebhookEvent.create({
-      data: {
-        eventId: dto.eventId,
-        pixOrderId: dto.collectionOrderId,
-        externalId: dto.receivableId,
-        identifier: dto.identifier,
-        type: 'COLLECTION',
-        status: dto.status,
-        amount: dto.amount,
-        payload: dto as any,
-      },
-    });
+    try {
+      await this.prisma.pixWebhookEvent.create({
+        data: {
+          eventId: dto.eventId,
+          pixOrderId: dto.collectionOrderId,
+          externalId: dto.receivableId,
+          identifier: dto.identifier,
+          type: 'COLLECTION',
+          status: dto.status,
+          amount: dto.amount,
+          payload: dto as any,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        this.logger.log(
+          `Evento de cobrança duplicado detectado via Unique Constraint (ignorando): eventId=${dto.eventId}`,
+        );
+        return;
+      }
+      throw error;
+    }
 
     if (dto.status !== 'PAID') {
       return;
@@ -654,6 +674,59 @@ export class PixService {
         metadata: { pixOrderId: dto.pixOrderId },
       },
     });
+  }
+
+  async retryCollectionOrder(collectionId: string, pmeUserId: string) {
+    const collection = await this.prisma.receivableCollection.findUnique({
+      where: { id: collectionId },
+    });
+
+    if (!collection) {
+      throw new NotFoundException('Cobrança não encontrada');
+    }
+
+    const receivable = await this.prisma.receivable.findUnique({
+      where: { id: collection.receivableId },
+    });
+
+    if (!receivable) {
+      throw new NotFoundException('Recebível associado não encontrado');
+    }
+
+    // A expiração do QR Code deve ser 23 horas a partir do momento atual para respeitar a regra da CorpX (máximo 1 dia) e evitar erros de data passada
+    const expirationDate = new Date();
+    expirationDate.setHours(expirationDate.getHours() + 23);
+
+    const pixCollection = await this.pixClient.createCollection({
+      receivableId: collection.receivableId,
+      pmeUserId: pmeUserId,
+      debtorName: receivable.debtorName,
+      debtorDocument: receivable.debtorDocument,
+      amount: collection.amount,
+      dueDate: expirationDate.toISOString(),
+      paymentDeadline: expirationDate.toISOString(),
+    });
+
+    const updatedCollection = await this.prisma.receivableCollection.update({
+      where: { id: collection.id },
+      data: {
+        pixOrderId: pixCollection.collectionOrderId,
+        identifier: pixCollection.identifier,
+        pixQrCodePayload: pixCollection.qrCodePayload ?? undefined,
+        pixQrCodeLocation: pixCollection.qrCodeLocation ?? undefined,
+        pixQrCodeBase64: pixCollection.qrCodeBase64 ?? undefined,
+      },
+    });
+
+    this.logger.log(
+      `Cobrança Pix regenerada via retry: receivableId=${collection.receivableId} pixOrder=${pixCollection.collectionOrderId}`,
+    );
+
+    return {
+      ...updatedCollection,
+      debtorName: receivable.debtorName,
+      debtorDocument: receivable.debtorDocument,
+    };
   }
 
   async listActiveCollections(userId: string, role: string | null) {

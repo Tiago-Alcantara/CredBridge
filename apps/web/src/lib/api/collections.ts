@@ -31,3 +31,9 @@ export function useActiveCollections() {
     queryFn: () => apiFetch<ReceivableCollection[]>("/pix/collections/active"),
   });
 }
+
+export function retryCollection(id: string) {
+  return apiFetch<ReceivableCollection>(`/pix/collections/${id}/retry`, {
+    method: "POST",
+  });
+}

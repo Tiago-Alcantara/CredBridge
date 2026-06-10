@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useActiveCollections, ReceivableCollection } from "@/lib/api/collections";
+import { useActiveCollections, ReceivableCollection, retryCollection } from "@/lib/api/collections";
 import { Icon } from "@/components/primitives/Icon";
 import { useToast } from "@/providers/ToastProvider";
 
@@ -9,6 +9,22 @@ export default function PmeCollectionsPage() {
   const { data: collections = [], isLoading, isError, refetch } = useActiveCollections();
   const { showToast } = useToast();
   const [selectedCollection, setSelectedCollection] = useState<ReceivableCollection | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetryCollection = async (collectionId: string) => {
+    try {
+      setIsRetrying(true);
+      const updated = await retryCollection(collectionId);
+      setSelectedCollection(updated);
+      showToast("Cobrança Pix gerada com sucesso!", "success");
+      refetch();
+    } catch (err: any) {
+      const msg = err?.message || "Falha ao gerar cobrança Pix.";
+      showToast(msg, "error");
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const formatBRL = (value: number) => {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -240,9 +256,17 @@ export default function PmeCollectionsPage() {
                     </div>
                     <div>
                       <h4 style={{ fontSize: 18, fontWeight: 600, color: "var(--red)" }}>QR Code Indisponível</h4>
-                      <p className="t-3" style={{ fontSize: 13, marginTop: 6, maxWidth: 300 }}>
-                        Esta cobrança não possui dados Pix gerados. Isso geralmente ocorre se houve falha de comunicação com o serviço Pix durante o envio do recebível.
+                      <p className="t-3" style={{ fontSize: 13, marginTop: 6, maxWidth: 300, marginBottom: 16 }}>
+                        Esta cobrança não possui dados Pix gerados devido a uma falha temporária de comunicação com o serviço Pix.
                       </p>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleRetryCollection(selectedCollection.id)}
+                        disabled={isRetrying}
+                        style={{ width: "100%" }}
+                      >
+                        {isRetrying ? "Gerando Pix..." : "Gerar Cobrança Pix"}
+                      </button>
                     </div>
                   </div>
                 )
