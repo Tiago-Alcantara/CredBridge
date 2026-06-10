@@ -56,7 +56,7 @@ const WEBHOOKS: Webhook[] = [
 ];
 
 export default function PartnerDashboardPage() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
 
   return (
     <>

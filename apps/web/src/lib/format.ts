@@ -4,11 +4,11 @@
  */
 export function fmtBRL(value: number, options: { compact?: boolean } = {}): string {
   if (options.compact) {
-    if (value >= 1e9) return `R$ ${(value / 1e9).toFixed(1).replace(".", ",")}B`;
-    if (value >= 1e6) return `R$ ${(value / 1e6).toFixed(1).replace(".", ",")}M`;
+    if (value >= 1e9) return `R$ ${(value / 1e9).toFixed(1)}B`;
+    if (value >= 1e6) return `R$ ${(value / 1e6).toFixed(1)}M`;
     if (value >= 1e3) return `R$ ${(value / 1e3).toFixed(0)}k`;
   }
-  return `R$ ${value.toLocaleString("pt-BR", {
+  return `R$ ${value.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

@@ -4,20 +4,20 @@ import { Logo } from "@/components/primitives/Logo";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function LandingFooter() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
 
   const linkColumns = [
     {
-      h: "Produto",
-      items: ["PME", "Investidor", "Parceiro", "API Reference"],
+      h: t("footer_col_product"),
+      items: [t("footer_link_pme"), t("footer_link_investor"), t("footer_link_partner"), t("footer_link_api")],
     },
     {
-      h: "Recursos",
-      items: ["Docs", "Guias", "Status", "Changelog"],
+      h: t("footer_col_resources"),
+      items: [t("footer_link_docs"), t("footer_link_guides"), t("footer_link_status"), t("footer_link_changelog")],
     },
     {
-      h: "Empresa",
-      items: ["Sobre", "Segurança", "Compliance", "Contato"],
+      h: t("footer_col_company"),
+      items: [t("footer_link_about"), t("footer_link_security"), t("footer_link_compliance"), t("footer_link_contact")],
     },
   ];
 
@@ -39,8 +39,7 @@ export function LandingFooter() {
                 lineHeight: 1.5,
               }}
             >
-              Protocolo de antecipação de recebíveis construído na Stellar
-              blockchain.
+              {t("footer_tagline")}
             </p>
           </div>
           {linkColumns.map((col, i) => (

@@ -11,6 +11,7 @@ import {
   type PaymentInstructions,
 } from "@/lib/api/anchor";
 import { KycModal } from "./KycModal";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Step = "amount" | "checking" | "kyc" | "ramp-loading" | "pix" | "error";
 
@@ -21,6 +22,7 @@ interface AnchorDrawerProps {
 }
 
 export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
+  const { t } = useTranslation("en");
   const [step, setStep] = useState<Step>("amount");
   const [amount, setAmount] = useState("");
   const [kycUrl, setKycUrl] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
   const offrampMutation = useAnchorOfframpStart();
 
   const isOnramp = mode === "onramp";
-  const title = isOnramp ? "Depositar BRL" : "Sacar BRL";
+  const title = isOnramp ? t("inv_deposit_brl") : t("ad_title_offramp");
 
   const handleClose = () => {
     setStep("amount");
@@ -63,7 +65,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
               setPaymentInstructions(data.paymentInstructions);
               setStep("pix");
             } else {
-              setError("Etherfuse não retornou instruções de pagamento. Tente novamente.");
+              setError(t("ad_no_instructions"));
               setStep("error");
             }
           },
@@ -81,7 +83,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
             } else {
               setError(
                 isTcError
-                  ? "Não foi possível aceitar os termos de uso automaticamente. Abra o link de onboarding e conclua manualmente, depois tente novamente."
+                  ? t("ad_tc_error")
                   : msg,
               );
               setStep("error");
@@ -90,7 +92,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
         },
       );
     },
-    [isOnramp, onrampMutation, offrampMutation],
+    [isOnramp, onrampMutation, offrampMutation, t],
   );
 
   const handleSubmit = async () => {
@@ -143,23 +145,21 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
         <div className="col" style={{ gap: 20 }}>
           <div className="card" style={{ padding: 14, fontSize: 13 }}>
             <span className="t-2">
-              {isOnramp ? "BRL → TESOURO via PIX" : "TESOURO → BRL via PIX"}
+              {isOnramp ? t("ad_flow_onramp") : t("ad_flow_offramp")}
             </span>
             <p className="t-3" style={{ marginTop: 4, lineHeight: 1.5 }}>
-              {isOnramp
-                ? "Deposite BRL via PIX e receba TESOURO na sua carteira Stellar para investir em recebíveis."
-                : "Transfira TESOURO da sua carteira Stellar e receba BRL via PIX na sua conta bancária."}
+              {isOnramp ? t("ad_desc_onramp") : t("ad_desc_offramp")}
             </p>
           </div>
 
           <div className="col" style={{ gap: 8 }}>
-            <label className="eyebrow">Valor (BRL)</label>
+            <label className="eyebrow">{t("ad_value_brl")}</label>
             <input
               type="number"
               min="1"
               step="0.01"
               className="input"
-              placeholder="0,00"
+              placeholder="0.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
@@ -172,7 +172,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
             onClick={handleSubmit}
             disabled={!amount || parseFloat(amount) <= 0}
           >
-            Continuar <Icon name="arrow_right" size={14} />
+            {t("login_continue")} <Icon name="arrow_right" size={14} />
           </button>
         </div>
       )}
@@ -192,9 +192,9 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
               animation: "spin 0.9s linear infinite",
             }}
           />
-          <h3 style={{ fontSize: 18 }}>Verificando cadastro…</h3>
+          <h3 style={{ fontSize: 18 }}>{t("ad_checking")}</h3>
           <p className="t-2" style={{ fontSize: 13 }}>
-            Checando se o seu onboarding Etherfuse está completo.
+            {t("ad_checking_desc")}
           </p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
@@ -223,9 +223,9 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
               animation: "spin 0.9s linear infinite",
             }}
           />
-          <h3 style={{ fontSize: 18 }}>Gerando instrução de pagamento…</h3>
+          <h3 style={{ fontSize: 18 }}>{t("ad_generating")}</h3>
           <p className="t-2" style={{ fontSize: 13 }}>
-            Criando quote e ordem via Etherfuse.
+            {t("ad_generating_desc")}
           </p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
@@ -238,32 +238,32 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
             style={{ padding: 14, background: "rgba(var(--accent-rgb),0.06)", border: "1px solid rgba(var(--accent-rgb),0.2)" }}
           >
             <span className="eyebrow" style={{ color: "var(--accent)" }}>
-              Pague via PIX
+              {t("ad_pay_via_pix")}
             </span>
             <p className="t-3" style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5 }}>
-              Copie o código abaixo e cole no seu banco. Após o pagamento o TESOURO será creditado automaticamente na sua carteira.
+              {t("ad_pay_desc")}
             </p>
           </div>
 
           {pix.amount && (
             <div className="row" style={{ gap: 12, justifyContent: "space-between" }}>
-              <span className="t-2" style={{ fontSize: 13 }}>Valor</span>
+              <span className="t-2" style={{ fontSize: 13 }}>{t("tbl_value")}</span>
               <span style={{ fontWeight: 600, fontSize: 15 }}>
-                {parseFloat(pix.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                {parseFloat(pix.amount).toLocaleString("en-US", { style: "currency", currency: "BRL" })}
               </span>
             </div>
           )}
 
           {pix.beneficiary && (
             <div className="row" style={{ gap: 12, justifyContent: "space-between" }}>
-              <span className="t-2" style={{ fontSize: 13 }}>Beneficiário</span>
+              <span className="t-2" style={{ fontSize: 13 }}>{t("ad_beneficiary")}</span>
               <span style={{ fontSize: 13 }}>{pix.beneficiary}</span>
             </div>
           )}
 
           {pix.pixKey && (
             <div className="col" style={{ gap: 6 }}>
-              <span className="eyebrow">Chave PIX</span>
+              <span className="eyebrow">{t("ad_pix_key")}</span>
               <div
                 className="row"
                 style={{ gap: 8, alignItems: "center", background: "var(--surface-2)", borderRadius: 6, padding: "8px 12px" }}
@@ -278,7 +278,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
                   style={{ fontSize: 11, padding: "4px 10px", flexShrink: 0 }}
                   onClick={() => handleCopy(pix.pixKey!)}
                 >
-                  {copied ? "Copiado!" : "Copiar"}
+                  {copied ? t("ad_copied") : t("ad_copy")}
                 </button>
               </div>
             </div>
@@ -286,7 +286,7 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
 
           {pix.pixCode && (
             <div className="col" style={{ gap: 6 }}>
-              <span className="eyebrow">Código PIX copia e cola</span>
+              <span className="eyebrow">{t("ad_pix_code")}</span>
               <div
                 className="col"
                 style={{ gap: 8, background: "var(--surface-2)", borderRadius: 6, padding: 12 }}
@@ -301,14 +301,14 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
                   onClick={() => handleCopy(pix.pixCode!)}
                 >
                   <Icon name="copy" size={14} />
-                  {copied ? "Copiado!" : "Copiar código PIX"}
+                  {copied ? t("ad_copied") : t("ad_copy_pix_code")}
                 </button>
               </div>
             </div>
           )}
 
           <p className="t-3" style={{ fontSize: 11, textAlign: "center" }}>
-            O pagamento é processado em até 1 hora útil. Você pode fechar este painel com segurança.
+            {t("ad_pix_footer")}
           </p>
         </div>
       )}
@@ -331,13 +331,13 @@ export function AnchorDrawer({ mode, open, onClose }: AnchorDrawerProps) {
           >
             <Icon name="close" size={24} />
           </div>
-          <h3 style={{ fontSize: 18 }}>Algo deu errado</h3>
+          <h3 style={{ fontSize: 18 }}>{t("ad_something_wrong")}</h3>
           <p className="t-2" style={{ fontSize: 13 }}>{error}</p>
           <button
             className="btn btn-primary"
             onClick={() => { setError(null); setStep("amount"); }}
           >
-            Tentar novamente
+            {t("ad_try_again")}
           </button>
         </div>
       )}

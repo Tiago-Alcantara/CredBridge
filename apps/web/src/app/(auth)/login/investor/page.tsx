@@ -5,9 +5,11 @@ import { LoginBG } from "@/components/auth/LoginBG";
 import { PrivyLoginPanel } from "@/components/auth/PrivyLoginPanel";
 import { Icon } from "@/components/primitives/Icon";
 import { Logo } from "@/components/primitives/Logo";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function InvestorLoginPage() {
   const router = useRouter();
+  const { t } = useTranslation("en");
 
   return (
     <div
@@ -43,9 +45,9 @@ export default function InvestorLoginPage() {
             <span>Stellar mainnet</span>
           </div>
           <h2 style={{ fontSize: 42, letterSpacing: "-0.03em" }}>
-            A ponte entre seus{" "}
-            <span className="t-blue glow-blue">investimentos</span> e o mundo
-            on-chain.
+            {t("login_aside_pre")}
+            <span className="t-blue glow-blue">{t("login_aside_highlight_inv")}</span>
+            {t("login_aside_post")}
           </h2>
           <div
             className="row"
@@ -80,7 +82,7 @@ export default function InvestorLoginPage() {
       >
         <div className="row between">
           <span className="t-3" style={{ fontSize: 13 }}>
-            Área Exclusiva de Investidores
+            {t("login_investor_area")}
           </span>
         </div>
         <PrivyLoginPanel targetRole="investor" />

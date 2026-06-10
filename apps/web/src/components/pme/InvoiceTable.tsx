@@ -10,6 +10,7 @@ import { useAssignReceivable, useTokenizeReceivable } from "@/lib/api/receivable
 import { useFinancialAuthorization } from "@/lib/financial-actions/useFinancialAuthorization";
 import type { ReceivableStatus } from "@/types";
 import { CessaoModal } from "@/components/pme/CessaoModal";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export interface InvoiceRow {
   id: string;
@@ -39,6 +40,7 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
   const tokenizeReceivable = useTokenizeReceivable();
   const assignReceivable = useAssignReceivable();
   const { authorize, isAuthorizing } = useFinancialAuthorization(userEmail);
+  const { t } = useTranslation("en");
   const colSpan = compact ? 8 : 9;
 
   function toggle(id: string) {
@@ -59,15 +61,15 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
         setSelectedRowForCessao(row);
       }
     } catch (err) {
-      setActionError(extractApiErrorMessage(err) || "Não foi possível concluir a ação.");
+      setActionError(extractApiErrorMessage(err) || t("inv_tbl_action_error"));
     } finally {
       setActionRowId(null);
     }
   }
 
   function getActionLabel(status: ReceivableStatus): string | null {
-    if (status === "validated") return "Tokenizar";
-    if (status === "tokenized" || status === "assignment_pending") return "Assinar cessão";
+    if (status === "validated") return t("inv_tbl_tokenize");
+    if (status === "tokenized" || status === "assignment_pending") return t("inv_tbl_sign_assignment");
     return null;
   }
 
@@ -78,11 +80,11 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
         <tr>
           <th style={{ width: 28 }} />
           <th>NF-e</th>
-          <th>Sacado</th>
-          <th style={{ textAlign: "right" }}>Valor</th>
-          {!compact && <th style={{ textAlign: "right" }}>Deságio</th>}
-          <th style={{ textAlign: "right" }}>Líquido</th>
-          <th>Vencimento</th>
+          <th>{t("tbl_debtor")}</th>
+          <th style={{ textAlign: "right" }}>{t("tbl_value")}</th>
+          {!compact && <th style={{ textAlign: "right" }}>{t("tbl_discount")}</th>}
+          <th style={{ textAlign: "right" }}>{t("tbl_net")}</th>
+          <th>{t("tbl_due")}</th>
           <th>Status</th>
           <th />
         </tr>
@@ -108,7 +110,7 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
-                    aria-label={isOpen ? "Ocultar histórico" : "Ver histórico"}
+                    aria-label={isOpen ? t("inv_tbl_hide_history") : t("inv_tbl_view_history")}
                     aria-expanded={isOpen}
                     onClick={() => toggle(r.id)}
                     style={{
@@ -150,7 +152,7 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
                     className="num"
                     style={{ textAlign: "right", color: "var(--fg-2)" }}
                   >
-                    {r.desagio.toFixed(2).replace(".", ",")}%
+                    {r.desagio.toFixed(2)}%
                   </td>
                 )}
                 <td
@@ -172,14 +174,14 @@ export function InvoiceTable({ rows, compact = false, userEmail }: InvoiceTableP
                   <div style={{ fontSize: 13 }}>{r.due}</div>
                   <div className="t-3" style={{ fontSize: 11 }}>
                     {r.days > 0
-                      ? `em ${r.days}d`
+                      ? `${r.days}d ${t("tbl_left")}`
                       : r.days < 0
-                      ? `${Math.abs(r.days)}d atraso`
-                      : "hoje"}
+                      ? `${Math.abs(r.days)}d ${t("tbl_overdue")}`
+                      : t("tbl_today")}
                   </div>
                 </td>
                 <td>
-                  <StatusBadge status={r.status} lang="pt" />
+                  <StatusBadge status={r.status} lang="en" />
                 </td>
                 <td style={{ textAlign: "right" }}>
                   {actionLabel ? (

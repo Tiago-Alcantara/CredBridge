@@ -13,6 +13,7 @@ import {
   type LinkedAccount,
   findPrivyStellarWalletAddress,
 } from "@/lib/stellar/wallet-address";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface FinalizeAssignmentModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export function FinalizeAssignmentModal({
   userEmail,
 }: FinalizeAssignmentModalProps) {
   const { showToast } = useToast();
+  const { t } = useTranslation("en");
   const [signingStep, setSigningStep] = useState<SigningStep>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -50,7 +52,7 @@ export function FinalizeAssignmentModal({
           );
 
     if (!privyAddress) {
-      throw new Error("Carteira Stellar Privy não encontrada");
+      throw new Error(t("fa_no_wallet"));
     }
 
     return privyAddress;
@@ -68,11 +70,11 @@ export function FinalizeAssignmentModal({
         onStage: (stage) => setSigningStep(stage === "approve" ? "approve_brlt" : "deposit_pool"),
       });
       setSigningStep("success");
-      showToast("Cotas CBPOOL emitidas com sucesso na sua carteira!", "success");
+      showToast(t("fa_toast_success"), "success");
     } catch (err: any) {
       setSigningStep("error");
-      setErrorMessage(err?.message || "Erro ao assinar transações on-chain.");
-      showToast("Falha na assinatura on-chain via Privy.", "error");
+      setErrorMessage(err?.message || t("fa_error_default"));
+      showToast(t("fa_toast_fail"), "error");
     }
   };
 
@@ -125,9 +127,9 @@ export function FinalizeAssignmentModal({
         >
           <div>
             <span className="eyebrow" style={{ color: "var(--accent)", marginBottom: 4 }}>
-              Assinatura Privy Smart Wallet
+              {t("fa_eyebrow")}
             </span>
-            <h3 style={{ fontSize: 20 }}>Finalizar Aporte</h3>
+            <h3 style={{ fontSize: 20 }}>{t("inv_finalize_contribution")}</h3>
           </div>
           {signingStep !== "approve_brlt" && signingStep !== "deposit_pool" && (
             <button
@@ -145,7 +147,7 @@ export function FinalizeAssignmentModal({
           {signingStep === "idle" && (
             <>
               <div style={{ textAlign: "center" }}>
-                <div className="t-3" style={{ fontSize: 13, marginBottom: 4 }}>BRLT Disponível na Carteira</div>
+                <div className="t-3" style={{ fontSize: 13, marginBottom: 4 }}>{t("fa_brlt_available")}</div>
                 <div className="num" style={{ fontSize: 32, fontWeight: 700, color: "var(--accent)" }}>
                   {fmtBRL(transaction.amount)}
                 </div>
@@ -161,23 +163,23 @@ export function FinalizeAssignmentModal({
                   lineHeight: 1.5,
                 }}
               >
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Como funciona esta etapa?</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("fa_how_step")}</div>
                 <p className="t-3">
-                  Ao assinar esta operação, sua **Privy Embedded Wallet** assinará e enviará uma transação on-chain na Stellar Testnet para:
+                  {t("fa_how_p")}
                 </p>
                 <ul className="t-3" style={{ paddingLeft: 20, marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-                  <li>Autorizar a Pool de Liquidez a transferir seus **BRLT**;</li>
-                  <li>Depositar os **BRLT** no contrato inteligente da Pool;</li>
-                  <li>Emitir cotas **CBPOOL** diretamente para a sua carteira.</li>
+                  <li>{t("fa_bullet1")}</li>
+                  <li>{t("fa_bullet2")}</li>
+                  <li>{t("fa_bullet3")}</li>
                 </ul>
               </div>
 
               <div className="row end" style={{ gap: 12 }}>
                 <button className="btn btn-ghost" onClick={handleClose}>
-                  Cancelar
+                  {t("op_cancel")}
                 </button>
                 <button className="btn btn-primary" onClick={handleFinalize}>
-                  Assinar e Emitir Cotas <Icon name="arrow_right" size={14} />
+                  {t("fa_sign_issue")} <Icon name="arrow_right" size={14} />
                 </button>
               </div>
             </>
@@ -198,13 +200,13 @@ export function FinalizeAssignmentModal({
               <div>
                 <h3 style={{ fontSize: 18, marginBottom: 6 }}>
                   {signingStep === "approve_brlt"
-                    ? "Etapa 1/2: Autorizando BRLT..."
-                    : "Etapa 2/2: Confirmando Aporte na Pool..."}
+                    ? t("fa_step1")
+                    : t("fa_step2")}
                 </h3>
                 <p className="t-2" style={{ fontSize: 13 }}>
                   {signingStep === "approve_brlt"
-                    ? "Por favor, aprove a solicitação de limite de BRLT na sua Smart Wallet."
-                    : "Assinando o depósito on-chain e recebendo as cotas CBPOOL."}
+                    ? t("fa_step1_desc")
+                    : t("fa_step2_desc")}
                 </p>
               </div>
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -227,9 +229,9 @@ export function FinalizeAssignmentModal({
                 <Icon name="check" size={28} />
               </div>
               <div>
-                <h3 style={{ fontSize: 22, marginBottom: 6 }}>Cotas CBPOOL Emitidas!</h3>
+                <h3 style={{ fontSize: 22, marginBottom: 6 }}>{t("fa_success_title")}</h3>
                 <p className="t-2" style={{ fontSize: 13 }}>
-                  Sua transação on-chain Stellar foi processada com sucesso. Seu portfólio já foi atualizado!
+                  {t("fa_success_desc")}
                 </p>
               </div>
               <button
@@ -240,7 +242,7 @@ export function FinalizeAssignmentModal({
                   handleClose();
                 }}
               >
-                Ver Meu Portfólio <Icon name="arrow_right" size={14} />
+                {t("fa_view_portfolio")} <Icon name="arrow_right" size={14} />
               </button>
             </div>
           )}
@@ -261,17 +263,17 @@ export function FinalizeAssignmentModal({
                 <Icon name="close" size={28} />
               </div>
               <div>
-                <h3 style={{ fontSize: 20, marginBottom: 6, color: "var(--red)" }}>Falha na Assinatura</h3>
+                <h3 style={{ fontSize: 20, marginBottom: 6, color: "var(--red)" }}>{t("fa_fail_title")}</h3>
                 <p className="t-2" style={{ fontSize: 13, wordBreak: "break-word" }}>
-                  {errorMessage || "Não foi possível concluir a assinatura on-chain."}
+                  {errorMessage || t("fa_fail_default")}
                 </p>
               </div>
               <div className="row" style={{ width: "100%", gap: 12, marginTop: 12 }}>
                 <button className="btn btn-ghost grow" onClick={handleClose}>
-                  Fechar
+                  {t("cm_close")}
                 </button>
                 <button className="btn btn-primary grow" onClick={handleFinalize}>
-                  Tentar Novamente
+                  {t("fa_retry")}
                 </button>
               </div>
             </div>

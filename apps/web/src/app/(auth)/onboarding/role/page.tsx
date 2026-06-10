@@ -24,7 +24,7 @@ interface RoleOption {
 
 export default function RoleSelectionPage() {
   const router = useRouter();
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
   const [role, setRole] = useState<RoleKey>("pme");
   const [step, setStep] = useState<Step>("role");
   const [error, setError] = useState<string | null>(null);
