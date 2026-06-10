@@ -152,7 +152,7 @@ class CorpXClient(PixProvider):
         account_id: str,
         pix_key: str,
         amount: float,
-        expiration_date: datetime,
+        expiration_date: datetime | None = None,
         identifier: str,
         message: str | None,
         allow_change_value: bool = False,
@@ -163,11 +163,12 @@ class CorpXClient(PixProvider):
         body: dict = {
             "pixKey": pix_key,
             "value": round(amount, 2),
-            "expirationDate": expiration_date.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
             "allowChangeValue": allow_change_value,
             "identifier": identifier,
             "payerPhysicalPerson": False,
         }
+        if expiration_date:
+            body["expirationDate"] = expiration_date.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         if message:
             body["message"] = message
 

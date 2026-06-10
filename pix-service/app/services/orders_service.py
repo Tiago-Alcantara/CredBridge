@@ -379,13 +379,12 @@ class OrdersService:
         identifier = _generate_identifier(COLLECTION_IDENTIFIER_PREFIX)
         amount_cents = brl_to_cents(request.amount)
 
-        # Gera QR dinâmico imediatamente com expiração de 23 horas a partir do momento atual
-        expiration_date = datetime.now(timezone.utc) + timedelta(hours=23)
+        # Gera QR dinâmico imediatamente sem expiração
         qr_result = await self._provider.create_dynamic_qr(
             account_id=settings.corpx_account_id,
             pix_key=settings.corpx_receiver_pix_key,
             amount=request.amount,
-            expiration_date=expiration_date,
+            expiration_date=None,
             identifier=identifier,
             message=f"Pagamento antecipação NF-e {request.receivable_id[:20]}",
         )

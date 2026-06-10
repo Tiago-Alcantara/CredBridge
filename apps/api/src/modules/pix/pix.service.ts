@@ -142,18 +142,14 @@ export class PixService {
 
     try {
       // 2. Chama o PixClient para registrar a cobrança e obter o QR Code
-      // A expiração do QR Code deve ser 23 horas a partir do momento atual para respeitar a regra da CorpX (máximo 1 dia) e evitar erros de data passada
-      const expirationDate = new Date();
-      expirationDate.setHours(expirationDate.getHours() + 23);
-
       const pixCollection = await this.pixClient.createCollection({
         receivableId: dto.receivableId,
         pmeUserId: dto.pmeUserId,
         debtorName: dto.debtorName,
         debtorDocument: dto.debtorDocument,
         amount: dto.amount,
-        dueDate: expirationDate.toISOString(),
-        paymentDeadline: expirationDate.toISOString(),
+        dueDate: dto.dueDate.toISOString(),
+        paymentDeadline: dto.dueDate.toISOString(),
       });
 
       // 3. Atualiza a ReceivableCollection com os dados do Pix obtidos
@@ -693,18 +689,14 @@ export class PixService {
       throw new NotFoundException('Recebível associado não encontrado');
     }
 
-    // A expiração do QR Code deve ser 23 horas a partir do momento atual para respeitar a regra da CorpX (máximo 1 dia) e evitar erros de data passada
-    const expirationDate = new Date();
-    expirationDate.setHours(expirationDate.getHours() + 23);
-
     const pixCollection = await this.pixClient.createCollection({
       receivableId: collection.receivableId,
       pmeUserId: pmeUserId,
       debtorName: receivable.debtorName,
       debtorDocument: receivable.debtorDocument,
       amount: collection.amount,
-      dueDate: expirationDate.toISOString(),
-      paymentDeadline: expirationDate.toISOString(),
+      dueDate: collection.dueDate.toISOString(),
+      paymentDeadline: collection.dueDate.toISOString(),
     });
 
     const updatedCollection = await this.prisma.receivableCollection.update({
