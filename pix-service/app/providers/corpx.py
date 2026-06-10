@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import httpx
 
@@ -160,15 +160,17 @@ class CorpXClient(PixProvider):
         idempotency_key = f"qr-{identifier}"
         url = f"{settings.corpx_api_base_url}/v1/accounts/{account_id}/pix/qr-code/dynamic"
 
+        if not expiration_date:
+            expiration_date = datetime.now(timezone.utc) + timedelta(hours=20)
+
         body: dict = {
             "pixKey": pix_key,
             "value": round(amount, 2),
+            "expirationDate": expiration_date.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "allowChangeValue": allow_change_value,
             "identifier": identifier,
             "payerPhysicalPerson": False,
         }
-        if expiration_date:
-            body["expirationDate"] = expiration_date.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         if message:
             body["message"] = message
 

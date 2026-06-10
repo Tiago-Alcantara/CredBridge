@@ -72,7 +72,7 @@ class PixProvider(ABC):
         account_id: str,
         pix_key: str,
         amount: float,
-        expiration_date: datetime,
+        expiration_date: datetime | None = None,
         identifier: str,
         message: str | None,
         allow_change_value: bool = False,
