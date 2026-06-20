@@ -99,6 +99,10 @@ export class ReceivablesService {
       ownerUserId: receivable.userId,
     });
 
+    this.logger.log(
+      `[tokenização] NF tokenizada — receivableId: ${receivable.id}, txHash: ${txHash}, userId: ${receivable.userId}, valor: ${receivable.value}`,
+    );
+
     const tokenized = await this.repo.setTokenized(id, txHash);
 
     await this.audit.log({
@@ -225,23 +229,39 @@ export class ReceivablesService {
       );
     }
 
+    this.logger.log(
+      `[cessão] Iniciando cessão — receivableId: ${receivable.id}, valor: ${receivable.value}, carteira PME: ${pmeWallet.privyStellarWalletAddress}`,
+    );
+
     const txHash = await this.blockchain.submitSignedAssignment(
       data.unsignedXdr,
       data.signatureHex,
       pmeWallet.privyStellarWalletAddress,
     );
 
+    this.logger.log(
+      `[cessão] NF cedida à plataforma — receivableId: ${receivable.id}, txHash: ${txHash}, carteira PME: ${pmeWallet.privyStellarWalletAddress}`,
+    );
+
     // Efetua a compra real on-chain pela Pool de Liquidez para transferir os BRLT ao PME
+    let poolTxHash: string;
     try {
-      this.logger.log(`Executing buyTokenizedInvoiceInPool to pay BRLT to PME Privy wallet...`);
-      await this.blockchain.buyTokenizedInvoiceInPool({
+      this.logger.log(
+        `[cessão] Iniciando payout via Pool — receivableId: ${receivable.id}, valor: ${receivable.value}, carteira PME: ${pmeWallet.privyStellarWalletAddress}`,
+      );
+      poolTxHash = await this.blockchain.buyTokenizedInvoiceInPool({
         sellerAddress: pmeWallet.privyStellarWalletAddress,
         invoiceKey: receivable.id,
         xmlHash: receivable.documentHash ?? '00000000000000000000000000000000',
         value: receivable.value,
       });
+      this.logger.log(
+        `[cessão] Payout BRLT confirmado — receivableId: ${receivable.id}, escrowTxHash: ${txHash}, poolTxHash: ${poolTxHash}, valor: ${receivable.value}, carteira PME: ${pmeWallet.privyStellarWalletAddress}`,
+      );
     } catch (err) {
-      this.logger.error(`Failed to buy tokenized invoice in Pool: ${(err as Error).message}`);
+      this.logger.error(
+        `[cessão] Falha no payout via Pool — receivableId: ${receivable.id}, valor: ${receivable.value}, carteira PME: ${pmeWallet.privyStellarWalletAddress}, erro: ${(err as Error).message}`,
+      );
       // Lança o erro de transação para que o fluxo mostre visualmente a falta de liquidez
       // se a pool ainda não tiver aportes! Isso garante fidelidade total à blockchain.
       throw new ConflictException(
@@ -276,7 +296,7 @@ export class ReceivablesService {
       entityType: 'receivable',
       userId: receivable.userId,
       txHash,
-      metadata: { source: 'privy_blockchain_signing' },
+      metadata: { source: 'privy_blockchain_signing', poolTxHash },
     });
 
     return toReceivableResponse(updated);
