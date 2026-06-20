@@ -4,6 +4,7 @@ import { ReceivablesService } from './receivables.service';
 import { ReceivablesRepository } from './receivables.repository';
 import { AuditService } from '../audit/audit.service';
 import { FinancialAuthorizationsService } from '../financial-authorizations/financial-authorizations.service';
+import { PixService } from '../pix/pix.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { BLOCKCHAIN_SERVICE } from '../../shared/blockchain/blockchain.interface';
 
@@ -46,6 +47,9 @@ describe('ReceivablesService', () => {
   const financialAuthorizationsMock = {
     consume: jest.fn(),
   };
+  const pixServiceMock = {
+    createCollectionOrder: jest.fn(),
+  };
 
   const prismaMock = {
     receivable: {
@@ -68,6 +72,7 @@ describe('ReceivablesService', () => {
     blockchainMock.payPme.mockReset();
     blockchainMock.transferNftToPlatform.mockReset();
     financialAuthorizationsMock.consume.mockReset();
+    pixServiceMock.createCollectionOrder.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -80,6 +85,7 @@ describe('ReceivablesService', () => {
           provide: FinancialAuthorizationsService,
           useValue: financialAuthorizationsMock,
         },
+        { provide: PixService, useValue: pixServiceMock },
       ],
     }).compile();
 

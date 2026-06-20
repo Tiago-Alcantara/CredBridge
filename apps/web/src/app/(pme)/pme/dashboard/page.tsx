@@ -15,6 +15,7 @@ import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { WithdrawalDrawer } from "@/components/pme/WithdrawalDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useReceivables, receivableQueryKeys } from "@/lib/api/receivables";
+import { useActiveCollections } from "@/lib/api/collections";
 import { useMe } from "@/lib/api/me";
 import { useAuditLog, auditQueryKeys } from "@/lib/api/audit";
 import { useWalletBalance, walletQueryKeys } from "@/lib/api/wallet";
@@ -89,6 +90,7 @@ export default function PmeDashboardPage() {
   const { t } = useTranslation("en");
   const queryClient = useQueryClient();
   const { data: receivables, isLoading, isError } = useReceivables();
+  const { data: collections, isLoading: collectionsLoading } = useActiveCollections();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
   const {
@@ -119,10 +121,25 @@ export default function PmeDashboardPage() {
   const analysisRows = (receivables ?? []).filter(
     (r) => r.status === "pending" || r.status === "validated",
   );
-  const settledRows = (receivables ?? []).filter((r) => r.status === "settled");
   const analysisValue = analysisRows.reduce((sum, r) => sum + r.value, 0);
-  const settledValue = settledRows.reduce((sum, r) => sum + r.value, 0);
   const totalCount = receivables?.length ?? 0;
+
+  // Obrigações da PME com a CredBridge: cobranças geradas após antecipação e
+  // ainda não pagas. O valor devido é a soma dessas cobranças; o vencimento
+  // exibido é o mais próximo entre elas.
+  const pendingCollections = (collections ?? []).filter((c) => {
+    const status = c.status.toLowerCase();
+    return status === "pending" || status === "pending_payment";
+  });
+  const owedValue = pendingCollections.reduce((sum, c) => sum + c.amount, 0);
+  const nextDueDate = pendingCollections.reduce<Date | null>((earliest, c) => {
+    const due = new Date(c.dueDate);
+    return earliest === null || due < earliest ? due : earliest;
+  }, null);
+  const owedDueLabel =
+    nextDueDate !== null
+      ? `${t("dash_owed_due")} ${nextDueDate.getDate()} ${MONTHS[nextDueDate.getMonth()]}`
+      : t("dash_owed_none");
 
   const firstName = me?.name?.split(" ")[0] ?? me?.email?.split("@")[0] ?? "";
 
@@ -220,11 +237,11 @@ export default function PmeDashboardPage() {
           icon="bolt"
         />
         <MiniKpi
-          label={t("dash_released")}
-          value={isLoading ? "…" : fmtBRL(settledValue)}
-          sub={isLoading ? "" : `${settledRows.length} ${t("dash_settled_word")}`}
-          color="#00FF94"
-          icon="arrow_up_right"
+          label={t("dash_owed")}
+          value={collectionsLoading ? "…" : fmtBRL(owedValue)}
+          sub={collectionsLoading ? "" : owedDueLabel}
+          color="#FFC857"
+          icon="wallet"
         />
         <MiniKpi
           label={t("dash_nf_count")}

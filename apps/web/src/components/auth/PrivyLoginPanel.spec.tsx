@@ -70,7 +70,7 @@ describe("PrivyLoginPanel", () => {
     } as unknown as ReturnType<typeof usePrivy>);
     render(<PrivyLoginPanel />);
 
-    await userEvent.click(screen.getByRole("button", { name: /entrar com privy/i }));
+    await userEvent.click(screen.getByRole("button", { name: /sign in with privy/i }));
 
     expect(login).toHaveBeenCalled();
     expect(bootstrapSession).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe("PrivyLoginPanel", () => {
     } as unknown as ReturnType<typeof usePrivy>);
     render(<PrivyLoginPanel />);
 
-    await userEvent.click(screen.getByRole("button", { name: /usar outra conta/i }));
+    await userEvent.click(screen.getByRole("button", { name: /use another account/i }));
 
     expect(logout).toHaveBeenCalled();
     expect(clearInternalSession).toHaveBeenCalled();
@@ -158,7 +158,7 @@ describe("PrivyLoginPanel", () => {
 
     firstRender.unmount();
     render(<PrivyLoginPanel />);
-    await userEvent.click(screen.getByRole("button", { name: /continuar/i }));
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     expect(bootstrapSession).toHaveBeenCalledTimes(2);
   });
