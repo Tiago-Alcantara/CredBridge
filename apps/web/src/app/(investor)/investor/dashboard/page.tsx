@@ -10,7 +10,6 @@ import { PoolToggle, type PoolView } from "@/components/investor/PoolToggle";
 import { PoolTable } from "@/components/investor/PoolTable";
 import { PositionsTable } from "@/components/investor/PositionsTable";
 import { BuyDrawer } from "@/components/investor/BuyDrawer";
-import { AnchorDrawer } from "@/components/anchor/AnchorDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { fmtBRL } from "@/lib/format";
 import { useInvestorPool, useInvestorStats } from "@/lib/api/receivables";
@@ -23,7 +22,6 @@ export default function InvestorDashboardPage() {
   const { t } = useTranslation("en");
   const [view, setView] = useState<PoolView>("pool");
   const [buyTarget, setBuyTarget] = useState<Receivable | null>(null);
-  const [onrampOpen, setOnrampOpen] = useState(false);
 
   // Estados dos novos modais de depósito/aporte
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
@@ -69,9 +67,6 @@ export default function InvestorDashboardPage() {
         <div className="row" style={{ gap: 8 }}>
           <button className="btn btn-ghost">
             <Icon name="download" size={14} /> {t("inv_report")}
-          </button>
-          <button className="btn btn-primary" onClick={() => setOnrampOpen(true)}>
-            <Icon name="download" size={14} /> {t("inv_deposit_brl")}
           </button>
           <button
             className="btn btn-violet"
@@ -353,8 +348,6 @@ export default function InvestorDashboardPage() {
         onClose={() => setBuyTarget(null)}
         onSuccess={() => setView("mine")}
       />
-
-      <AnchorDrawer mode="onramp" open={onrampOpen} onClose={() => setOnrampOpen(false)} />
 
       <DepositModal
         isOpen={depositModalOpen}

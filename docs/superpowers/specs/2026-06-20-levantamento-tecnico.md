@@ -131,13 +131,12 @@ Lançamento em **mainnet** com fluxo ponta-a-ponta funcionando:
   (`POST /investments/deposit/:id/onchain/build|submit`), minta cotas CBPOOL.
 - **Saque via PIX** — endpoints `POST /pix/withdrawals`, `/withdrawals/build`,
   `/withdrawals/submit` que **queimam cotas on-chain** e criam ordem de saque PIX.
-- On-ramp BRL via anchor Etherfuse (`AnchorDrawer`) — **sandbox**.
 - Autorização financeira via assinatura Stellar (`investor.deposit`,
   `investment.purchase`, `investor.withdrawal`).
 
 ### ❌ Falta
 
-- [ ] **On-ramp BRL real** — Etherfuse está em sandbox. Precisa produção ou alternativa
+- [ ] **On-ramp BRL real** — integração Etherfuse removida. Precisa de alternativa
       (PIX direto + custódia) para o investor colocar dinheiro de verdade na plataforma.
 - [ ] **Fluxo self-service de saque completo no frontend** — backend de
       `pix/withdrawals` existe e queima cotas, mas o caminho ponta-a-ponta no dashboard
@@ -186,7 +185,7 @@ Lançamento em **mainnet** com fluxo ponta-a-ponta funcionando:
 | Operador | Cobrança automática ao sacado ao antecipar |
 | PME | Scheduler de vencimentos + fluxo PME devolver dinheiro ao pool |
 | PME | Painel de obrigações (quando/quanto pagar) |
-| Investor | On-ramp BRL real (Etherfuse produção ou alternativa) |
+| Investor | On-ramp BRL real (PIX direto ou alternativa) |
 | Investor | Saque self-service ponta-a-ponta no frontend |
 | Infra | Deploy backend + CI/CD |
 | Segurança | JWT httpOnly |
@@ -245,5 +244,4 @@ Lançamento em **mainnet** com fluxo ponta-a-ponta funcionando:
 
 - `docs/STATUS.md` — status detalhado por camada
 - `Fase2-implementações.md` — plano de contratos (pool, driver, E2E)
-- `documentacao/anchor-etherfuse-integration.md`
 - `docs/DESIGN.md`

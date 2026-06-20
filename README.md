@@ -13,7 +13,6 @@ Monorepo gerenciado por **npm workspaces**:
 | `@credbridge/web` | `apps/web` | Frontend Next.js 16, App Router, dashboards, landing, auth e UX de wallet |
 | `@credbridge/api` | `apps/api` | Backend NestJS 11 modular monolith, Prisma, auth, dominio e integracoes |
 | `@credbridge/types` | `packages/types` | Tipos TypeScript compartilhados entre web e API |
-| `@credbridge/anchor-client` | `packages/anchor-client` | Cliente Stellar Anchor/Etherfuse, SEP-10, SEP-24 e SEP-38 |
 
 Tambem existe `contracts/`, um crate Rust/Soroban para o contrato de NF-e tokenizada. Ele nao e workspace npm.
 
@@ -22,19 +21,18 @@ CredBridge/
 ├── apps/
 │   ├── web/                  # Next.js 16 + React 19 + Tailwind v4
 │   │   ├── src/app/          # App Router: marketing, auth, PME, investor, partner, auditoria
-│   │   ├── src/components/   # primitives, patterns, auth, pme, investor, partner, anchor
+│   │   ├── src/components/   # primitives, patterns, auth, pme, investor, partner
 │   │   ├── src/lib/          # API clients, i18n, validations, wallet, financial actions
 │   │   ├── src/providers/    # Query, Toast, Privy e Google auth providers
 │   │   └── styles/tokens.css # fonte da verdade visual
 │   └── api/                  # NestJS 11 + Prisma 7
 │       ├── prisma/           # schema, migrations e seed
 │       └── src/
-│           ├── modules/      # auth, receivables, documents, settlements, audit, investments, anchor, wallet
+│           ├── modules/      # auth, receivables, documents, settlements, audit, investments, wallet
 │           ├── shared/       # prisma, blockchain, storage, kyc, payments
 │           └── common/       # filtros e infraestrutura HTTP
 ├── packages/
-│   ├── types/                # tipos compartilhados de dominio
-│   └── anchor-client/        # cliente Etherfuse/Stellar Anchor
+│   └── types/                # tipos compartilhados de dominio
 ├── contracts/                # contrato Soroban de NF-e
 ├── docs/                     # design system, status, specs e planos
 ├── documentacao/             # docs operacionais em PT-BR
@@ -64,15 +62,14 @@ CredBridge/
 | ORM | Prisma 7 + `@prisma/adapter-pg` |
 | Banco | PostgreSQL |
 | Auth | Privy server-side, JWT interno, login/senha legado, Google direto legado, SEP-10 legado |
-| Blockchain | Stellar SDK, Soroban RPC, contrato de NF-e, TESOURO via Etherfuse |
+| Blockchain | Stellar SDK, Soroban RPC, contrato de NF-e |
 | Protecao HTTP | Helmet, CORS, ValidationPipe, Throttler global |
 | Testes | Jest |
 
-### Blockchain e Anchor
+### Blockchain
 
 - `contracts/` contem o contrato Soroban `nfe-contract`.
 - `apps/api/src/shared/blockchain/stellar.service.ts` executa tokenizacao Soroban quando `STELLAR_RPC_URL`, `STELLAR_SECRET_KEY` e `STELLAR_CONTRACT_ID` estao configuradas.
-- `packages/anchor-client` e `apps/api/src/modules/anchor` concentram on/off-ramp BRL/TESOURO via Etherfuse. Brasil/PIX segue tratado como sandbox.
 
 ## Como rodar localmente
 
@@ -146,8 +143,6 @@ npm run seed         # seed Prisma da API
 npm run test -w apps/web
 npm run test -w apps/api
 npm run test:e2e -w apps/api
-npm run build -w packages/anchor-client
-npm run test -w packages/anchor-client
 ```
 
 ## Rotas principais
@@ -187,11 +182,6 @@ Todas as rotas da API usam prefixo global `/v1`.
 | `POST` | `/v1/wallet/create` | legado; exige wallet Privy ja provisionada |
 | `POST` | `/v1/financial-authorizations/challenge` | cria desafio para assinatura Privy Stellar |
 | `POST` | `/v1/financial-authorizations/verify` | verifica assinatura Privy Stellar |
-| `GET` | `/v1/anchor/onboarding-status` | status KYC anchor |
-| `POST` | `/v1/anchor/onramp/quote` | cotacao BRL para TESOURO |
-| `POST` | `/v1/anchor/onramp/start` | inicia deposito interativo |
-| `POST` | `/v1/anchor/offramp/quote` | cotacao TESOURO para BRL |
-| `POST` | `/v1/anchor/offramp/start` | inicia saque interativo |
 
 ## Auth atual
 
@@ -223,7 +213,6 @@ STELLAR_RPC_URL=
 STELLAR_SECRET_KEY=
 STELLAR_CONTRACT_ID=
 STELLAR_WALLET_SECRET=
-ETHERFUSE_API_KEY=
 ```
 
 ## Deploy
@@ -238,5 +227,4 @@ ETHERFUSE_API_KEY=
 - [Estrutura de arquivos](documentacao/estrutura.md)
 - [Fluxo de login atual](documentacao/fluxo-login-atual.md)
 - [Fluxo e regras da smart wallet](documentacao/smart-wallet-fluxo-regras.md)
-- [ADR Anchor Etherfuse](documentacao/anchor-etherfuse-integration.md)
 - [Design System](docs/DESIGN.md)

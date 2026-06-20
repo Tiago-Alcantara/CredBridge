@@ -77,8 +77,6 @@ model User {
   investorType          String?
   riskProfile           String?
   operationalLimit      Float?
-  etherfuseCustomerId   String?
-  etherfuseBankAccountId String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
