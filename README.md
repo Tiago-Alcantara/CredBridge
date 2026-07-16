@@ -228,3 +228,5 @@ STELLAR_WALLET_SECRET=
 - [Fluxo de login atual](documentacao/fluxo-login-atual.md)
 - [Fluxo e regras da smart wallet](documentacao/smart-wallet-fluxo-regras.md)
 - [Design System](docs/DESIGN.md)
+
+- .
