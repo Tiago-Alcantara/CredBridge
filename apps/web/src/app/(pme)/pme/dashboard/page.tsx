@@ -15,13 +15,14 @@ import { InvoiceTableSkeleton } from "@/components/pme/InvoiceTableSkeleton";
 import { WithdrawalDrawer } from "@/components/pme/WithdrawalDrawer";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useReceivables, receivableQueryKeys } from "@/lib/api/receivables";
+import { useActiveCollections } from "@/lib/api/collections";
 import { useMe } from "@/lib/api/me";
 import { useAuditLog, auditQueryKeys } from "@/lib/api/audit";
 import { useWalletBalance, walletQueryKeys } from "@/lib/api/wallet";
 import type { Receivable } from "@/types";
 import type { AuditEvent } from "@credbridge/types";
 
-const MONTHS = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function toInvoiceRow(r: Receivable): InvoiceRow {
   const due = new Date(r.dueDate);
@@ -43,9 +44,9 @@ function toInvoiceRow(r: Receivable): InvoiceRow {
 }
 
 function fmtBRL(value: number): string {
-  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(2).replace(".", ",")}M`;
-  if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(1).replace(".", ",")}k`;
-  return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(1)}k`;
+  return `R$ ${value.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 }
 
 function relativeTime(dateStr: string): string {
@@ -86,9 +87,10 @@ function auditToTimeline(e: AuditEvent): TimelineItem {
 }
 
 export default function PmeDashboardPage() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
   const queryClient = useQueryClient();
   const { data: receivables, isLoading, isError } = useReceivables();
+  const { data: collections, isLoading: collectionsLoading } = useActiveCollections();
   const { data: me } = useMe();
   const { data: auditEvents } = useAuditLog();
   const {
@@ -119,10 +121,25 @@ export default function PmeDashboardPage() {
   const analysisRows = (receivables ?? []).filter(
     (r) => r.status === "pending" || r.status === "validated",
   );
-  const settledRows = (receivables ?? []).filter((r) => r.status === "settled");
   const analysisValue = analysisRows.reduce((sum, r) => sum + r.value, 0);
-  const settledValue = settledRows.reduce((sum, r) => sum + r.value, 0);
   const totalCount = receivables?.length ?? 0;
+
+  // Obrigações da PME com a CredBridge: cobranças geradas após antecipação e
+  // ainda não pagas. O valor devido é a soma dessas cobranças; o vencimento
+  // exibido é o mais próximo entre elas.
+  const pendingCollections = (collections ?? []).filter((c) => {
+    const status = c.status.toLowerCase();
+    return status === "pending" || status === "pending_payment";
+  });
+  const owedValue = pendingCollections.reduce((sum, c) => sum + c.amount, 0);
+  const nextDueDate = pendingCollections.reduce<Date | null>((earliest, c) => {
+    const due = new Date(c.dueDate);
+    return earliest === null || due < earliest ? due : earliest;
+  }, null);
+  const owedDueLabel =
+    nextDueDate !== null
+      ? `${t("dash_owed_due")} ${nextDueDate.getDate()} ${MONTHS[nextDueDate.getMonth()]}`
+      : t("dash_owed_none");
 
   const firstName = me?.name?.split(" ")[0] ?? me?.email?.split("@")[0] ?? "";
 
@@ -148,14 +165,14 @@ export default function PmeDashboardPage() {
           <div className="eyebrow" style={{ marginBottom: 8 }}>
             {t("dash_greeting")}{firstName ? `, ${firstName}` : ""}
           </div>
-          <h2 style={{ fontSize: 32 }}>Sua liquidez hoje</h2>
+          <h2 style={{ fontSize: 32 }}>{t("dash_title")}</h2>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button className="btn btn-ghost" onClick={handleRefresh} disabled={refreshing}>
-            <Icon name="refresh" size={14} className={refreshing ? "spinning" : undefined} /> Atualizar
+            <Icon name="refresh" size={14} className={refreshing ? "spinning" : undefined} /> {t("dash_refresh")}
           </button>
           <button className="btn btn-ghost">
-            <Icon name="download" size={14} /> Extrato
+            <Icon name="download" size={14} /> {t("dash_statement")}
           </button>
           <button className="btn btn-primary" onClick={scrollToUpload}>
             <Icon name="plus" size={14} /> {t("dash_upload")}
@@ -180,7 +197,7 @@ export default function PmeDashboardPage() {
               ? "…"
               : balanceError || balance == null
               ? "—"
-              : balance.balance.value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              : balance.balance.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="row" style={{ gap: 10, marginTop: 16 }}>
             <button className="btn btn-primary" onClick={() => setOfframpOpen(true)} >
@@ -207,7 +224,7 @@ export default function PmeDashboardPage() {
                 ? "…"
                 : balanceError || balance == null
                 ? "—"
-                : `${balance.balance.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} BRLT`}
+                : `${balance.balance.value.toLocaleString("en-US", { minimumFractionDigits: 2 })} BRLT`}
             </span>
           </div>
         </div>
@@ -220,16 +237,16 @@ export default function PmeDashboardPage() {
           icon="bolt"
         />
         <MiniKpi
-          label={t("dash_released")}
-          value={isLoading ? "…" : fmtBRL(settledValue)}
-          sub={isLoading ? "" : `${settledRows.length} liquidadas`}
-          color="#00FF94"
-          icon="arrow_up_right"
+          label={t("dash_owed")}
+          value={collectionsLoading ? "…" : fmtBRL(owedValue)}
+          sub={collectionsLoading ? "" : owedDueLabel}
+          color="#FFC857"
+          icon="wallet"
         />
         <MiniKpi
           label={t("dash_nf_count")}
           value={isLoading ? "…" : String(totalCount)}
-          sub={isLoading ? "" : `${analysisRows.length} em análise`}
+          sub={isLoading ? "" : `${analysisRows.length} ${t("dash_in_analysis")}`}
           color="#00D4FF"
           icon="doc"
         />
@@ -251,10 +268,10 @@ export default function PmeDashboardPage() {
             <h3>{t("dash_active")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
               {isLoading
-                ? "Carregando…"
+                ? t("dash_loading")
                 : isError
-                ? "Erro ao carregar"
-                : `${invoiceRows.length} operaç${invoiceRows.length === 1 ? "ão" : "ões"}`}
+                ? t("dash_load_error")
+                : `${invoiceRows.length} ${invoiceRows.length === 1 ? t("dash_op_singular") : t("dash_op_plural")}`}
             </p>
           </div>
           <div className="row" style={{ gap: 8 }}>
@@ -270,7 +287,7 @@ export default function PmeDashboardPage() {
 
         {isError && (
           <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--red)" }}>
-            Erro ao carregar recebíveis. Tente novamente.
+            {t("dash_load_error_receivables")}
           </div>
         )}
 
@@ -307,13 +324,13 @@ export default function PmeDashboardPage() {
                 marginBottom: 6,
               }}
             >
-              Nenhum recebível ainda
+              {t("dash_empty_title")}
             </p>
             <p className="t-2" style={{ fontSize: 13, marginBottom: 20, maxWidth: 300 }}>
-              Envie sua primeira NF-e para iniciar o processo de antecipação.
+              {t("dash_empty_sub")}
             </p>
             <button className="btn btn-primary" onClick={scrollToUpload}>
-              <Icon name="plus" size={14} /> Enviar primeira NF-e
+              <Icon name="plus" size={14} /> {t("dash_upload_first")}
             </button>
           </div>
         )}

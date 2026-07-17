@@ -467,8 +467,11 @@ export class StellarService implements BlockchainService {
       this.logger.log(`Custodial wallet already exists: ${publicKey}`);
     } catch {
       try {
-        await this.fundAccountFromPlatform(publicKey, '5.0');
+        const fundingTxHash = await this.fundAccountFromPlatform(publicKey, '5.0');
         isNew = true;
+        this.logger.log(
+          `[wallet] Nova carteira Stellar criada — publicKey: ${publicKey}, fundingTxHash: ${fundingTxHash}`,
+        );
       } catch (err) {
         this.logger.error(
           `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
@@ -685,7 +688,10 @@ export class StellarService implements BlockchainService {
       await this.horizon.loadAccount(publicKey);
     } catch {
       try {
-        await this.fundAccountFromPlatform(publicKey, '5.0');
+        const fundingTxHash = await this.fundAccountFromPlatform(publicKey, '5.0');
+        this.logger.log(
+          `[wallet] Nova carteira Stellar criada — userId: ${userId}, publicKey: ${publicKey}, fundingTxHash: ${fundingTxHash}`,
+        );
       } catch (err) {
         throw new Error(
           `Platform funding failed for custodial wallet ${publicKey}: ${(err as Error).message}`,
@@ -947,7 +953,7 @@ export class StellarService implements BlockchainService {
     // Data futura simbólica de maturidade para fins de simulação de pool (Unix timestamp 1800000000 = ~2027)
     const maturityTimestamp = BigInt(1800000000);
 
-    return this.invokeContract(
+    const poolTxHash = await this.invokeContract(
       server,
       platformKeypair,
       poolContractId,
@@ -962,6 +968,10 @@ export class StellarService implements BlockchainService {
         nativeToScVal(maturityTimestamp, { type: 'u64' }), // maturity_timestamp
       ],
     );
+    this.logger.log(
+      `buyTokenizedInvoiceInPool confirmed — txHash: ${poolTxHash}, key: ${data.invoiceKey}, seller (PME): ${data.sellerAddress}, operator (plataforma/contrato): ${platformAddress}, pool: ${poolContractId}, valor: ${data.value}`,
+    );
+    return poolTxHash;
   }
 
   async mintBrlt(toAddress: string, amount: number): Promise<string> {

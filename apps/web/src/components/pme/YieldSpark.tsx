@@ -14,13 +14,13 @@ export function YieldSpark() {
     >
       <div>
         <div className="row between">
-          <span className="eyebrow">Taxa média desta semana</span>
+          <span className="eyebrow">Avg rate this week</span>
           <span className="badge completed no-dot" style={{ fontSize: 10 }}>
-            ▼ 0,24 p.p.
+            ▼ 0.24 p.p.
           </span>
         </div>
         <div className="kpi num" style={{ fontSize: 30, marginTop: 8 }}>
-          2,88<span style={{ color: "var(--fg-2)", fontSize: 18 }}>%</span>
+          2.88<span style={{ color: "var(--fg-2)", fontSize: 18 }}>%</span>
         </div>
       </div>
       <svg
@@ -55,11 +55,11 @@ export function YieldSpark() {
         className="row between"
         style={{ fontSize: 11, color: "var(--fg-3)" }}
       >
-        <span>seg</span>
-        <span>ter</span>
-        <span>qua</span>
-        <span>qui</span>
-        <span>sex</span>
+        <span>Mon</span>
+        <span>Tue</span>
+        <span>Wed</span>
+        <span>Thu</span>
+        <span>Fri</span>
       </div>
     </div>
   );

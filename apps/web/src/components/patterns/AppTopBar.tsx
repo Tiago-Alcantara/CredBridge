@@ -3,6 +3,7 @@
 import { Icon } from "@/components/primitives/Icon";
 import { Logo } from "@/components/primitives/Logo";
 import { fmtTxHash } from "@/lib/format";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export interface AppTopBarUser {
   name: string;
@@ -18,6 +19,7 @@ interface AppTopBarProps {
 }
 
 export function AppTopBar({ user, onToggleSidebar, sidebarOpen }: AppTopBarProps) {
+  const { t } = useTranslation("en");
   const stellarDisplay = user.stellarAccountId
     ? fmtTxHash(user.stellarAccountId, 6)
     : "GA…X7Q";
@@ -28,7 +30,7 @@ export function AppTopBar({ user, onToggleSidebar, sidebarOpen }: AppTopBarProps
         <button
           type="button"
           className="btn btn-ghost btn-sm js-sidebar-toggle appnav__menu"
-          aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
+          aria-label={sidebarOpen ? t("nav_close_menu") : t("nav_open_menu")}
           aria-expanded={sidebarOpen}
           onClick={onToggleSidebar}
         >
@@ -45,10 +47,10 @@ export function AppTopBar({ user, onToggleSidebar, sidebarOpen }: AppTopBarProps
             <span>Stellar</span>
             <span className="mono t-2" style={{ fontSize: 11 }}>{stellarDisplay}</span>
           </div>
-          <button className="btn btn-ghost btn-sm" aria-label="Buscar">
+          <button className="btn btn-ghost btn-sm" aria-label={t("search")}>
             <Icon name="search" size={14} />
           </button>
-          <button className="btn btn-ghost btn-sm" aria-label="Notificações">
+          <button className="btn btn-ghost btn-sm" aria-label={t("nav_notifications")}>
             <Icon name="bell" size={14} />
           </button>
           <div

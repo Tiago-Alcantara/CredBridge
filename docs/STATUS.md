@@ -25,8 +25,7 @@ status: em-desenvolvimento
 - **Solana:** descartado.
 - **Cortado do MVP:** Redis, BullMQ, Auth.js/Keycloak, OpenTelemetry, Prometheus/Grafana.
 - **Deploy:** web na Vercel; backend ainda sem manifesto/provider definitivo.
-- **Stellar Anchor:** Etherfuse selecionado para on/off-ramp BRL/TESOURO via PIX.
-- **Etherfuse Brasil/PIX:** tratado como sandbox; não considerar pronto para produção.
+- **Stellar Anchor:** integração Etherfuse removida do sistema; on/off-ramp BRL/TESOURO a definir.
 
 ## Visão geral
 
@@ -34,19 +33,18 @@ status: em-desenvolvimento
 |---|---|---|
 | Estrutura/monorepo | Estável | npm workspaces para `apps/*` e `packages/*`; contrato Soroban em `contracts/` |
 | Web | Em evolução | Next.js 16, React 19, Tailwind v4, Privy, dashboards principais e testes Vitest |
-| API | Em evolução | NestJS 11, Prisma 7, auth, recebíveis, documentos, investimentos, anchor, wallet e auditoria |
+| API | Em evolução | NestJS 11, Prisma 7, auth, recebíveis, documentos, investimentos, wallet e auditoria |
 | Banco | Funcional | Prisma schema, migrations e seed; índices básicos em alguns modelos |
 | Blockchain | Parcial | contrato Soroban e StellarService existem; dependem de envs e infraestrutura Stellar |
-| Anchor/Etherfuse | Parcial | cliente e módulo API implementados; sandbox e integrações externas ainda limitam produção |
 | Storage/KYC/Pagamentos | Stub/parcial | interfaces e serviços existem, integrações reais ainda pendentes |
-| Testes | Parcial | Jest API, Vitest web e testes do anchor-client existem, mas cobertura ainda incompleta |
+| Testes | Parcial | Jest API e Vitest web existem, mas cobertura ainda incompleta |
 | CI/CD | Parcial | Vercel web; GitHub Actions/backend deploy ainda pendentes |
 
 ## Já feito
 
 ### Infra e repositório
 
-- [x] Monorepo npm workspaces (`apps/web`, `apps/api`, `packages/types`, `packages/anchor-client`)
+- [x] Monorepo npm workspaces (`apps/web`, `apps/api`, `packages/types`)
 - [x] Contrato Soroban em `contracts/`
 - [x] `package.json` raiz com scripts `dev`, `build:web`, `build:api`, `build:types`, `lint`, `seed`
 - [x] `.env.example` raiz + `apps/web/.env.local.example`
@@ -58,7 +56,7 @@ status: em-desenvolvimento
 
 - [x] Prisma 7 + adapter `@prisma/adapter-pg`
 - [x] Modelos: `User`, `Receivable`, `Document`, `Settlement`, `Investment`, `AuditLog`, `FinancialAuthorization`
-- [x] Campos Privy, Google, perfil, wallet legada e Etherfuse no `User`
+- [x] Campos Privy, Google, perfil e wallet legada no `User`
 - [x] Migrations aplicadas e versionadas
 - [x] Seed em `apps/api/prisma/seed.ts`
 - [x] Índices em `AuditLog`, `Investment` e `FinancialAuthorization`
@@ -76,7 +74,6 @@ status: em-desenvolvimento
 - [x] `investments`: compra, posições do investidor e stats
 - [x] `stellar-wallet`: consulta da wallet Stellar Privy
 - [x] `financial-authorizations`: desafio e verificação de assinatura Privy Stellar
-- [x] `anchor`: onboarding status, quotes e start de on/off-ramp
 - [x] Serviços shared para Prisma, blockchain, storage, KYC e payments
 
 ### Frontend (`apps/web`)
@@ -90,7 +87,7 @@ status: em-desenvolvimento
 - [x] KYC PME no onboarding
 - [x] Guards client-side por role com `useRequireAuth`
 - [x] Dashboard PME com dados reais de recebíveis e upload de NF-e
-- [x] Dashboard investor com pool, posições, compra e drawer de depósito
+- [x] Dashboard investor com pool, posições e compra
 - [x] Dashboard partner básico
 - [x] Configurações compartilhadas em `/pme/configuracoes` e `/investor/configuracoes`
 - [x] Autorização financeira com assinatura da wallet Stellar Privy
@@ -99,8 +96,6 @@ status: em-desenvolvimento
 ### Pacotes
 
 - [x] `@credbridge/types`: tipos de receivable, settlement, investor, document, audit e investment
-- [x] `@credbridge/anchor-client`: cliente Etherfuse e helpers SEP-10/24/38
-- [x] Testes do anchor-client para Etherfuse e SEP-38
 
 ### Blockchain
 
@@ -140,9 +135,8 @@ status: em-desenvolvimento
 
 - [ ] S3 real para upload/preview de XML/PDF NF-e
 - [ ] KYC/KYB real (Serpro, Receita Federal ou provider)
-- [ ] PIX/TED real ou estratégia definitiva com anchor
+- [ ] PIX/TED real ou estratégia definitiva de on/off-ramp
 - [ ] SEFAZ real para validação de NF-e
-- [ ] Etherfuse fora de sandbox antes de produção
 
 ### Frontend
 
@@ -166,5 +160,4 @@ status: em-desenvolvimento
 - `documentacao/estrutura.md`
 - `documentacao/fluxo-login-atual.md`
 - `documentacao/smart-wallet-fluxo-regras.md`
-- `documentacao/anchor-etherfuse-integration.md`
 - `docs/DESIGN.md`

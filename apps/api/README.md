@@ -1,6 +1,6 @@
 # CredBridge API
 
-Backend NestJS 11 da CredBridge. A API roda como modular monolith, expõe rotas com prefixo global `/v1`, usa Prisma 7/PostgreSQL e concentra auth, recebíveis, documentos, investimentos, auditoria, wallet, autorização financeira e integração Anchor/Etherfuse.
+Backend NestJS 11 da CredBridge. A API roda como modular monolith, expõe rotas com prefixo global `/v1`, usa Prisma 7/PostgreSQL e concentra auth, recebíveis, documentos, investimentos, auditoria, wallet e autorização financeira.
 
 ## Como rodar
 
@@ -45,7 +45,6 @@ npm run seed -w apps/api         # prisma/seed.ts
 | `investments` | compra de recebíveis e posições do investidor |
 | `stellar-wallet` | consulta da wallet Stellar provisionada pela Privy |
 | `financial-authorizations` | desafio e verificação de assinatura Privy Stellar para ações sensíveis |
-| `anchor` | on/off-ramp Etherfuse/TESOURO |
 | `health` | health check |
 
 ## Variáveis importantes
@@ -67,9 +66,6 @@ STELLAR_RPC_URL=https://soroban-testnet.stellar.org
 STELLAR_SECRET_KEY=
 STELLAR_CONTRACT_ID=
 STELLAR_WALLET_SECRET=
-
-ETHERFUSE_API_KEY=
-ETHERFUSE_BASE_URL=https://api.sand.etherfuse.com
 ```
 
 `WEB_URL` é usado pelo CORS. A wallet Stellar usada pela API vem da sessão Privy validada server-side.
@@ -109,8 +105,3 @@ Todas usam prefixo `/v1`.
 | `GET` | `/investments/me` |
 | `GET` | `/investments/me/stats` |
 | `POST` | `/investments` |
-| `GET` | `/anchor/onboarding-status` |
-| `POST` | `/anchor/onramp/quote` |
-| `POST` | `/anchor/onramp/start` |
-| `POST` | `/anchor/offramp/quote` |
-| `POST` | `/anchor/offramp/start` |

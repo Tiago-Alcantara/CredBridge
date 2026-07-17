@@ -15,7 +15,6 @@ import { InvestmentsModule } from './modules/investments/investments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { StellarWalletModule } from './modules/stellar-wallet/stellar-wallet.module';
-import { AnchorModule } from './modules/anchor/anchor.module';
 import { FinancialAuthorizationsModule } from './modules/financial-authorizations/financial-authorizations.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PixModule } from './modules/pix/pix.module';
@@ -37,7 +36,6 @@ import { PixModule } from './modules/pix/pix.module';
     AuthModule,
     HealthModule,
     StellarWalletModule,
-    AnchorModule,
     FinancialAuthorizationsModule,
     AdminModule,
     PixModule,

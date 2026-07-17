@@ -5,18 +5,18 @@ import { Icon } from "@/components/primitives/Icon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function Audiences() {
-  const { t } = useTranslation("pt");
+  const { t } = useTranslation("en");
 
   const cards = [
     {
       color: "#00D4FF",
       eyebrow: t("audience_pme"),
-      title: "Liquidez instantânea\npara suas NF-e.",
+      title: t("audience_pme_title"),
       benefits: [
-        "Aprovação em minutos, não dias",
-        "Taxas até 40% menores",
-        "Recebimento via Pix 24/7",
-        "Sem burocracia bancária",
+        t("audience_pme_b1"),
+        t("audience_pme_b2"),
+        t("audience_pme_b3"),
+        t("audience_pme_b4"),
       ],
       cta: t("cta_antecipar"),
       href: "/login",
@@ -24,12 +24,12 @@ export function Audiences() {
     {
       color: "#7B2FFF",
       eyebrow: t("audience_inv"),
-      title: "Yield real, lastreado\nem recebíveis.",
+      title: t("audience_inv_title"),
       benefits: [
-        "Cota Sênior ou Cota Anjo",
-        "Retorno médio 18,6% a.a.",
-        "Liquidez via Stellar DEX",
-        "Prova on-chain de cada ativo",
+        t("audience_inv_b1"),
+        t("audience_inv_b2"),
+        t("audience_inv_b3"),
+        t("audience_inv_b4"),
       ],
       cta: t("cta_investir"),
       href: "/login",

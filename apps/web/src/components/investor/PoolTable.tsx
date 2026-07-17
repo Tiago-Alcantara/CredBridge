@@ -3,6 +3,7 @@
 import type { Receivable } from "@credbridge/types";
 import { Icon } from "@/components/primitives/Icon";
 import { fmtBRL } from "@/lib/format";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface PoolTableProps {
   pool: Receivable[];
@@ -11,7 +12,7 @@ interface PoolTableProps {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR", {
+  return new Date(iso).toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
   });
@@ -26,30 +27,31 @@ function shortTx(tx: string): string {
 }
 
 export function PoolTable({ pool, loading, onBuy }: PoolTableProps) {
+  const { t } = useTranslation("en");
   return (
     <table className="tbl">
       <thead>
         <tr>
           <th>ID</th>
-          <th>Sacado</th>
+          <th>{t("tbl_debtor")}</th>
           <th>Status</th>
-          <th style={{ textAlign: "right" }}>Valor</th>
-          <th>Vencimento</th>
-          <th>Prova on-chain</th>
-          <th style={{ textAlign: "right" }}>Ação</th>
+          <th style={{ textAlign: "right" }}>{t("tbl_value")}</th>
+          <th>{t("tbl_due")}</th>
+          <th>{t("tbl_onchain_proof")}</th>
+          <th style={{ textAlign: "right" }}>{t("tbl_action")}</th>
         </tr>
       </thead>
       <tbody>
         {loading ? (
           <tr>
             <td colSpan={7} style={{ textAlign: "center", padding: 32, color: "var(--fg-3)" }}>
-              Carregando recebíveis…
+              {t("tbl_loading_receivables")}
             </td>
           </tr>
         ) : pool.length === 0 ? (
           <tr>
             <td colSpan={7} style={{ textAlign: "center", padding: 32, color: "var(--fg-3)" }}>
-              Sem recebíveis disponíveis.
+              {t("tbl_no_receivables_available")}
             </td>
           </tr>
         ) : (
@@ -66,7 +68,7 @@ export function PoolTable({ pool, loading, onBuy }: PoolTableProps) {
                     color: r.status === "active" ? "var(--green)" : "var(--blue)",
                   }}
                 >
-                  {r.status === "active" ? "Ativo" : "Validado"}
+                  {r.status === "active" ? t("op_active") : t("status_validated")}
                 </span>
               </td>
               <td className="num" style={{ textAlign: "right", fontWeight: 500 }}>
@@ -84,7 +86,7 @@ export function PoolTable({ pool, loading, onBuy }: PoolTableProps) {
               </td>
               <td style={{ textAlign: "right" }}>
                 <button className="btn btn-violet btn-sm" onClick={() => onBuy(r)}>
-                  <Icon name="plus" size={12} /> Comprar
+                  <Icon name="plus" size={12} /> {t("tbl_buy")}
                 </button>
               </td>
             </tr>

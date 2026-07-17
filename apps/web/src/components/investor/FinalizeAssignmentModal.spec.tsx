@@ -97,10 +97,10 @@ describe("FinalizeAssignmentModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText(/Assinar e Emitir Cotas/i));
+    fireEvent.click(screen.getByText(/Sign and issue shares/i));
 
     await waitFor(() =>
-      expect(screen.getByText(/Cotas CBPOOL Emitidas!/i)).toBeInTheDocument(),
+      expect(screen.getByText(/CBPOOL shares issued!/i)).toBeInTheDocument(),
     );
 
     expect(runOnChainDeposit).toHaveBeenCalledWith(
@@ -111,7 +111,7 @@ describe("FinalizeAssignmentModal", () => {
     );
 
     expect(showToast).toHaveBeenCalledWith(
-      "Cotas CBPOOL emitidas com sucesso na sua carteira!",
+      "CBPOOL shares issued to your wallet successfully!",
       "success",
     );
   });
@@ -131,16 +131,16 @@ describe("FinalizeAssignmentModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText(/Assinar e Emitir Cotas/i));
+    fireEvent.click(screen.getByText(/Sign and issue shares/i));
 
     await waitFor(() =>
-      expect(screen.getByText(/Falha na Assinatura/i)).toBeInTheDocument(),
+      expect(screen.getByText(/Signature failed/i)).toBeInTheDocument(),
     );
 
     expect(screen.getByText(/Assinatura rejeitada pelo usuário/i)).toBeInTheDocument();
 
     expect(showToast).toHaveBeenCalledWith(
-      "Falha na assinatura on-chain via Privy.",
+      "On-chain signature via Privy failed.",
       "error",
     );
   });
@@ -166,13 +166,13 @@ describe("FinalizeAssignmentModal", () => {
 
     const view = within(container);
 
-    fireEvent.click(view.getByText(/Assinar e Emitir Cotas/i));
+    fireEvent.click(view.getByText(/Sign and issue shares/i));
 
     await waitFor(() =>
-      expect(view.getByText(/Falha na Assinatura/i)).toBeInTheDocument(),
+      expect(view.getByText(/Signature failed/i)).toBeInTheDocument(),
     );
 
-    expect(view.getByText(/Carteira Stellar Privy não encontrada/i)).toBeInTheDocument();
+    expect(view.getByText(/Privy Stellar wallet not found/i)).toBeInTheDocument();
     expect(runOnChainDeposit).not.toHaveBeenCalled();
   });
 
@@ -215,10 +215,10 @@ describe("FinalizeAssignmentModal", () => {
 
     const view = within(container);
 
-    fireEvent.click(view.getByText(/Assinar e Emitir Cotas/i));
+    fireEvent.click(view.getByText(/Sign and issue shares/i));
 
     const portfolioButton = await waitFor(() =>
-      view.getByRole("button", { name: /Ver Meu Portfólio/i }),
+      view.getByRole("button", { name: /View my portfolio/i }),
     );
 
     fireEvent.click(portfolioButton);

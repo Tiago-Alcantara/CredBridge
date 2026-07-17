@@ -38,7 +38,6 @@ CredBridge/
 │   │       │   │   └── partner/dashboard/page.tsx
 │   │       │   └── auditoria/page.tsx    # página pública de auditoria
 │   │       ├── components/
-│   │       │   ├── anchor/               # drawers/modais Etherfuse
 │   │       │   ├── audit/
 │   │       │   ├── auth/                 # Privy, KYC, wallet setup
 │   │       │   ├── investor/
@@ -71,7 +70,6 @@ CredBridge/
 │           ├── app.module.ts             # módulos de domínio + shared
 │           ├── common/
 │           ├── modules/
-│           │   ├── anchor/
 │           │   ├── audit/
 │           │   ├── auth/
 │           │   ├── documents/
@@ -89,10 +87,8 @@ CredBridge/
 │               └── storage/
 │
 ├── packages/
-│   ├── types/
-│   │   └── src/                          # receivable, settlement, investor, document, audit, investment
-│   └── anchor-client/
-│       └── src/                          # Etherfuse + SEP helpers
+│   └── types/
+│       └── src/                          # receivable, settlement, investor, document, audit, investment
 │
 ├── contracts/
 │   ├── Cargo.toml
@@ -110,7 +106,6 @@ CredBridge/
 │   ├── estrutura.md
 │   ├── fluxo-login-atual.md
 │   ├── smart-wallet-fluxo-regras.md
-│   ├── anchor-etherfuse-integration.md
 │   └── Preference - Coding Style.md
 │
 ├── .env.example

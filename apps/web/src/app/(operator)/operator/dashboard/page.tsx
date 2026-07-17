@@ -18,6 +18,7 @@ import {
 import { useToast } from "@/providers/ToastProvider";
 import { usePoolStatus, useInvestorShares } from "@/lib/api/pool";
 import { useActiveCollections } from "@/lib/api/collections";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface AdminReceivable extends Receivable {
   user?: {
@@ -30,6 +31,7 @@ interface AdminReceivable extends Receivable {
 const stellarExpertContractBaseUrl = "https://stellar.expert/explorer/testnet/contract";
 
 export default function OperatorDashboardPage() {
+  const { t } = useTranslation("en");
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -62,10 +64,10 @@ export default function OperatorDashboardPage() {
     try {
       setProcessingId(id);
       await approveReceivableMut.mutateAsync(id);
-      showToast("NF-e validada e disponibilizada com sucesso!", "success");
+      showToast(t("op_toast_nfe_validated"), "success");
       setViewingReceivable(null);
     } catch {
-      showToast("Erro ao aprovar recebível.", "error");
+      showToast(t("op_toast_approve_error"), "error");
     } finally {
       setProcessingId(null);
     }
@@ -75,10 +77,10 @@ export default function OperatorDashboardPage() {
     try {
       setProcessingId(id);
       await rejectReceivableMut.mutateAsync(id);
-      showToast("Recebível recusado com sucesso.", "success");
+      showToast(t("op_toast_nfe_rejected"), "success");
       setViewingReceivable(null);
     } catch {
-      showToast("Erro ao recusar recebível.", "error");
+      showToast(t("op_toast_reject_error"), "error");
     } finally {
       setProcessingId(null);
     }
@@ -89,12 +91,12 @@ export default function OperatorDashboardPage() {
       setProcessingId(id);
       await approveTransactionMut.mutateAsync({ id, status });
       if (status === "APPROVED") {
-        showToast("Transação aprovada e liquidada on-chain via Stellar!", "success");
+        showToast(t("op_toast_tx_approved"), "success");
       } else {
-        showToast("Transação rejeitada com sucesso.", "success");
+        showToast(t("op_toast_tx_rejected"), "success");
       }
     } catch {
-      showToast("Falha ao processar ação de pool.", "error");
+      showToast(t("op_toast_pool_error"), "error");
     } finally {
       setProcessingId(null);
     }
@@ -103,24 +105,24 @@ export default function OperatorDashboardPage() {
   const handleCreateDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInvestorId || !depositAmount) {
-      showToast("Selecione um investidor e defina o valor.", "error");
+      showToast(t("op_toast_select_investor"), "error");
       return;
     }
     const amount = parseFloat(depositAmount);
     if (isNaN(amount) || amount <= 0) {
-      showToast("Insira um valor numérico válido maior que zero.", "error");
+      showToast(t("op_toast_invalid_amount"), "error");
       return;
     }
 
     try {
       setCreatingDeposit(true);
       await createDepositMut.mutateAsync({ userId: selectedInvestorId, amount });
-      showToast("Ordem de depósito criada com sucesso para o investidor!", "success");
+      showToast(t("op_toast_deposit_created"), "success");
       setCreateDepositOpen(false);
       setSelectedInvestorId("");
       setDepositAmount("");
     } catch {
-      showToast("Falha ao criar ordem de depósito.", "error");
+      showToast(t("op_toast_deposit_error"), "error");
     } finally {
       setCreatingDeposit(false);
     }
@@ -135,8 +137,8 @@ export default function OperatorDashboardPage() {
       {/* Header */}
       <div className="row between" style={{ marginBottom: 28, flexWrap: "wrap", gap: 16 }}>
         <div>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>Mesa Operacional</div>
-          <h2 style={{ fontSize: 32 }}>Painel de Operações</h2>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>{t("op_eyebrow")}</div>
+          <h2 style={{ fontSize: 32 }}>{t("op_title")}</h2>
         </div>
       </div>
 
@@ -152,7 +154,7 @@ export default function OperatorDashboardPage() {
             }}
           >
             <div className="card violet-hi" style={{ padding: 32 }}>
-              <div className="eyebrow" style={{ marginBottom: 12 }}>Volume Pendente</div>
+              <div className="eyebrow" style={{ marginBottom: 12 }}>{t("op_pending_volume")}</div>
               <div className="kpi kpi-lg num">
                 {fmtBRL(
                   receivables.reduce((acc, r) => acc + r.value, 0) +
@@ -160,20 +162,20 @@ export default function OperatorDashboardPage() {
                 )}
               </div>
               <div className="row" style={{ gap: 16, marginTop: 14, fontSize: 12.5 }}>
-                <span className="t-2">Aguardando ações manuais do operador</span>
+                <span className="t-2">{t("op_awaiting_manual")}</span>
               </div>
             </div>
             <MiniKpi
-              label="NF-es Pendentes"
+              label={t("op_nfe_pending")}
               value={receivables.length.toString()}
-              sub="Aguardando validação SEFAZ"
+              sub={t("op_awaiting_sefaz")}
               color="#00D4FF"
               icon="doc"
             />
             <MiniKpi
-              label="Aprovações de Pool"
+              label={t("op_pool_approvals")}
               value={transactions.length.toString()}
-              sub="Aguardando liquidação on-chain"
+              sub={t("op_awaiting_settlement")}
               color="#00FF94"
               icon="zap"
             />
@@ -182,23 +184,23 @@ export default function OperatorDashboardPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             {/* Quick Actions Receivables */}
             <div className="card" style={{ padding: 24 }}>
-              <h3 style={{ marginBottom: 16 }}>NF-es aguardando Validação</h3>
+              <h3 style={{ marginBottom: 16 }}>{t("op_nfe_awaiting_validation")}</h3>
               <p className="t-3" style={{ marginBottom: 24 }}>
-                Valide notas fiscais eletrônicas de recebíveis submetidos por PMEs para tokenização na plataforma.
+                {t("op_nfe_card_desc")}
               </p>
               <button className="btn btn-primary" onClick={() => setTab("receivables")}>
-                Acessar Mesa de Validação <Icon name="arrow_right" size={14} />
+                {t("op_access_validation_desk")} <Icon name="arrow_right" size={14} />
               </button>
             </div>
 
             {/* Quick Actions Transactions */}
             <div className="card" style={{ padding: 24 }}>
-              <h3 style={{ marginBottom: 16 }}>Depósitos e Saques Pendentes</h3>
+              <h3 style={{ marginBottom: 16 }}>{t("op_deposits_withdrawals_pending")}</h3>
               <p className="t-3" style={{ marginBottom: 24 }}>
-                Concilie e liquide transações financeiras on-chain diretamente no contrato de Liquidity Pool Stellar.
+                {t("op_tx_card_desc")}
               </p>
               <button className="btn btn-violet" onClick={() => setTab("transactions")}>
-                Acessar Conciliação On-Chain <Icon name="arrow_right" size={14} />
+                {t("op_access_reconciliation")} <Icon name="arrow_right" size={14} />
               </button>
             </div>
           </div>
@@ -209,34 +211,34 @@ export default function OperatorDashboardPage() {
       {activeTab === "receivables" && (
         <div className="card" style={{ padding: 0 }}>
           <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
-            <h3>Validação de Recebíveis (NF-e)</h3>
+            <h3>{t("op_receivables_validation")}</h3>
             <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-              {loadingReceivables ? "Carregando…" : `${receivables.length} recebíveis pendentes de validação`}
+              {loadingReceivables ? t("dash_loading") : `${receivables.length} ${t("op_receivables_pending_count")}`}
             </p>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line-2)" }}>
-                  <th style={{ padding: "12px 24px" }}>PME Solicitante</th>
-                  <th style={{ padding: "12px 24px" }}>Sacado (Devedor)</th>
-                  <th style={{ padding: "12px 24px" }}>Valor</th>
-                  <th style={{ padding: "12px 24px" }}>Data de Vencimento</th>
-                  <th style={{ padding: "12px 24px", textAlign: "right" }}>Ação</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_requesting_pme")}</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_debtor")}</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_value")}</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_due_date")}</th>
+                  <th style={{ padding: "12px 24px", textAlign: "right" }}>{t("op_th_action")}</th>
                 </tr>
               </thead>
               <tbody>
                 {receivables.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: 32, textAlign: "center" }} className="t-3">
-                      Nenhum recebível aguardando validação no momento.
+                      {t("op_no_receivables")}
                     </td>
                   </tr>
                 ) : (
                   receivables.map((r) => (
                     <tr key={r.id} style={{ borderBottom: "1px solid var(--line-2)" }}>
                       <td style={{ padding: "16px 24px" }}>
-                        <div style={{ fontWeight: 600 }}>{r.user?.companyName ?? "PME"}</div>
+                        <div style={{ fontWeight: 600 }}>{r.user?.companyName ?? "SME"}</div>
                         <div className="t-3" style={{ fontSize: 12 }}>{r.user?.email}</div>
                       </td>
                       <td style={{ padding: "16px 24px" }}>
@@ -247,14 +249,14 @@ export default function OperatorDashboardPage() {
                         {fmtBRL(r.value)}
                       </td>
                       <td style={{ padding: "16px 24px" }}>
-                        {new Date(r.dueDate).toLocaleDateString("pt-BR")}
+                        {new Date(r.dueDate).toLocaleDateString("en-US")}
                       </td>
                       <td style={{ padding: "16px 24px", textAlign: "right" }}>
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => setViewingReceivable(r)}
                         >
-                          Ver nota
+                          {t("op_view_invoice")}
                         </button>
                       </td>
                     </tr>
@@ -281,42 +283,42 @@ export default function OperatorDashboardPage() {
             }}
           >
             <div>
-              <h3>Conciliação e Aprovações de Pool (On-Chain)</h3>
+              <h3>{t("op_reconciliation_title")}</h3>
               <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>
-                {loadingTransactions ? "Carregando…" : `${transactions.length} transações aguardando assinatura e envio on-chain`}
+                {loadingTransactions ? t("dash_loading") : `${transactions.length} ${t("op_tx_pending_count")}`}
               </p>
             </div>
             <button
               className="btn btn-primary"
               onClick={() => setCreateDepositOpen(true)}
             >
-              <Icon name="plus" size={14} /> Novo Depósito
+              <Icon name="plus" size={14} /> {t("op_new_deposit")}
             </button>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line-2)" }}>
-                  <th style={{ padding: "12px 24px" }}>Usuário</th>
-                  <th style={{ padding: "12px 24px" }}>Tipo</th>
-                  <th style={{ padding: "12px 24px" }}>Valor</th>
-                  <th style={{ padding: "12px 24px" }}>Data</th>
-                  <th style={{ padding: "12px 24px", textAlign: "right" }}>Ações</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_user")}</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_type")}</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_value")}</th>
+                  <th style={{ padding: "12px 24px" }}>{t("op_th_date")}</th>
+                  <th style={{ padding: "12px 24px", textAlign: "right" }}>{t("op_th_actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: 32, textAlign: "center" }} className="t-3">
-                      Nenhuma transação de pool aguardando aprovação no momento.
+                      {t("op_no_transactions")}
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((t) => (
-                    <tr key={t.id} style={{ borderBottom: "1px solid var(--line-2)" }}>
+                  transactions.map((tx) => (
+                    <tr key={tx.id} style={{ borderBottom: "1px solid var(--line-2)" }}>
                       <td style={{ padding: "16px 24px" }}>
-                        <div style={{ fontWeight: 600 }}>{t.user?.name}</div>
-                        <div className="t-3" style={{ fontSize: 12 }}>{t.user?.email}</div>
+                        <div style={{ fontWeight: 600 }}>{tx.user?.name}</div>
+                        <div className="t-3" style={{ fontSize: 12 }}>{tx.user?.email}</div>
                       </td>
                       <td style={{ padding: "16px 24px" }}>
                         <span
@@ -324,34 +326,34 @@ export default function OperatorDashboardPage() {
                           style={{
                             padding: "4px 8px",
                             borderRadius: 4,
-                            background: t.type === "DEPOSIT" ? "rgba(0, 255, 148, 0.1)" : "rgba(255, 68, 68, 0.1)",
-                            color: t.type === "DEPOSIT" ? "#00FF94" : "var(--red)",
+                            background: tx.type === "DEPOSIT" ? "rgba(0, 255, 148, 0.1)" : "rgba(255, 68, 68, 0.1)",
+                            color: tx.type === "DEPOSIT" ? "#00FF94" : "var(--red)",
                           }}
                         >
-                          {t.type === "DEPOSIT" ? "DEPÓSITO" : "SAQUE"}
+                          {tx.type === "DEPOSIT" ? t("op_type_deposit") : t("op_type_withdrawal")}
                         </span>
                       </td>
                       <td style={{ padding: "16px 24px", fontWeight: 600 }}>
-                        {fmtBRL(t.amount)}
+                        {fmtBRL(tx.amount)}
                       </td>
                       <td style={{ padding: "16px 24px" }}>
-                        {new Date(t.createdAt).toLocaleDateString("pt-BR")}
+                        {new Date(tx.createdAt).toLocaleDateString("en-US")}
                       </td>
                       <td style={{ padding: "16px 24px", textAlign: "right" }}>
                         <div className="row end" style={{ gap: 8 }}>
                           <button
                             className="btn btn-ghost btn-sm"
-                            disabled={processingId === t.id}
-                            onClick={() => handleApproveTransaction(t.id, "REJECTED")}
+                            disabled={processingId === tx.id}
+                            onClick={() => handleApproveTransaction(tx.id, "REJECTED")}
                           >
-                            Rejeitar
+                            {t("op_reject")}
                           </button>
                           <button
                             className="btn btn-violet btn-sm"
-                            disabled={processingId === t.id}
-                            onClick={() => handleApproveTransaction(t.id, "APPROVED")}
+                            disabled={processingId === tx.id}
+                            onClick={() => handleApproveTransaction(tx.id, "APPROVED")}
                           >
-                            {processingId === t.id ? "Enviando Stellar..." : "Aprovar Pool"}
+                            {processingId === tx.id ? t("op_sending_stellar") : t("op_approve_pool")}
                           </button>
                         </div>
                       </td>
@@ -369,16 +371,16 @@ export default function OperatorDashboardPage() {
         <div className="card" style={{ padding: 24 }}>
           <div className="row between" style={{ marginBottom: 20 }}>
             <div>
-              <h3>Situação da pool</h3>
-              <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>Dados lidos diretamente do contrato na Stellar testnet.</p>
+              <h3>{t("op_pool_situation")}</h3>
+              <p className="t-3" style={{ fontSize: 12, marginTop: 4 }}>{t("op_pool_read_desc")}</p>
             </div>
             <button className="btn btn-ghost btn-sm" disabled={poolFetching} onClick={() => refetchPool()}>
-              <Icon name="zap" size={14} /> {poolFetching ? "Atualizando..." : "Atualizar"}
+              <Icon name="zap" size={14} /> {poolFetching ? t("op_updating") : t("dash_refresh")}
             </button>
           </div>
 
           {poolError ? (
-            <div className="t-3" style={{ padding: 24, textAlign: "center", color: "var(--red)" }}>Falha ao ler o estado da pool on-chain.</div>
+            <div className="t-3" style={{ padding: 24, textAlign: "center", color: "var(--red)" }}>{t("op_pool_read_fail")}</div>
           ) : !poolStatus ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
               <div className="skeleton" style={{ height: 110, borderRadius: 8 }} />
@@ -388,52 +390,52 @@ export default function OperatorDashboardPage() {
           ) : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 24 }}>
-                <MiniKpi label="NAV (patrimônio)" value={fmtBRL(poolStatus.nav.value)} sub="Caixa + principal aplicado" color="#00D4FF" icon="wallet" />
-                <MiniKpi label="Total de cotas" value={poolStatus.totalShares.value.toLocaleString("pt-BR")} sub="CBPOOL mintadas" color="#7B2FFF" icon="box" />
-                <MiniKpi label="Preço da cota" value={`${poolStatus.sharePrice.value.toFixed(4)} BRLT`} sub="NAV / total de cotas" color="#00FF94" icon="chart" />
-                <MiniKpi label="Caixa BRLT" value={fmtBRL(poolStatus.cashBalance.value)} sub="Disponível na pool" color="#00D4FF" icon="wallet" />
-                <MiniKpi label="Principal aplicado" value={fmtBRL(poolStatus.totalPrincipal.value)} sub="Em invoices ativas" color="#FFB020" icon="doc" />
-                <MiniKpi label="Status" value={poolStatus.paused ? "Pausada" : "Ativa"} sub={poolStatus.paused ? "Operações bloqueadas" : "Operando normalmente"} color={poolStatus.paused ? "#FF5577" : "#00FF94"} icon="shield" />
+                <MiniKpi label={t("op_nav_label")} value={fmtBRL(poolStatus.nav.value)} sub={t("op_nav_sub")} color="#00D4FF" icon="wallet" />
+                <MiniKpi label={t("op_total_shares")} value={poolStatus.totalShares.value.toLocaleString("en-US")} sub={t("op_cbpool_minted")} color="#7B2FFF" icon="box" />
+                <MiniKpi label={t("op_share_price")} value={`${poolStatus.sharePrice.value.toFixed(4)} BRLT`} sub={t("op_share_price_sub")} color="#00FF94" icon="chart" />
+                <MiniKpi label={t("op_cash_brlt")} value={fmtBRL(poolStatus.cashBalance.value)} sub={t("op_available_pool")} color="#00D4FF" icon="wallet" />
+                <MiniKpi label={t("op_principal_deployed")} value={fmtBRL(poolStatus.totalPrincipal.value)} sub={t("op_in_active_invoices")} color="#FFB020" icon="doc" />
+                <MiniKpi label={t("op_status")} value={poolStatus.paused ? t("op_paused") : t("op_active")} sub={poolStatus.paused ? t("op_ops_blocked") : t("op_operating_normally")} color={poolStatus.paused ? "#FF5577" : "#00FF94"} icon="shield" />
               </div>
 
               <div style={{ borderTop: "1px solid var(--line-2)", paddingTop: 20, marginBottom: 24 }}>
-                <div className="eyebrow" style={{ marginBottom: 10 }}>Cotas por investidor</div>
+                <div className="eyebrow" style={{ marginBottom: 10 }}>{t("op_shares_by_investor")}</div>
                 <div className="row" style={{ gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                  <input type="text" className="input" placeholder="Endereço Stellar (G...)" value={investorAddress} onChange={(e) => setInvestorAddress(e.target.value)} style={{ flex: 1, minWidth: 280, padding: 10, background: "var(--surface)", border: "1px solid var(--line)", fontFamily: "monospace", fontSize: 13 }} />
-                  <button className="btn btn-violet btn-sm" disabled={sharesFetching || investorAddress.trim().length < 56} onClick={() => refetchShares()}>{sharesFetching ? "Buscando..." : "Buscar"}</button>
+                  <input type="text" className="input" placeholder={t("op_stellar_address_ph")} value={investorAddress} onChange={(e) => setInvestorAddress(e.target.value)} style={{ flex: 1, minWidth: 280, padding: 10, background: "var(--surface)", border: "1px solid var(--line)", fontFamily: "monospace", fontSize: 13 }} />
+                  <button className="btn btn-violet btn-sm" disabled={sharesFetching || investorAddress.trim().length < 56} onClick={() => refetchShares()}>{sharesFetching ? t("op_searching") : t("search")}</button>
                 </div>
                 {sharesError ? (
-                  <div className="t-3" style={{ color: "var(--red)", fontSize: 13 }}>Falha ao buscar cotas (endereço válido?).</div>
+                  <div className="t-3" style={{ color: "var(--red)", fontSize: 13 }}>{t("op_shares_fetch_fail")}</div>
                 ) : investorShares ? (
                   <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div>
-                      <div className="eyebrow" style={{ marginBottom: 8 }}>Cotas</div>
-                      <div className="kpi num" style={{ fontSize: 24 }}>{investorShares.shares.value.toLocaleString("pt-BR")}</div>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>{t("op_shares")}</div>
+                      <div className="kpi num" style={{ fontSize: 24 }}>{investorShares.shares.value.toLocaleString("en-US")}</div>
                     </div>
                     <div>
-                      <div className="eyebrow" style={{ marginBottom: 8 }}>Valor estimado</div>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>{t("op_estimated_value")}</div>
                       <div className="kpi num" style={{ fontSize: 24 }}>{fmtBRL(investorShares.estimatedValueBrl)}</div>
                     </div>
-                    <a className="btn btn-ghost btn-sm" href={`https://stellar.expert/explorer/testnet/account/${investorShares.address}`} rel="noreferrer" target="_blank" style={{ gridColumn: "1 / -1", justifySelf: "start" }}>Ver no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                    <a className="btn btn-ghost btn-sm" href={`https://stellar.expert/explorer/testnet/account/${investorShares.address}`} rel="noreferrer" target="_blank" style={{ gridColumn: "1 / -1", justifySelf: "start" }}>{t("op_view_stellar_expert")} <Icon name="arrow_right" size={14} /></a>
                   </div>
                 ) : null}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
                 <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20 }}>
-                  <div className="eyebrow" style={{ marginBottom: 10 }}>Contrato da Pool</div>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>{t("op_pool_contract")}</div>
                   <div className="mono" style={{ fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>{poolStatus.poolContractId}</div>
-                  <a className="btn btn-violet btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.poolContractId}`} rel="noreferrer" target="_blank">Ver Pool no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                  <a className="btn btn-violet btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.poolContractId}`} rel="noreferrer" target="_blank">{t("op_view_pool_se")} <Icon name="arrow_right" size={14} /></a>
                 </div>
                 <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20 }}>
-                  <div className="eyebrow" style={{ marginBottom: 10 }}>Token BRLT</div>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>{t("op_token_brlt")}</div>
                   <div className="mono" style={{ fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>{poolStatus.brltTokenId}</div>
-                  <a className="btn btn-ghost btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.brltTokenId}`} rel="noreferrer" target="_blank">Ver BRLT no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                  <a className="btn btn-ghost btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.brltTokenId}`} rel="noreferrer" target="_blank">{t("op_view_brlt_se")} <Icon name="arrow_right" size={14} /></a>
                 </div>
                 <div style={{ background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 20 }}>
-                  <div className="eyebrow" style={{ marginBottom: 10 }}>Token de cotas (CBPOOL)</div>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>{t("op_share_token")}</div>
                   <div className="mono" style={{ fontSize: 13, wordBreak: "break-all", marginBottom: 16 }}>{poolStatus.shareTokenId}</div>
-                  <a className="btn btn-ghost btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.shareTokenId}`} rel="noreferrer" target="_blank">Ver CBPOOL no Stellar Expert <Icon name="arrow_right" size={14} /></a>
+                  <a className="btn btn-ghost btn-sm" href={`${stellarExpertContractBaseUrl}/${poolStatus.shareTokenId}`} rel="noreferrer" target="_blank">{t("op_view_cbpool_se")} <Icon name="arrow_right" size={14} /></a>
                 </div>
               </div>
             </>
@@ -542,14 +544,14 @@ export default function OperatorDashboardPage() {
       {/* Settings Tab */}
       {activeTab === "settings" && (
         <div className="card" style={{ padding: 24 }}>
-          <h3 style={{ marginBottom: 16 }}>Configurações Operacionais</h3>
+          <h3 style={{ marginBottom: 16 }}>{t("op_settings_title")}</h3>
           <p className="t-3" style={{ marginBottom: 24 }}>
-            Configurações e parâmetros administrativos da CredBridge.
+            {t("op_settings_desc")}
           </p>
           <div style={{ maxWidth: 400 }}>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 13, fontWeight: 600 }}>
-                Endereço do Contrato Liquidity Pool (Stellar)
+                {t("op_lp_contract_addr")}
               </label>
               <input
                 type="text"
@@ -561,7 +563,7 @@ export default function OperatorDashboardPage() {
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 13, fontWeight: 600 }}>
-                Status Operacional da Rede
+                {t("op_network_status_label")}
               </label>
               <div className="row" style={{ gap: 8 }}>
                 <span
@@ -573,7 +575,7 @@ export default function OperatorDashboardPage() {
                     display: "inline-block",
                   }}
                 />
-                <span style={{ fontSize: 13 }}>Stellar Testnet Conectada e Estável</span>
+                <span style={{ fontSize: 13 }}>{t("op_network_connected")}</span>
               </div>
             </div>
           </div>
@@ -624,9 +626,9 @@ export default function OperatorDashboardPage() {
             >
               <div>
                 <span className="eyebrow" style={{ color: "#00D4FF", marginBottom: 4 }}>
-                  Mesa de Validação SEFAZ
+                  {t("op_validation_desk_sefaz")}
                 </span>
-                <h3 style={{ fontSize: 20 }}>Detalhes da NF-e</h3>
+                <h3 style={{ fontSize: 20 }}>{t("op_nfe_details")}</h3>
               </div>
               <button
                 className="btn btn-ghost btn-sm"
@@ -642,10 +644,10 @@ export default function OperatorDashboardPage() {
               {/* PME info */}
               <div>
                 <div className="eyebrow" style={{ fontSize: 11, marginBottom: 8, opacity: 0.6 }}>
-                  Emitente (PME)
+                  {t("op_issuer_pme")}
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 600 }}>
-                  {viewingReceivable.user?.companyName ?? "PME Solicitante"}
+                  {viewingReceivable.user?.companyName ?? t("op_requesting_pme_fallback")}
                 </div>
                 <div className="t-3" style={{ fontSize: 13, marginTop: 2 }}>
                   {viewingReceivable.user?.email}
@@ -656,7 +658,7 @@ export default function OperatorDashboardPage() {
                 {/* Debtor info */}
                 <div>
                   <div className="eyebrow" style={{ fontSize: 11, marginBottom: 8, opacity: 0.6 }}>
-                    Sacado (Devedor)
+                    {t("op_th_debtor")}
                   </div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{viewingReceivable.debtorName}</div>
                   <div className="t-3" style={{ fontSize: 12.5, marginTop: 2 }}>
@@ -667,13 +669,13 @@ export default function OperatorDashboardPage() {
                 {/* Financial values */}
                 <div>
                   <div className="eyebrow" style={{ fontSize: 11, marginBottom: 8, opacity: 0.6 }}>
-                    Valor e Vencimento
+                    {t("op_value_and_due")}
                   </div>
                   <div style={{ fontWeight: 600, fontSize: 16, color: "var(--fg)" }}>
                     {fmtBRL(viewingReceivable.value)}
                   </div>
                   <div className="t-3" style={{ fontSize: 12.5, marginTop: 2 }}>
-                    Vence em: {new Date(viewingReceivable.dueDate).toLocaleDateString("pt-BR")}
+                    {t("op_due_in")} {new Date(viewingReceivable.dueDate).toLocaleDateString("en-US")}
                   </div>
                 </div>
               </div>
@@ -688,17 +690,17 @@ export default function OperatorDashboardPage() {
                 }}
               >
                 <div className="eyebrow" style={{ fontSize: 11, marginBottom: 8, opacity: 0.6 }}>
-                  Dados de Segurança da Nota
+                  {t("op_invoice_security_data")}
                 </div>
                 <div style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
-                  <span className="t-3">Chave de Acesso / Hash:</span>{" "}
+                  <span className="t-3">{t("op_access_key_hash")}</span>{" "}
                   <span style={{ color: "#00FF94" }}>
                     {viewingReceivable.documentHash ?? "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
                   </span>
                 </div>
                 {viewingReceivable.txHash && (
                   <div style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", marginTop: 8 }}>
-                    <span className="t-3">Hash Stellar:</span> {viewingReceivable.txHash}
+                    <span className="t-3">{t("op_stellar_hash")}</span> {viewingReceivable.txHash}
                   </div>
                 )}
               </div>
@@ -721,14 +723,14 @@ export default function OperatorDashboardPage() {
                 disabled={processingId === viewingReceivable.id}
                 style={{ borderColor: "var(--red)", color: "var(--red)" }}
               >
-                {processingId === viewingReceivable.id ? "Processando..." : "Recusar"}
+                {processingId === viewingReceivable.id ? t("op_processing") : t("op_refuse")}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={() => handleApproveReceivable(viewingReceivable.id)}
                 disabled={processingId === viewingReceivable.id}
               >
-                {processingId === viewingReceivable.id ? "Aprovando..." : "Confirmar Validação"}
+                {processingId === viewingReceivable.id ? t("op_approving") : t("op_confirm_validation")}
               </button>
             </div>
           </div>
@@ -780,9 +782,9 @@ export default function OperatorDashboardPage() {
             >
               <div>
                 <span className="eyebrow" style={{ color: "var(--accent)", marginBottom: 4 }}>
-                  Tesouraria CredBridge
+                  {t("op_treasury")}
                 </span>
-                <h3 style={{ fontSize: 20 }}>Nova Ordem de Depósito</h3>
+                <h3 style={{ fontSize: 20 }}>{t("op_new_deposit_order")}</h3>
               </div>
               <button
                 type="button"
@@ -797,7 +799,7 @@ export default function OperatorDashboardPage() {
             {/* Modal Body */}
             <div style={{ padding: 32, display: "flex", flexDirection: "column", gap: 20 }}>
               <div className="col" style={{ gap: 6 }}>
-                <label className="eyebrow">Investidor Destinatário</label>
+                <label className="eyebrow">{t("op_recipient_investor")}</label>
                 <select
                   className="input"
                   style={{ width: "100%" }}
@@ -805,7 +807,7 @@ export default function OperatorDashboardPage() {
                   onChange={(e) => setSelectedInvestorId(e.target.value)}
                   required
                 >
-                  <option value="">Selecione um investidor...</option>
+                  <option value="">{t("op_select_investor_ph")}</option>
                   {users.filter((u) => u.role === "investor").map((inv) => (
                     <option key={inv.id} value={inv.id}>
                       {inv.name} ({inv.email})
@@ -815,13 +817,13 @@ export default function OperatorDashboardPage() {
               </div>
 
               <div className="col" style={{ gap: 6 }}>
-                <label className="eyebrow">Valor da Ordem (BRL)</label>
+                <label className="eyebrow">{t("op_order_value_brl")}</label>
                 <input
                   type="number"
                   min="1"
                   step="0.01"
                   className="input"
-                  placeholder="0,00"
+                  placeholder="0.00"
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
                   required
@@ -845,14 +847,14 @@ export default function OperatorDashboardPage() {
                 className="btn btn-ghost"
                 onClick={() => setCreateDepositOpen(false)}
               >
-                Cancelar
+                {t("op_cancel")}
               </button>
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={creatingDeposit || !selectedInvestorId || !depositAmount}
               >
-                {creatingDeposit ? "Criando..." : "Criar Ordem"}
+                {creatingDeposit ? t("op_creating") : t("op_create_order")}
               </button>
             </div>
           </form>

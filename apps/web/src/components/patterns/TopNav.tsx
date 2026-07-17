@@ -13,7 +13,7 @@ interface TopNavProps {
   activePath?: string;
 }
 
-export function TopNav({ lang = "pt", activePath }: TopNavProps) {
+export function TopNav({ lang = "en", activePath }: TopNavProps) {
   const { t } = useTranslation(lang);
   const [menuOpen, setMenuOpen] = useState(false);
 
