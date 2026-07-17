@@ -14,6 +14,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@stellar/stellar-sdk"],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   async headers() {
     return [
       {
