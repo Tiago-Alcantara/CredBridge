@@ -744,8 +744,14 @@ export class StellarService implements BlockchainService {
 
   private toBytes32(hexHash: string | null): Buffer {
     if (!hexHash) return Buffer.alloc(32);
-    const clean = hexHash.replace(/^0x/, '').padEnd(64, '0').slice(0, 64);
-    return Buffer.from(clean, 'hex');
+    const clean = hexHash.replace(/^0x/, '');
+    const isHex = /^[0-9a-fA-F]{64}$/.test(clean);
+    if (isHex) {
+      return Buffer.from(clean, 'hex');
+    }
+    // Caso não seja um hash hex de 32 bytes válido (ex: strings de teste ou hashes arbitrários),
+    // gera um hash SHA-256 da própria string para garantir um buffer de 32 bytes válido.
+    return createHash('sha256').update(hexHash).digest();
   }
 
   async depositToPool(

@@ -10,8 +10,13 @@ RUN npm ci --workspace=packages/types --workspace=apps/web --ignore-scripts
 
 RUN npm run build:types
 
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+RUN npm run build -w apps/web
+
 WORKDIR /app/apps/web
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]
